@@ -487,8 +487,20 @@ h3 {
   position: relative;
   padding: 76px var(--pad-x);
   display: grid;
-  grid-template-columns: 1.1fr 0.9fr;
-  gap: 56px;
+  grid-template-columns: minmax(0, 1.15fr) auto;
+  gap: 48px;
+  align-items: center;
+  max-width: 1180px;
+  margin: 0 auto;
+  box-sizing: content-box;
+}
+
+.included__inner > div:first-child {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 24px;
 }
 
 .included .eyebrow {
@@ -514,8 +526,11 @@ h3 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0 30px;
-  margin-top: 8px;
+  margin: 8px 0 0;
+  padding: 0;
   max-width: 560px;
+  width: 100%;
+  text-align: left;
 }
 
 .included__list li {
@@ -526,11 +541,6 @@ h3 {
   color: rgba(255, 255, 255, 0.9);
 }
 
-.included__list {
-  margin: 8px 0 0;
-  padding: 0;
-}
-
 .included__list li:nth-last-child(-n + 2) {
   border-bottom: none;
 }
@@ -538,18 +548,21 @@ h3 {
 .included__card-wrap {
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .included__card {
   background: var(--cream);
   color: #33413a;
   border-radius: 6px;
-  padding: 38px 34px;
+  padding: 32px 28px;
   display: flex;
   flex-direction: column;
-  gap: 22px;
+  gap: 18px;
   width: 100%;
+  max-width: 300px;
   box-shadow: var(--shadow-deep);
+  text-align: center;
 }
 
 .included__card h3 {
@@ -560,8 +573,10 @@ h3 {
 
 .step {
   display: flex;
-  gap: 14px;
+  gap: 12px;
   align-items: flex-start;
+  justify-content: center;
+  text-align: left;
 }
 
 .step__num {
@@ -570,11 +585,13 @@ h3 {
   font-size: 14px;
   color: var(--muted);
   padding-top: 4px;
+  flex-shrink: 0;
 }
 
 .step__title {
-  font-size: 18px;
+  font-size: 17px;
   color: var(--deep);
+  line-height: 1.35;
 }
 
 .step__desc {
@@ -1419,6 +1436,13 @@ h3 {
     padding: 32px var(--pad-x);
     grid-template-columns: 1fr;
     gap: 18px;
+    max-width: none;
+  }
+
+  .included__inner > div:first-child {
+    align-items: stretch;
+    text-align: left;
+    gap: 16px;
   }
 
   .included h2 {
@@ -1439,6 +1463,8 @@ h3 {
     flex-direction: column;
     margin: 0;
     padding: 0;
+    width: 100%;
+    text-align: left;
   }
 
   .included__list-mobile li {
@@ -1454,9 +1480,19 @@ h3 {
   }
 
   .included__card {
+    max-width: none;
     padding: 24px;
     gap: 18px;
     margin-top: 6px;
+    text-align: left;
+  }
+
+  .included__card-wrap {
+    justify-content: stretch;
+  }
+
+  .step {
+    justify-content: flex-start;
   }
 
   .included__card h3 {
