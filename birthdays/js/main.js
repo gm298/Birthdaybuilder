@@ -175,33 +175,61 @@
       .join("");
 
     const featured = data.packages.find((p) => p.featured) || data.packages[1];
-    const others = data.packages.filter((p) => !p.featured);
+    const ordered = featured
+      ? [featured, ...data.packages.filter((p) => p.id !== featured.id)]
+      : data.packages;
 
-    let compactHtml = "";
-    if (featured) {
-      compactHtml += `
-        <a class="pkg-compact__featured" href="${packageBuilderUrl(
-          featured
-        )}" data-wa="package_${featured.id}_mobile">
-          <span class="pkg-compact__badge">${escapeHtml(featured.badge || "Most popular")}</span>
-          <span class="pkg-compact__name">${escapeHtml(featured.name)}</span>
-          <span class="pkg-compact__price">${escapeHtml(featured.price)}</span>
-          <span class="pkg-compact__summary">${escapeHtml(featured.mobileSummary || "")}</span>
-          <span class="pkg-compact__cta">Build with this →</span>
-        </a>`;
-    }
-    compactHtml += others
-      .map(
-        (pkg) => `
-        <a class="pkg-compact__row" href="${packageBuilderUrl(
-          pkg
-        )}" data-wa="package_${pkg.id}_mobile">
-          <span class="pkg-compact__row-name">${escapeHtml(pkg.shortName || pkg.name)}</span>
-          <span class="pkg-compact__row-price">${escapeHtml(pkg.price)}</span>
-        </a>`
-      )
+    compact.innerHTML = ordered
+      .map((pkg, index) => {
+        const isOpen = index === 0;
+        const badge = pkg.featured
+          ? `<span class="pkg-compact__badge">${escapeHtml(pkg.badge || "Most popular")}</span>`
+          : "";
+        return `
+        <div class="pkg-compact__item${isOpen ? " is-open" : ""}${
+          pkg.featured ? " is-featured" : ""
+        }" data-pkg="${escapeHtml(pkg.id)}">
+          <button type="button" class="pkg-compact__toggle" aria-expanded="${isOpen}">
+            ${badge}
+            <span class="pkg-compact__name">${escapeHtml(pkg.shortName || pkg.name)}</span>
+            <span class="pkg-compact__price">${escapeHtml(pkg.price)}</span>
+          </button>
+          <div class="pkg-compact__panel"${isOpen ? "" : " hidden"}>
+            <span class="pkg-compact__summary">${escapeHtml(pkg.mobileSummary || "")}</span>
+            <a class="pkg-compact__cta" href="${packageBuilderUrl(
+              pkg
+            )}" data-wa="package_${pkg.id}_mobile">Build with this →</a>
+          </div>
+        </div>`;
+      })
       .join("");
-    compact.innerHTML = compactHtml;
+
+    initPackageAccordion(compact);
+  }
+
+  function initPackageAccordion(root) {
+    if (!root || root.dataset.accordionBound) return;
+    root.dataset.accordionBound = "1";
+    root.addEventListener("click", (e) => {
+      const toggle = e.target.closest(".pkg-compact__toggle");
+      if (!toggle || !root.contains(toggle)) return;
+      const item = toggle.closest(".pkg-compact__item");
+      if (!item) return;
+      const wasOpen = item.classList.contains("is-open");
+      root.querySelectorAll(".pkg-compact__item").forEach((el) => {
+        el.classList.remove("is-open");
+        const btn = el.querySelector(".pkg-compact__toggle");
+        const panel = el.querySelector(".pkg-compact__panel");
+        if (btn) btn.setAttribute("aria-expanded", "false");
+        if (panel) panel.hidden = true;
+      });
+      if (!wasOpen) {
+        item.classList.add("is-open");
+        toggle.setAttribute("aria-expanded", "true");
+        const panel = item.querySelector(".pkg-compact__panel");
+        if (panel) panel.hidden = false;
+      }
+    });
   }
 
   function escapeHtml(str) {

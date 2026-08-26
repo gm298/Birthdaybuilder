@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20260826h">
+  <link rel="stylesheet" href="css/styles.css?v=20260826i">
   <link rel="stylesheet" href="../shared/chrome.css?v=20260826f">
 </head>
 <body data-page="landing">
@@ -193,21 +193,37 @@
         </a>
       </div>
       <div class="pkg-compact" id="packages-compact">
-        <a class="pkg-compact__featured" href="builder/?package=signature">
-          <span class="pkg-compact__badge">Most popular</span>
-          <span class="pkg-compact__name">Signature themed party</span>
-          <span class="pkg-compact__price">IDR 5.3M</span>
-          <span class="pkg-compact__summary">10 guests · cake 18cm · themed decor · medium balloons · photozone</span>
-          <span class="pkg-compact__cta">Build with this →</span>
-        </a>
-        <a class="pkg-compact__row" href="builder/?package=simple">
-          <span class="pkg-compact__row-name">Simple celebration</span>
-          <span class="pkg-compact__row-price">IDR 2.3M</span>
-        </a>
-        <a class="pkg-compact__row" href="builder/?package=terrace">
-          <span class="pkg-compact__row-name">Private terrace</span>
-          <span class="pkg-compact__row-price">IDR 12.7M</span>
-        </a>
+        <div class="pkg-compact__item is-open is-featured" data-pkg="signature">
+          <button type="button" class="pkg-compact__toggle" aria-expanded="true">
+            <span class="pkg-compact__badge">Most popular</span>
+            <span class="pkg-compact__name">Signature themed party</span>
+            <span class="pkg-compact__price">IDR 5.3M</span>
+          </button>
+          <div class="pkg-compact__panel">
+            <span class="pkg-compact__summary">10 guests · cake 18cm · themed decor · medium balloons · photozone</span>
+            <a class="pkg-compact__cta" href="builder/?package=signature">Build with this →</a>
+          </div>
+        </div>
+        <div class="pkg-compact__item" data-pkg="simple">
+          <button type="button" class="pkg-compact__toggle" aria-expanded="false">
+            <span class="pkg-compact__name">Simple celebration</span>
+            <span class="pkg-compact__price">IDR 2.3M</span>
+          </button>
+          <div class="pkg-compact__panel" hidden>
+            <span class="pkg-compact__summary">5 guests · cake 15cm · themed party · table &amp; balloon decor</span>
+            <a class="pkg-compact__cta" href="builder/?package=simple">Build with this →</a>
+          </div>
+        </div>
+        <div class="pkg-compact__item" data-pkg="terrace">
+          <button type="button" class="pkg-compact__toggle" aria-expanded="false">
+            <span class="pkg-compact__name">Private terrace</span>
+            <span class="pkg-compact__price">IDR 12.7M</span>
+          </button>
+          <div class="pkg-compact__panel" hidden>
+            <span class="pkg-compact__summary">20 guests · private terrace · photozone · dessert station · masterclass</span>
+            <a class="pkg-compact__cta" href="builder/?package=terrace">Build with this →</a>
+          </div>
+        </div>
       </div>
       <p class="packages__legal" id="packages-legal">Extra guests +150k per person on weekdays, +300k on weekends, up to each package's maximum. Every party runs 3 hours. Weekday starting rates shown; weekend rates are higher. All prices in IDR, subject to government tax &amp; service. Custom combinations available on request.</p>
     </section>
@@ -335,6 +351,6 @@
   </div>
 
   <script src="../shared/chrome.js?v=20260826d" defer></script>
-  <script src="js/main.js?v=20260826d" defer></script>
+  <script src="js/main.js?v=20260826i" defer></script>
 </body>
 </html>

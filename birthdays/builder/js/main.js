@@ -364,6 +364,8 @@
     const pkg = selectedPackage();
     const lines = [];
     let subtotal = 0;
+    const { kids, adults } = guestCounts();
+    const totalGuests = kids + adults;
 
     if (pkg) {
       const pkgVal = packagePriceValue(pkg);
@@ -374,32 +376,33 @@
         label: `${pkg.name} package (${partyState.day})`,
         value: packageOnly,
       });
-      if (deposit > 0) {
-        subtotal += deposit;
+
+      const included = pkg.guestsIncluded || 0;
+      const extraPeople = Math.max(0, totalGuests - included);
+      let extraCost = 0;
+      if (extraPeople > 0) {
+        const rate =
+          partyState.day === "weekend"
+            ? partyData.extraGuest?.weekend || 300000
+            : partyData.extraGuest?.weekday || 150000;
+        extraCost = extraPeople * rate;
+      }
+
+      const foodTotal = deposit + extraCost;
+      if (foodTotal > 0) {
+        subtotal += foodTotal;
+        const extraNote =
+          extraPeople > 0
+            ? `${extraPeople} extra ${extraPeople === 1 ? "person" : "people"}`
+            : "";
+        const baseNote =
+          "This is how much is included for you to purchase food and beverages.";
         lines.push({
           label: "Food & drink deposit",
-          value: deposit,
-          detail:
-            "This is how much is included for you to purchase food and beverages.",
+          value: foodTotal,
+          detail: extraNote ? `${extraNote}. ${baseNote}` : baseNote,
         });
       }
-    }
-
-    const { kids, adults } = guestCounts();
-    const totalGuests = kids + adults;
-    const included = pkg?.guestsIncluded || 0;
-    const extraPeople = Math.max(0, totalGuests - included);
-    if (extraPeople > 0) {
-      const rate =
-        partyState.day === "weekend"
-          ? partyData.extraGuest?.weekend || 300000
-          : partyData.extraGuest?.weekday || 150000;
-      const extraCost = extraPeople * rate;
-      subtotal += extraCost;
-      lines.push({
-        label: `Extra guests × ${extraPeople}`,
-        value: extraCost,
-      });
     }
 
     if (partyState.masterclassId) {
