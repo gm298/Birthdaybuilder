@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Custom Birthday Cakes in Berawa, Bali | Tiny Healthy Cafe</title>
+  <meta name="description" content="Custom birthday cakes baked at Tiny in Berawa, Bali — any theme, gluten-free or no added sugar as a paid add-on. Order 2 days ahead via WhatsApp.">
+  <link rel="canonical" href="https://tinyhealthycafe.com/cakes">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tinyhealthycafe.com/cakes">
+  <meta property="og:title" content="Custom Birthday Cakes in Berawa, Bali | Tiny Healthy Cafe">
+  <meta property="og:description" content="Custom birthday cakes baked at Tiny — any theme, gluten-free or no added sugar as a paid add-on. Order 2 days ahead.">
+  <meta property="og:image" content="https://tinyhealthycafe.com/cakes/img/og-cakes.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=20260826f">
+  <link rel="stylesheet" href="../shared/chrome.css?v=20260826f">
+</head>
+<body data-page="cakes">
+  <div id="site-chrome-header"></div>
+
+  <main>
+    <section class="hero" aria-label="Hero">
+      <div class="hero__copy">
+        <div class="eyebrow">Cakes at Tiny · Berawa, Bali</div>
+        <h1>The cake they'll remember longer than the presents</h1>
+        <p class="hero__sub">Baked here, decorated around your child's favourite thing. Any cake can be made gluten-free or with no added sugar as a paid add-on.</p>
+        <div class="hero__actions">
+          <a class="btn btn--lg" href="#build">Make your own cake</a>
+          <a class="link-text" href="#gallery">See the cakes</a>
+        </div>
+      </div>
+      <div class="hero__media">
+        <img src="img/photos/hero-candles-wide.jpg" alt="A family lighting the candles on a Tiny birthday cake" width="760" height="720">
+        <div class="hero__inset">
+          <img src="img/photos/hero-cutting.jpg" alt="Cutting the first slice" width="250" height="310">
+        </div>
+      </div>
+      <img class="hero__media-mobile" src="img/photos/hero-candles-wide.jpg" alt="A family lighting the candles" width="390" height="320">
+    </section>
+
+    <section class="facts" aria-label="Cake facts">
+      <div class="facts__cell"><strong>Baked here</strong><span>fresh, in our own kitchen</span></div>
+      <div class="facts__cell"><strong>Any theme</strong><span>send a picture, we'll match it</span></div>
+      <div class="facts__cell"><strong>Gluten-free</strong><span>and no added sugar — a paid add-on</span></div>
+      <div class="facts__cell"><strong>2 days</strong><span>notice is all we need</span></div>
+    </section>
+
+    <section class="gallery" id="gallery">
+      <div class="gallery__head">
+        <h2>Cakes we bake</h2>
+        <div class="filters" id="filters" role="tablist" aria-label="Filter by theme"></div>
+      </div>
+      <div class="gallery__grid" id="gallery-grid"></div>
+      <div class="gallery-more-wrap">
+        <button type="button" class="btn btn--outline" id="gallery-more" hidden>See more cakes</button>
+      </div>
+    </section>
+
+    <section class="builder" id="build">
+      <div class="builder__intro">
+        <div class="eyebrow">Build your cake</div>
+        <h2>Make your own cake</h2>
+        <p>Size, sponge flavours and a design — either one of ours or your own photo. It all goes to our WhatsApp in one message.</p>
+        <ul class="builder__points">
+          <li>Order at least 2 days ahead</li>
+          <li>Custom themes and characters welcome</li>
+          <li>Free cake tasting if you're booking a birthday</li>
+          <li>Pick up to two sponge flavours</li>
+        </ul>
+        <div class="builder__diet">
+          <div>
+            <h3>Gluten-free and no added sugar, on any cake</h3>
+            <p><strong style="font-weight:400;color:#fff">Gluten-free</strong> means the sponge is baked without wheat flour, on a nut or root-vegetable base instead. <strong style="font-weight:400;color:#fff">No added sugar</strong> means nothing sweeter than fruit and dates goes in — no cane sugar, no syrups. Both are a paid add-on available on every cake here; tell us which you need when you order and we'll quote it. The decoration doesn't change.</p>
+          </div>
+          <div class="builder__diet-tags">
+            <span>Gluten-free</span>
+            <span>No added sugar</span>
+          </div>
+        </div>
+        <a class="link-text" href="../birthdays/">Celebrating at Tiny? See birthday packages</a>
+      </div>
+
+      <form class="builder__form" id="cake-form" novalidate>
+        <div class="field">
+          <span class="field__label" id="addons-label">Diet options</span>
+          <div class="option-row" id="addon-options" role="group" aria-labelledby="addons-label"></div>
+          <span class="field__hint field__hint--soft">Gluten-free and no added sugar filter the sponge list below. Both cost extra — we'll quote it in the chat.</span>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <label class="field__label" for="cake-date">Date you need it</label>
+            <input type="date" id="cake-date" name="date" required>
+          </div>
+          <div class="field">
+            <span class="field__label" id="size-label">Size</span>
+            <div class="option-row" id="size-options" role="group" aria-labelledby="size-label"></div>
+            <span class="field__hint" id="size-note">18 cm — the usual birthday size, about 12–16 slices.</span>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="field">
+            <span class="field__label" id="sponge-label">Sponge <span class="field__label-note">(choose up to 2)</span></span>
+            <div class="option-col" id="sponge-options" role="group" aria-labelledby="sponge-label"></div>
+            <span class="field__hint" id="sponge-hint">Select one or two flavours for your cake layers.</span>
+          </div>
+          <div class="field" id="sugar-sponge-field">
+            <span class="field__label" id="sugar-sponge-label">Sugar added sponge</span>
+            <div class="option-col" id="sugar-sponge-options" role="group" aria-labelledby="sugar-sponge-label"></div>
+            <span class="field__hint field__hint--soft">Optional — if you'd like a sugar-added layer.</span>
+          </div>
+        </div>
+
+        <div class="field">
+          <span class="field__label" id="design-label">Design</span>
+          <div class="option-row" id="mode-options" role="group" aria-labelledby="design-label">
+            <button type="button" class="option-btn option-btn--sm is-active" data-mode="gallery">From the gallery</button>
+            <button type="button" class="option-btn option-btn--sm" data-mode="own">My own idea</button>
+          </div>
+          <div class="design-grid is-visible" id="design-grid"></div>
+          <label class="file-drop" id="file-drop">
+            <span class="file-drop__label" id="file-label">Tap to attach a photo</span>
+            <span class="file-drop__hint">Attach a reference photo — we'll get close, not identical</span>
+            <input type="file" id="ref-photo" accept="image/*">
+          </label>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="cake-theme">Theme or name on the cake</label>
+          <input type="text" id="cake-theme" name="theme" placeholder="e.g. dinosaurs, and the name Mira">
+        </div>
+
+        <button class="btn btn--white btn--lg builder__submit" type="submit">Send to WhatsApp</button>
+        <p class="builder__submit-note">Opens WhatsApp with your details filled in. Attach the photo there in one tap.</p>
+        <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+
+        <div class="builder__diet-mobile">
+          <h3>Gluten-free and no added sugar</h3>
+          <p><strong style="font-weight:400;color:#fff">Gluten-free</strong> — sponge without wheat flour, on a nut or root-vegetable base. <strong style="font-weight:400;color:#fff">No added sugar</strong> — sweetened only with fruit and dates. Both are a paid add-on; we'll quote it in the chat.</p>
+        </div>
+        <ul class="builder__points-mobile">
+          <li>Order at least 2 days ahead</li>
+          <li>Custom themes welcome</li>
+          <li>Pick up to two sponge flavours</li>
+        </ul>
+      </form>
+    </section>
+  </main>
+
+  <div id="site-chrome-footer"></div>
+
+  <div class="mobile-sticky" id="mobile-sticky" aria-label="Quick actions">
+    <a class="btn" href="#build">Make your own cake</a>
+    <a class="btn btn--outline" href="#gallery">Gallery</a>
+  </div>
+
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="lightbox-name">
+    <button class="lightbox__close" type="button" aria-label="Close">&times;</button>
+    <div class="lightbox__panel">
+      <div class="lightbox__img" id="lightbox-img" role="img" aria-label=""></div>
+      <div class="lightbox__meta">
+        <span class="lightbox__name" id="lightbox-name"></span>
+        <span class="lightbox__theme" id="lightbox-theme"></span>
+      </div>
+      <a class="btn btn--white" href="#build" id="lightbox-order">Use this cake</a>
+    </div>
+  </div>
+
+  <script src="../shared/chrome.js?v=20260826d" defer></script>
+  <script src="js/main.js?v=20260826e" defer></script>
+</body>
+</html>

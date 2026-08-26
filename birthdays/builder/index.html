@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Build Your Birthday | Tiny Healthy Cafe</title>
+  <meta name="description" content="Build your Tiny birthday in Berawa, Bali — package, decorations, cake, add-ons and food, then send the plan to WhatsApp.">
+  <link rel="canonical" href="https://tinyhealthycafe.com/birthdays/builder">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tinyhealthycafe.com/birthdays/builder">
+  <meta property="og:title" content="Build Your Birthday | Tiny Healthy Cafe">
+  <meta property="og:description" content="Choose package, decorations, cake and add-ons — then send your party plan to WhatsApp.">
+  <meta property="og:image" content="https://tinyhealthycafe.com/birthdays/img/og-birthdays.webp">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../cakes/css/styles.css?v=20260826f">
+  <link rel="stylesheet" href="css/styles.css?v=20260826b">
+  <link rel="stylesheet" href="../../shared/chrome.css?v=20260826f">
+</head>
+<body data-page="builder">
+  <div id="site-chrome-header"></div>
+
+  <main>
+    <section class="builder-hero" aria-label="Build your birthday">
+      <img class="builder-hero__img" src="img/hero.jpg" alt="Children celebrating at Tiny with balloon photozone and tropical terrace" width="1800" height="1200">
+      <div class="builder-hero__copy">
+        <p class="builder-hero__brand">Tiny</p>
+        <h1>Build your birthday</h1>
+        <p class="builder-hero__sub">Package, decorations, cake and extras — then one WhatsApp to our team.</p>
+        <a class="btn btn--lg" href="#details">Start with your details</a>
+      </div>
+    </section>
+
+    <div class="steps-bar-anchor" id="steps-bar-anchor" aria-hidden="true"></div>
+    <nav class="steps-bar" id="steps-bar" aria-label="Builder steps">
+      <a class="step-chip" href="#details">01 Details</a>
+      <a class="step-chip" href="#package">02 Package</a>
+      <a class="step-chip" href="#decor">03 Decorations</a>
+      <a class="step-chip" href="#cakes">04 Cake</a>
+      <a class="step-chip" href="#addons">05 Add ons</a>
+      <a class="step-chip" href="#food">06 Food</a>
+      <a class="step-chip" href="#send">Quote</a>
+    </nav>
+    <div class="steps-bar-spacer" id="steps-bar-spacer" aria-hidden="true"></div>
+
+    <section class="builder-section builder-section--cream" id="details">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">01 · Fill out your details</div>
+          <h2>When &amp; who</h2>
+        </div>
+        <p class="section-note">A few essentials so we can check the date and tailor the party.</p>
+      </div>
+      <div class="details-grid">
+        <div class="details-row details-row--top">
+          <div class="field">
+            <label class="field__label" for="party-date">When would you like to celebrate?</label>
+            <input type="date" id="party-date" name="party-date">
+          </div>
+          <div class="field field--guests">
+            <span class="field__label">How many people?</span>
+            <div class="guest-pair">
+              <div class="field">
+                <label class="field__label field__label--soft" for="guest-kids">Kids</label>
+                <input type="number" id="guest-kids" name="guest-kids" min="0" placeholder="e.g. 12" inputmode="numeric">
+              </div>
+              <div class="field">
+                <label class="field__label field__label--soft" for="guest-adults">Adults</label>
+                <input type="number" id="guest-adults" name="guest-adults" min="0" placeholder="e.g. 8" inputmode="numeric">
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field__label" for="child-name">Birthday child’s name</label>
+          <input type="text" id="child-name" name="child-name" placeholder="e.g. Mira">
+        </div>
+        <div class="field">
+          <label class="field__label" for="child-age">Turning</label>
+          <input type="text" id="child-age" name="child-age" placeholder="e.g. 5">
+        </div>
+        <div class="field field--full">
+          <label class="field__label" for="food-notes">Allergies or food notes</label>
+          <textarea id="food-notes" name="food-notes" placeholder="No nuts, vegetarian adults, kids eat first…"></textarea>
+        </div>
+        <div class="field field--full">
+          <label class="field__label" for="party-notes">Anything else</label>
+          <textarea id="party-notes" name="party-notes" placeholder="Timing, colours, characters we should know"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <section class="builder-section builder-section--white" id="package">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">02 · Choose package</div>
+          <h2>Choose your package</h2>
+        </div>
+        <div class="day-toggle day-toggle--readonly" id="day-indicator" role="status" aria-live="polite">
+          <span class="day-indicator__label" id="day-indicator-label">Weekday pricing</span>
+        </div>
+      </div>
+      <p class="section-note" style="margin:-8px 0 24px">Simple, Optimal or Whole Terrace. Three hours, set up before you arrive.</p>
+      <div class="pkg-grid" id="package-grid"></div>
+    </section>
+
+    <section class="builder-section builder-section--cream" id="decor">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">03 · Choose decoration</div>
+          <h2>Choose decoration</h2>
+        </div>
+        <p class="section-note">Your package includes a decoration set. Pick the look from our parties, or build your own custom theme.</p>
+      </div>
+      <div class="photo-grid photo-grid--3" id="decor-package-grid"></div>
+      <h3 class="subhead">Build your own custom theme</h3>
+      <div class="photo-grid photo-grid--themes" id="decor-theme-grid"></div>
+      <div class="field field--theme" id="custom-theme-wrap" hidden>
+        <label class="field__label" for="decor-custom">Describe the theme</label>
+        <input type="text" id="decor-custom" name="decor-custom" placeholder="e.g. Minecraft and Bluey, name on the backdrop">
+      </div>
+    </section>
+
+    <section class="builder-section builder-section--white" id="cakes">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">04 · Build your cake</div>
+          <h2>Choose your cake</h2>
+        </div>
+        <p class="section-note">This is Tiny’s cake catalogue. Browse the gallery, then build size, sponge and design below.</p>
+      </div>
+
+      <section class="gallery" id="gallery" aria-label="Cake gallery">
+        <div class="gallery__head">
+          <h2>Cakes we bake</h2>
+          <div class="filters" id="filters" role="tablist" aria-label="Filter by theme"></div>
+        </div>
+        <div class="gallery__grid" id="gallery-grid"></div>
+        <div class="gallery-more-wrap">
+          <button type="button" class="btn btn--outline" id="gallery-more" hidden>See more cakes</button>
+        </div>
+      </section>
+
+      <section class="builder builder--bleed" id="build">
+        <div class="builder__intro">
+          <div class="eyebrow">Build your cake</div>
+          <h2>Make your own cake</h2>
+          <p>Size, sponge flavours and a design — either one of ours or your own photo. It becomes part of your party WhatsApp message.</p>
+          <ul class="builder__points">
+            <li>Custom themes and characters welcome</li>
+            <li>Free cake tasting if you're booking a birthday</li>
+            <li>Included in your chosen package size, or tell us a different one</li>
+            <li>Pick up to two sponge flavours</li>
+          </ul>
+          <div class="builder__diet">
+            <div>
+              <h3>Gluten-free and no added sugar, on any cake</h3>
+              <p><strong style="font-weight:400;color:#fff">Gluten-free</strong> means the sponge is baked without wheat flour, on a nut or root-vegetable base instead. <strong style="font-weight:400;color:#fff">No added sugar</strong> means nothing sweeter than fruit and dates goes in — no cane sugar, no syrups. Both are a paid add-on available on every cake here; tell us which you need when you order and we'll quote it. The decoration doesn't change.</p>
+            </div>
+            <div class="builder__diet-tags">
+              <span>Gluten-free</span>
+              <span>No added sugar</span>
+            </div>
+          </div>
+        </div>
+
+        <form class="builder__form" id="cake-form" novalidate>
+          <div class="field">
+            <span class="field__label" id="addons-label">Diet options</span>
+            <div class="option-row" id="addon-options" role="group" aria-labelledby="addons-label"></div>
+            <span class="field__hint field__hint--soft">Gluten-free and no added sugar filter the sponge list below. Both cost extra — we’ll quote it in the chat.</span>
+          </div>
+
+          <div class="field">
+            <span class="field__label" id="size-label">Size</span>
+            <div class="option-row" id="size-options" role="group" aria-labelledby="size-label"></div>
+            <span class="field__hint" id="size-note">18 cm — the usual birthday size, about 12–16 slices.</span>
+          </div>
+
+          <div class="form-row">
+            <div class="field">
+              <span class="field__label" id="sponge-label">Sponge <span class="field__label-note">(choose up to 2)</span></span>
+              <div class="option-col" id="sponge-options" role="group" aria-labelledby="sponge-label"></div>
+              <span class="field__hint" id="sponge-hint">Select one or two flavours for your cake layers.</span>
+            </div>
+            <div class="field" id="sugar-sponge-field">
+              <span class="field__label" id="sugar-sponge-label">Sugar added sponge</span>
+              <div class="option-col" id="sugar-sponge-options" role="group" aria-labelledby="sugar-sponge-label"></div>
+              <span class="field__hint field__hint--soft">Optional — if you’d like a sugar-added layer.</span>
+            </div>
+          </div>
+
+          <div class="field">
+            <span class="field__label" id="design-label">Design</span>
+            <div class="option-row" id="mode-options" role="group" aria-labelledby="design-label">
+              <button type="button" class="option-btn option-btn--sm is-active" data-mode="gallery">From the gallery</button>
+              <button type="button" class="option-btn option-btn--sm" data-mode="own">My own idea</button>
+            </div>
+            <div class="design-grid is-visible" id="design-grid"></div>
+            <label class="file-drop" id="file-drop">
+              <span class="file-drop__label" id="file-label">Tap to attach a photo</span>
+              <span class="file-drop__hint">Attach a reference photo — we'll get close, not identical</span>
+              <input type="file" id="ref-photo" accept="image/*">
+            </label>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="cake-theme">Theme or name on the cake</label>
+            <input type="text" id="cake-theme" name="theme" placeholder="e.g. dinosaurs, and the name Mira">
+          </div>
+
+          <p class="builder__submit-note">Cake choices are saved into your party summary. Continue with add-ons and food, then send everything together.</p>
+          <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+
+          <div class="builder__diet-mobile">
+            <h3>Gluten-free and no added sugar</h3>
+            <p><strong style="font-weight:400;color:#fff">Gluten-free</strong> — sponge without wheat flour, on a nut or root-vegetable base. <strong style="font-weight:400;color:#fff">No added sugar</strong> — sweetened only with fruit and dates. Both are a paid add-on; we'll quote it in the chat.</p>
+          </div>
+          <ul class="builder__points-mobile">
+            <li>Pick up to two sponge flavours</li>
+            <li>Custom themes welcome</li>
+            <li>Included with your birthday package</li>
+          </ul>
+        </form>
+      </section>
+    </section>
+
+    <section class="builder-section builder-section--cream" id="addons">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">05 · Choose add ons</div>
+          <h2>Add some extra magic</h2>
+        </div>
+        <p class="section-note">Masterclass, entertainment, extra cake or more décor. Skip anything you don’t need.</p>
+      </div>
+
+      <h3 class="subhead subhead--tight">Masterclass activities</h3>
+      <button type="button" class="btn-none-master" id="no-masterclass" data-master="">No masterclass</button>
+      <div class="photo-grid photo-grid--master" id="masterclass-grid"></div>
+
+      <h3 class="subhead">Entertainment</h3>
+      <div class="photo-grid photo-grid--entertain" id="extras-entertainment"></div>
+
+      <h3 class="subhead">Decoration</h3>
+      <div class="photo-grid photo-grid--extras" id="extras-decoration"></div>
+
+      <h3 class="subhead">Extra cake</h3>
+      <div class="check-list check-list--row" id="extras-cake"></div>
+    </section>
+
+    <section class="builder-section builder-section--white builder-section--food" id="food">
+      <div class="section-head section-head--stack">
+        <div>
+          <div class="eyebrow">06 · Food &amp; drink</div>
+          <h2>Choose food &amp; drink</h2>
+          <p class="section-lede" id="food-lede">Food and drink sit in the package as a play-area deposit. Tell us allergies and we’ll set the table from Tiny’s kitchen.</p>
+        </div>
+      </div>
+      <div class="food-hero">
+        <img id="food-image" src="img/food.jpg" alt="Family table at Tiny with themed balloons" width="1200" height="800">
+        <div class="food-hero__actions">
+          <a class="btn btn--menu" href="https://drive.google.com/drive/folders/1-Ubm3u3EvXdcDY-TdVo_sA4bPH5s5ARI?usp=drive_link" target="_blank" rel="noopener noreferrer">See menu</a>
+        </div>
+      </div>
+      <ul class="food-deposits" id="food-deposits"></ul>
+      <p class="food-included" id="food-included"></p>
+    </section>
+
+    <section class="builder-section builder-section--sage" id="send">
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">Quotation</div>
+          <h2>Review &amp; send</h2>
+        </div>
+      </div>
+      <div class="summary-panel">
+        <ul class="summary-list" id="summary-list"></ul>
+        <div class="quote-panel" id="quote-panel" aria-label="Price quotation"></div>
+        <div class="summary-actions">
+          <p>Opens WhatsApp with your full birthday plan and quotation. Attach any cake photo there in one tap.</p>
+          <button class="btn btn--white btn--lg" type="button" id="send-whatsapp">Send party plan to WhatsApp</button>
+          <p class="form-status" id="send-status" role="status" aria-live="polite"></p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="site-chrome-footer"></div>
+
+  <div class="mobile-sticky" id="mobile-sticky" aria-label="Quick actions">
+    <a class="btn" href="#send">Review &amp; send</a>
+    <a class="btn btn--outline" href="#package">Package</a>
+  </div>
+
+  <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="lightbox-name">
+    <button class="lightbox__close" type="button" aria-label="Close">&times;</button>
+    <div class="lightbox__panel">
+      <div class="lightbox__img" id="lightbox-img" role="img" aria-label=""></div>
+      <div class="lightbox__meta">
+        <span class="lightbox__name" id="lightbox-name"></span>
+        <span class="lightbox__theme" id="lightbox-theme"></span>
+      </div>
+      <a class="btn btn--white" href="#build" id="lightbox-order">Use this cake</a>
+    </div>
+  </div>
+
+  <div class="lightbox lightbox--photo" id="photo-lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="photo-lightbox-name">
+    <button class="lightbox__close" type="button" aria-label="Close" data-close-photo>&times;</button>
+    <div class="lightbox__panel lightbox__panel--photo">
+      <div class="lightbox__img lightbox__img--photo" id="photo-lightbox-img" role="img" aria-label=""></div>
+      <div class="lightbox__meta">
+        <span class="lightbox__name" id="photo-lightbox-name"></span>
+        <span class="lightbox__theme" id="photo-lightbox-note"></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="../../shared/chrome.js?v=20260826d" defer></script>
+  <script src="js/main.js?v=20260826b" defer></script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+{
+  "sizes": [
+    { "label": "15 cm", "note": "Small family table — about 8–10 slices", "line": "15 cm — small family table, about 8–10 slices.", "price": "Price on request" },
+    { "label": "18 cm", "note": "The usual birthday size — about 12–16 slices", "line": "18 cm — the usual birthday size, about 12–16 slices.", "price": "Price on request" },
+    { "label": "22 cm", "note": "Bigger parties — about 20–25 slices", "line": "22 cm — bigger parties, about 20–25 slices.", "price": "Price on request" }
+  ],
+  "sponges": [
+    "Wholewheat kale & apple",
+    "Wholewheat pumpkin cacao",
+    "Flourless Zucchini Chocolate (Gluten free)",
+    "Wholewheat almond cake"
+  ],
+  "sugarSponges": [
+    "Red Velvet",
+    "Chocolate"
+  ],
+  "addons": [
+    "Gluten-free",
+    "No added sugar"
+  ],
+  "filters": [
+    "All",
+    "Animals",
+    "Dinosaurs",
+    "Vehicles",
+    "Ocean",
+    "Characters",
+    "Flowers",
+    "First birthday"
+  ],
+  "cakes": [
+    { "id": "safari-chocolate", "src": "img/cakes/safari-chocolate.jpg", "name": "Chocolate safari", "theme": "Animals" },
+    { "id": "dino-meadow", "src": "img/cakes/dino-meadow.jpg", "name": "Dino meadow", "theme": "Dinosaurs" },
+    { "id": "dino-sand-first", "src": "img/cakes/dino-sand-first.jpg", "name": "Dino sands, first birthday", "theme": "Dinosaurs · first birthday" },
+    { "id": "digger-berries", "src": "img/cakes/digger-berries.jpg", "name": "Digger and berries", "theme": "Vehicles" },
+    { "id": "construction-crane", "src": "img/cakes/construction-crane.jpg", "name": "Construction site", "theme": "Vehicles · named" },
+    { "id": "race-cars", "src": "img/cakes/race-cars.jpg", "name": "Race day", "theme": "Vehicles" },
+    { "id": "car-clouds", "src": "img/cakes/car-clouds.jpg", "name": "Little blue car", "theme": "Vehicles · first birthdays" },
+    { "id": "ocean-tiers", "src": "img/cakes/ocean-tiers.jpg", "name": "Ocean two-tier", "theme": "Ocean" },
+    { "id": "undersea-heroes", "src": "img/cakes/undersea-heroes.jpg", "name": "Undersea friends", "theme": "Ocean · characters" },
+    { "id": "superhero-city", "src": "img/cakes/superhero-city.jpg", "name": "Superhero city", "theme": "Characters" },
+    { "id": "rescue-heroes", "src": "img/cakes/rescue-heroes.jpg", "name": "Rescue crew", "theme": "Characters · named" },
+    { "id": "blue-characters", "src": "img/cakes/blue-characters.jpg", "name": "Blue friends", "theme": "Characters · named" },
+    { "id": "rainbow-neon", "src": "img/cakes/rainbow-neon.jpg", "name": "Rainbow party", "theme": "Bright and bold" },
+    { "id": "pastel-sleepy", "src": "img/cakes/pastel-sleepy.jpg", "name": "Sleepy pastel", "theme": "Bright and bold" },
+    { "id": "sky-clouds-first", "src": "img/cakes/sky-clouds-first.jpg", "name": "Clouds and sky, first birthday", "theme": "First birthday" },
+    { "id": "unicorn-meadow", "src": "img/cakes/unicorn-meadow.jpg", "name": "Unicorn meadow", "theme": "Flowers" },
+    { "id": "pink-blossom", "src": "img/cakes/pink-blossom.jpg", "name": "Pink blossom", "theme": "Flowers" },
+    { "id": "flamingo-garden", "src": "img/cakes/flamingo-garden.jpg", "name": "Flamingo garden", "theme": "Flowers" },
+    { "id": "forest-pines", "src": "img/cakes/forest-pines.jpg", "name": "Pine forest", "theme": "Forest" },
+    { "id": "chocolate-gold", "src": "img/cakes/chocolate-gold.jpg", "name": "Chocolate and gold", "theme": "Classic" }
+  ]
+}

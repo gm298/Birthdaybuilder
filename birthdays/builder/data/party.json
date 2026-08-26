@@ -1,0 +1,222 @@
+{
+  "packages": [
+    {
+      "id": "simple",
+      "name": "Simple",
+      "guests": "5 people included · add up to 9",
+      "guestsIncluded": 5,
+      "guestsMax": 9,
+      "priceWeekday": "IDR 2.3M",
+      "priceWeekend": "IDR 3.8M",
+      "priceWeekdayValue": 2300000,
+      "priceWeekendValue": 3800000,
+      "featured": false,
+      "image": "img/packages/simple.jpg",
+      "includes": [
+        "Birthday cake · 15cm, 2 layers",
+        "Requested themed party",
+        "Table decor (no flowers)",
+        "Simple balloon decor",
+        "Food & play-area deposit · 750k weekday / 1.5M weekend"
+      ],
+      "decorId": "simple",
+      "cakeSize": "15 cm"
+    },
+    {
+      "id": "signature",
+      "name": "Optimal",
+      "guests": "10 people included · add up to 20",
+      "guestsIncluded": 10,
+      "guestsMax": 20,
+      "priceWeekday": "IDR 5.3M",
+      "priceWeekend": "IDR 8.7M",
+      "priceWeekdayValue": 5300000,
+      "priceWeekendValue": 8700000,
+      "featured": true,
+      "badge": "Most popular",
+      "image": "img/packages/signature.jpg",
+      "includes": [
+        "Birthday cake · 18cm, 2 layers",
+        "Requested themed party",
+        "Table decor (no flowers)",
+        "Medium balloon decor",
+        "Photozone",
+        "Food & play-area deposit · 1.5M weekday / 3M weekend"
+      ],
+      "decorId": "optimal",
+      "cakeSize": "18 cm"
+    },
+    {
+      "id": "terrace",
+      "name": "Whole Terrace",
+      "guests": "20 people included · add up to 30",
+      "guestsIncluded": 20,
+      "guestsMax": 30,
+      "priceWeekday": "IDR 12.7M",
+      "priceWeekend": "IDR 20.5M",
+      "priceWeekdayValue": 12700000,
+      "priceWeekendValue": 20500000,
+      "featured": false,
+      "image": "img/packages/terrace.jpg",
+      "includes": [
+        "Birthday cake · 22cm, 2 layers",
+        "Requested themed party",
+        "Full terrace balloon decor",
+        "Photozone & piñata",
+        "Dessert station",
+        "Masterclass for 10 kids",
+        "Food & play-area deposit · 3M weekday / 6M weekend"
+      ],
+      "decorId": "terrace",
+      "cakeSize": "22 cm"
+    }
+  ],
+  "decorPackages": [
+    {
+      "id": "simple",
+      "name": "Simple",
+      "image": "img/decor/simple.jpg",
+      "note": "Included with Simple · 950k as an add-on",
+      "items": [
+        "11 pcs flying balloons",
+        "1 standing number",
+        "1 glitter balloon PVC",
+        "1 head character"
+      ]
+    },
+    {
+      "id": "optimal",
+      "name": "Optimal",
+      "image": "img/decor/optimal.jpg",
+      "note": "Included with Optimal · 2.4M as an add-on",
+      "items": [
+        "1 rounded garland",
+        "1 head character",
+        "1 standing number",
+        "1 set balloon (1 star · 1 glitter · 5 pcs)",
+        "Tiny rounded table",
+        "1 cloud garland (1.5m)"
+      ]
+    },
+    {
+      "id": "terrace",
+      "name": "Whole Terrace",
+      "image": "img/decor/terrace.jpg",
+      "note": "Included with Whole Terrace · 4M as an add-on",
+      "items": [
+        "1½ backdrop with balloon & name (2m)",
+        "1 character balloon",
+        "8 flying balloons",
+        "1 standing number",
+        "2 styrofoam properties",
+        "Tiny rounded table",
+        "2 cloud garlands (1.5m)"
+      ]
+    }
+  ],
+  "decorThemes": [
+    { "id": "photozone", "name": "Photozone & balloons", "image": "img/decor/photozone.jpg" },
+    { "id": "character", "name": "Named backdrop", "image": "img/decor/character.jpg" },
+    { "id": "minnie", "name": "Character party", "image": "img/decor/minnie.jpg" },
+    { "id": "unicorn", "name": "Unicorn & rainbow", "image": "img/decor/unicorn.jpg" },
+    { "id": "table", "name": "Table styling", "image": "img/decor/table.jpg" },
+    { "id": "pastel", "name": "Soft pastel", "image": "img/decor/pastel.jpg" },
+    { "id": "custom", "name": "Build your own", "image": "", "custom": true }
+  ],
+  "masterclasses": [
+    {
+      "id": "bunny-mask",
+      "name": "Bunny mask",
+      "note": "+200k / kid · min. 4 kids",
+      "pricePerKid": 200000,
+      "minKids": 4,
+      "image": "img/masterclass/bunny-mask.jpg"
+    },
+    {
+      "id": "lava-lab",
+      "name": "Lava lab",
+      "note": "+200k / kid · min. 4 kids",
+      "pricePerKid": 200000,
+      "minKids": 4,
+      "image": "img/masterclass/lava-lab.jpg"
+    },
+    {
+      "id": "clay-painting",
+      "name": "Clay painting",
+      "note": "+200k / kid · min. 4 kids",
+      "pricePerKid": 200000,
+      "minKids": 4,
+      "image": "img/masterclass/clay-painting.jpg"
+    },
+    {
+      "id": "cooking-class",
+      "name": "Cooking class",
+      "note": "+200k / kid · min. 4 kids",
+      "pricePerKid": 200000,
+      "minKids": 4,
+      "image": "img/masterclass/cooking-class.jpg"
+    }
+  ],
+  "extras": {
+    "entertainment": [
+      { "id": "pinata", "name": "Piñata", "price": "1.4M", "priceValue": 1400000, "image": "img/extras/pinata.jpg" },
+      {
+        "id": "magic",
+        "name": "Magic show",
+        "image": "img/extras/magic.jpg",
+        "options": [
+          { "id": "magic-2h", "name": "Magic show (2 hrs)", "price": "2M", "priceValue": 2000000 },
+          { "id": "magic-mc", "name": "Magic show & MC", "price": "3M", "priceValue": 3000000 }
+        ]
+      },
+      { "id": "face-painting", "name": "Face painting (2 hrs)", "price": "from 1.4M", "priceValue": 1400000, "image": "img/extras/face-painting.jpg" },
+      { "id": "dessert-station", "name": "Dessert station", "price": "2M", "priceValue": 2000000, "image": "img/extras/dessert.jpg" }
+    ],
+    "decoration": [
+      { "id": "simple-balloon", "name": "Simple balloon decor", "price": "950k", "priceValue": 950000, "image": "img/extras/balloons.jpg" },
+      { "id": "optimal-balloon", "name": "Optimal balloon & photozone", "price": "2.4M", "priceValue": 2400000, "image": "img/decor/optimal.jpg" },
+      { "id": "terrace-balloon", "name": "Terrace balloon & photozone", "price": "4M", "priceValue": 4000000, "image": "img/decor/terrace.jpg" },
+      { "id": "table-decor", "name": "Table decor (flowers / themed)", "price": "on request", "priceValue": 0, "image": "img/extras/table.jpg" }
+    ],
+    "cake": [
+      { "id": "cake-15", "name": "Extra cake 15cm", "price": "1M", "priceValue": 1000000 },
+      { "id": "cake-18", "name": "Extra cake 18cm", "price": "1.5M", "priceValue": 1500000 },
+      { "id": "cake-22", "name": "Extra cake 22cm", "price": "1.8M", "priceValue": 1800000 }
+    ]
+  },
+  "extraGuest": {
+    "weekday": 150000,
+    "weekend": 300000
+  },
+  "food": {
+    "image": "img/food.jpg",
+    "lede": "Food and drink sit in the package as a play-area deposit. Tell us allergies and we’ll set the table from Tiny’s kitchen.",
+    "menuUrl": "https://drive.google.com/drive/folders/1-Ubm3u3EvXdcDY-TdVo_sA4bPH5s5ARI?usp=drive_link",
+    "depositByPackage": {
+      "simple": {
+        "weekday": 750000,
+        "weekend": 1500000,
+        "weekdayLabel": "750k",
+        "weekendLabel": "1.5M"
+      },
+      "optimal": {
+        "weekday": 1500000,
+        "weekend": 3000000,
+        "weekdayLabel": "1.5M",
+        "weekendLabel": "3M"
+      },
+      "terrace": {
+        "weekday": 3000000,
+        "weekend": 6000000,
+        "weekdayLabel": "3M",
+        "weekendLabel": "6M"
+      }
+    }
+  },
+  "terms": [
+    "3-hour booking · quotation adds 5% service and 10% tax",
+    "Extra guests +150k weekday / +300k weekend, up to each package maximum",
+    "No outside food or drinks",
+    "Special requests at least 4 days before the event"
+  ]
+}

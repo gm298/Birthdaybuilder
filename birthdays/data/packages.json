@@ -1,0 +1,58 @@
+{
+  "legal": "Extra guests +150k per person on weekdays, +300k on weekends, up to each package's maximum. Every party runs 3 hours. Weekday starting rates shown; weekend rates are higher. All prices in IDR, subject to government tax & service. Custom combinations available on request.",
+  "legalMobile": "Extra guests +150k weekdays / +300k weekends. Every party runs 3 hours, subject to tax & service.",
+  "packages": [
+    {
+      "id": "simple",
+      "name": "Simple celebration",
+      "shortName": "Simple celebration",
+      "guests": "5 guests included · add up to 9",
+      "price": "IDR 2.3M",
+      "priceValue": "2.3M",
+      "featured": false,
+      "features": [
+        "Birthday cake · 15cm, 2 layers",
+        "Requested themed party",
+        "Table decor (no flowers)",
+        "Simple balloon decor",
+        "Food & play-area deposit"
+      ],
+      "mobileSummary": "5 guests · cake 15cm · themed party · table & balloon decor"
+    },
+    {
+      "id": "signature",
+      "name": "Signature themed party",
+      "shortName": "Signature themed party",
+      "guests": "10 guests included · add up to 20",
+      "price": "IDR 5.3M",
+      "priceValue": "5.3M",
+      "featured": true,
+      "badge": "Most popular",
+      "features": [
+        "Birthday cake · 18cm, 2 layers",
+        "Requested themed party",
+        "Medium balloon decor",
+        "Photozone",
+        "Food & play-area deposit"
+      ],
+      "mobileSummary": "10 guests · cake 18cm · themed decor · medium balloons · photozone"
+    },
+    {
+      "id": "terrace",
+      "name": "Private terrace event",
+      "shortName": "Private terrace",
+      "guests": "20 guests included · add up to 30",
+      "price": "IDR 12.7M",
+      "priceValue": "12.7M",
+      "featured": false,
+      "features": [
+        "Whole private terrace",
+        "Full terrace balloon decor",
+        "Photozone & piñata",
+        "Dessert station",
+        "Masterclass for 10 kids"
+      ],
+      "mobileSummary": "20 guests · private terrace · photozone · dessert station · masterclass"
+    }
+  ]
+}

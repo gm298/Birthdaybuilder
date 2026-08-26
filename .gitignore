@@ -1,0 +1,23 @@
+# Archives and duplicates
+birthdays-for-hostinger.zip
+cakes-for-hostinger.zip
+cakes-20260824T072222Z-1-001/
+birthday-landing/
+design_handoff_birthday_landing/
+Tiny Website/
+
+# Builder dev scripts and PDF extraction artifacts
+birthdays/builder/_*.py
+birthdays/builder/_pdf_extract/
+birthdays/builder/_render_*.py
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.cursor/
+
+# Secrets
+.env
+.env.*
