@@ -13,9 +13,9 @@
   <meta property="og:image" content="https://tinyhealthycafe.com/birthdays/img/og-birthdays.webp">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../cakes/css/styles.css?v=20260826h">
-  <link rel="stylesheet" href="css/styles.css?v=20260826b">
+  <link rel="stylesheet" href="css/styles.css?v=20260827e">
   <link rel="stylesheet" href="../../shared/chrome.css?v=20260826f">
 </head>
 <body data-page="builder">
@@ -113,12 +113,34 @@
         </div>
         <p class="section-note">Your package includes a decoration set. Pick the look from our parties, or build your own custom theme.</p>
       </div>
-      <div class="photo-grid photo-grid--3" id="decor-package-grid"></div>
+  <div class="photo-grid photo-grid--3 photo-grid--decor" id="decor-package-grid"></div>
       <h3 class="subhead">Build your own custom theme</h3>
       <div class="photo-grid photo-grid--themes" id="decor-theme-grid"></div>
-      <div class="field field--theme" id="custom-theme-wrap" hidden>
-        <label class="field__label" for="decor-custom">Describe the theme</label>
-        <input type="text" id="decor-custom" name="decor-custom" placeholder="e.g. Minecraft and Bluey, name on the backdrop">
+      <div id="custom-theme-wrap" hidden>
+        <div class="field field--theme">
+          <label class="field__label" for="decor-custom">Describe the theme</label>
+          <input type="text" id="decor-custom" name="decor-custom" placeholder="e.g. Minecraft and Bluey, name on the backdrop">
+        </div>
+        <div class="backdrop-builder" id="backdrop-builder">
+          <div class="backdrop-builder__preview">
+            <canvas id="backdrop-canvas" width="1024" height="678" aria-label="Terrace backdrop preview"></canvas>
+            <p class="backdrop-builder__hint">A briefing mockup — Tiny will match the look, not every pixel.</p>
+          </div>
+          <div class="backdrop-builder__controls">
+            <p class="backdrop-builder__lede">Upload a print for each board and remap the five balloon colours. Balloons stay in front of the prints.</p>
+            <div class="backdrop-uploads" id="backdrop-uploads"></div>
+            <div class="field">
+              <label class="field__label" for="backdrop-name">Name on the center board</label>
+              <input type="text" id="backdrop-name" name="backdrop-name" placeholder="e.g. Mira’s Birthday" autocomplete="off">
+            </div>
+            <div class="field">
+              <span class="field__label" id="backdrop-colours-label">Balloon colours</span>
+              <p class="backdrop-builder__lede">Each picker replaces one colour from the photo. The small chip is the original.</p>
+              <div class="backdrop-colours" id="backdrop-colours" role="group" aria-labelledby="backdrop-colours-label"></div>
+            </div>
+            <button class="btn btn--outline" type="button" id="backdrop-download">Download mockup PNG</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -278,8 +300,9 @@
         <ul class="summary-list" id="summary-list"></ul>
         <div class="quote-panel" id="quote-panel" aria-label="Price quotation"></div>
         <div class="summary-actions">
-          <p>Opens WhatsApp with your full birthday plan and quotation. Attach any cake photo there in one tap.</p>
+          <p>Send your plan on WhatsApp, or download a Tiny-styled PDF quotation (no bank details).</p>
           <button class="btn btn--white btn--lg" type="button" id="send-whatsapp">Send party plan to WhatsApp</button>
+          <button class="btn btn--outline-light btn--lg" type="button" id="export-quote-pdf">Export PDF quotation</button>
           <p class="form-status" id="send-status" role="status" aria-live="polite"></p>
         </div>
       </div>
@@ -317,6 +340,6 @@
   </div>
 
   <script src="../../shared/chrome.js?v=20260826d" defer></script>
-  <script src="js/main.js?v=20260826i" defer></script>
+  <script src="js/main.js?v=20260827f" defer></script>
 </body>
 </html>

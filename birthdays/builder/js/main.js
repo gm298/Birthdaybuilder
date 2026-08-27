@@ -254,6 +254,36 @@
     galleryExpanded: false,
   };
 
+  const BACKDROP = {
+    width: 1024,
+    height: 678,
+    photo: "img/backdrop/terrace.jpg?v=20260827e",
+    occlusion: "img/backdrop/occlusion.png?v=20260827e",
+    balloonsMask: "img/backdrop/balloons-mask.png?v=20260827e",
+    panels: [
+      { id: "left", label: "Left panel", x: 0.2812, y: 0.6298, w: 0.0967, h: 0.3333, arch: 0.22, mask: "img/backdrop/panel-left.png?v=20260827e" },
+      { id: "center", label: "Center panel", x: 0.376, y: 0.5177, w: 0.1553, h: 0.4454, arch: 0.5, mask: "img/backdrop/panel-center.png?v=20260827e" },
+      { id: "right", label: "Right panel", x: 0.5312, y: 0.5177, w: 0.21, h: 0.4454, arch: 0.22, mask: "img/backdrop/panel-right.png?v=20260827e" },
+    ],
+    colours: [
+      { id: "forest", label: "Forest green", original: "#3a5440", mask: "img/backdrop/balloon-forest.png?v=20260827e" },
+      { id: "mint", label: "Mint", original: "#c5dcc8", mask: "img/backdrop/balloon-mint.png?v=20260827e" },
+      { id: "white", label: "White", original: "#f3f2ed", mask: "img/backdrop/balloon-white.png?v=20260827e" },
+      { id: "sky", label: "Sky blue", original: "#a3c6dc", mask: "img/backdrop/balloon-sky.png?v=20260827e" },
+      { id: "lavender", label: "Lavender", original: "#cbb8d4", mask: "img/backdrop/balloon-lavender.png?v=20260827e" },
+    ],
+  };
+
+  const backdropState = {
+    ready: false,
+    loading: null,
+    nameTouched: false,
+    renderTimer: 0,
+    panels: { left: null, center: null, right: null },
+    colours: Object.fromEntries(BACKDROP.colours.map((c) => [c.id, c.original])),
+    assets: null,
+  };
+
   let partyData = DEFAULT_PARTY;
   let cakeData = DEFAULT_CAKES;
 
@@ -275,6 +305,477 @@
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;");
+  }
+
+  function loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error(`Could not load ${src}`));
+      img.src = src;
+    });
+  }
+
+  function hexToRgb(hex) {
+    const h = String(hex || "").replace("#", "").trim();
+    const full = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+    const n = parseInt(full, 16);
+    if (Number.isNaN(n)) return [0, 0, 0];
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  function overlayChannel(lum, color) {
+    const b = lum / 255;
+    const c = color / 255;
+    const o = b < 0.5 ? 2 * b * c : 1 - 2 * (1 - b) * (1 - c);
+    return Math.round(Math.min(255, Math.max(0, o * 255)));
+  }
+
+  function multiplyChannel(lum, color) {
+    return Math.round(Math.min(255, Math.max(0, (lum / 255) * color)));
+  }
+
+  function maskBytes(img, w, h) {
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    const ctx = c.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    const data = ctx.getImageData(0, 0, w, h).data;
+    const out = new Uint8Array(w * h);
+    for (let i = 0; i < out.length; i += 1) out[i] = data[i * 4];
+    return out;
+  }
+
+  function backdropPanelPath(ctx, panel, w, h) {
+    const x = panel.x * w;
+    const y = panel.y * h;
+    const pw = panel.w * w;
+    const ph = panel.h * h;
+    const rx = pw / 2;
+    const ry = pw * (panel.arch != null ? panel.arch : 0.42);
+    const cx = x + rx;
+    ctx.beginPath();
+    ctx.moveTo(x, y + ry);
+    ctx.ellipse(cx, y + ry, rx, ry, 0, Math.PI, 0, false);
+    ctx.lineTo(x + pw, y + ph);
+    ctx.lineTo(x, y + ph);
+    ctx.closePath();
+  }
+
+  function drawCover(ctx, img, x, y, w, h) {
+    const ir = img.naturalWidth / img.naturalHeight;
+    const br = w / h;
+    let dw;
+    let dh;
+    let dx;
+    let dy;
+    if (ir > br) {
+      dh = h;
+      dw = h * ir;
+      dx = x + (w - dw) / 2;
+      dy = y;
+    } else {
+      dw = w;
+      dh = w / ir;
+      dx = x;
+      dy = y + (h - dh) / 2;
+    }
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }
+
+  function backdropNameValue() {
+    return document.getElementById("backdrop-name")?.value.trim() || "";
+  }
+
+  function prefillBackdropName() {
+    const el = document.getElementById("backdrop-name");
+    if (!el || backdropState.nameTouched || el.value.trim()) return;
+    const child = document.getElementById("child-name")?.value.trim() || "";
+    if (child) el.value = `${child}’s Birthday`;
+  }
+
+  async function ensureBackdropAssets() {
+    if (backdropState.assets) return backdropState.assets;
+    if (backdropState.loading) return backdropState.loading;
+    backdropState.loading = (async () => {
+      const w = BACKDROP.width;
+      const h = BACKDROP.height;
+      const photo = await loadImage(BACKDROP.photo);
+      const maskImgs = await Promise.all(BACKDROP.colours.map((c) => loadImage(c.mask)));
+      const panelMaskImgs = await Promise.all(BACKDROP.panels.map((p) => loadImage(p.mask)));
+      const occlusionImg = await loadImage(BACKDROP.occlusion);
+      const balloonsImg = await loadImage(BACKDROP.balloonsMask);
+      const off = document.createElement("canvas");
+      off.width = w;
+      off.height = h;
+      const ctx = off.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(photo, 0, 0, w, h);
+      backdropState.assets = {
+        photo,
+        photoData: ctx.getImageData(0, 0, w, h),
+        masks: maskImgs.map((img) => maskBytes(img, w, h)),
+        panelMasks: Object.fromEntries(
+          BACKDROP.panels.map((p, i) => [p.id, maskBytes(panelMaskImgs[i], w, h)])
+        ),
+        occlusion: maskBytes(occlusionImg, w, h),
+        balloons: maskBytes(balloonsImg, w, h),
+      };
+      backdropState.ready = true;
+      return backdropState.assets;
+    })();
+    try {
+      return await backdropState.loading;
+    } catch (err) {
+      backdropState.loading = null;
+      throw err;
+    }
+  }
+
+  function drawPanelPrint(ctx, panel, img, w, h) {
+    const assets = backdropState.assets;
+    const mask = assets?.panelMasks?.[panel.id];
+    const x = panel.x * w;
+    const y = panel.y * h;
+    const pw = panel.w * w;
+    const ph = panel.h * h;
+
+    const layer = document.createElement("canvas");
+    layer.width = w;
+    layer.height = h;
+    const lctx = layer.getContext("2d");
+    if (mask) {
+      const mid = lctx.createImageData(w, h);
+      const md = mid.data;
+      for (let i = 0, p = 0; i < mask.length; i += 1, p += 4) {
+        const a = mask[i] >= 128 ? 255 : 0;
+        md[p] = 255;
+        md[p + 1] = 255;
+        md[p + 2] = 255;
+        md[p + 3] = a;
+      }
+      lctx.putImageData(mid, 0, 0);
+      lctx.globalCompositeOperation = "source-in";
+      drawCover(lctx, img, x, y, pw, ph);
+    } else {
+      lctx.save();
+      backdropPanelPath(lctx, panel, w, h);
+      lctx.clip();
+      drawCover(lctx, img, x, y, pw, ph);
+      lctx.restore();
+    }
+    ctx.drawImage(layer, 0, 0);
+  }
+
+  function restoreMaskedPhoto(ctx, w, h, mask, thresh) {
+    const assets = backdropState.assets;
+    if (!assets || !mask) return;
+    const out = ctx.getImageData(0, 0, w, h);
+    const od = out.data;
+    const pd = assets.photoData.data;
+    const n = w * h;
+    const t = thresh == null ? 128 : thresh;
+    for (let i = 0, p = 0; i < n; i += 1, p += 4) {
+      if (mask[i] < t) continue;
+      od[p] = pd[p];
+      od[p + 1] = pd[p + 1];
+      od[p + 2] = pd[p + 2];
+    }
+    ctx.putImageData(out, 0, 0);
+  }
+
+  function paintBalloons(ctx, w, h) {
+    const assets = backdropState.assets;
+    if (!assets) return;
+    const anyChanged = BACKDROP.colours.some(
+      (c) => backdropState.colours[c.id].toLowerCase() !== c.original.toLowerCase()
+    );
+    if (!anyChanged) return;
+
+    const out = ctx.getImageData(0, 0, w, h);
+    const od = out.data;
+    const pd = assets.photoData.data;
+    const rgb = BACKDROP.colours.map((c) => hexToRgb(backdropState.colours[c.id]));
+    const orig = BACKDROP.colours.map((c) => hexToRgb(c.original));
+    const THRESH = 128;
+    const sil = assets.balloons;
+    const n = w * h;
+    for (let i = 0, p = 0; i < n; i += 1, p += 4) {
+      if (sil && sil[i] < THRESH) continue;
+      let best = -1;
+      let bestA = THRESH;
+      for (let c = 0; c < assets.masks.length; c += 1) {
+        const a = assets.masks[c][i];
+        if (a > bestA) {
+          bestA = a;
+          best = c;
+        }
+      }
+      if (best < 0) continue;
+      const [nr, ng, nb] = rgb[best];
+      const [or, og, ob] = orig[best];
+      if (nr === or && ng === og && nb === ob) continue;
+
+      const pr = pd[p];
+      const pg = pd[p + 1];
+      const pb = pd[p + 2];
+      const lum = 0.2126 * pr + 0.7152 * pg + 0.0722 * pb;
+      const mr = multiplyChannel(lum, nr);
+      const mg = multiplyChannel(lum, ng);
+      const mb = multiplyChannel(lum, nb);
+      const ovr = overlayChannel(lum, nr);
+      const ovg = overlayChannel(lum, ng);
+      const ovb = overlayChannel(lum, nb);
+      const mix = lum > 180 ? 0.55 : 0.2;
+      od[p] = Math.round(mr * (1 - mix) + ovr * mix);
+      od[p + 1] = Math.round(mg * (1 - mix) + ovg * mix);
+      od[p + 2] = Math.round(mb * (1 - mix) + ovb * mix);
+    }
+    ctx.putImageData(out, 0, 0);
+  }
+
+  function paintOcclusion(ctx, w, h) {
+    restoreMaskedPhoto(ctx, w, h, backdropState.assets?.occlusion, 40);
+  }
+
+  function drawBackdropName(ctx, panel, w, h, name) {
+    const x = panel.x * w;
+    const y = panel.y * h;
+    const pw = panel.w * w;
+    const ph = panel.h * h;
+    const assets = backdropState.assets;
+    const mask = assets?.panelMasks?.[panel.id];
+
+    const paintName = (target) => {
+      if (!backdropState.panels.center) {
+        target.fillStyle = "#f4f2ee";
+        if (mask) target.fillRect(0, 0, w, h);
+        else target.fill();
+      }
+      target.fillStyle = "#1b1b1b";
+      target.textAlign = "center";
+      target.textBaseline = "middle";
+      const maxW = pw * 0.84;
+      let size = Math.min(56, pw * 0.24);
+      const fontFor = (s) => `${s}px "Great Vibes", "Tenor Sans", cursive`;
+      target.font = fontFor(size);
+      while (size > 18 && target.measureText(name).width > maxW) {
+        size -= 1;
+        target.font = fontFor(size);
+      }
+      target.fillText(name, x + pw / 2, y + ph * 0.42);
+    };
+
+    if (mask) {
+      const layer = document.createElement("canvas");
+      layer.width = w;
+      layer.height = h;
+      const lctx = layer.getContext("2d");
+      paintName(lctx);
+      const clip = document.createElement("canvas");
+      clip.width = w;
+      clip.height = h;
+      const cctx = clip.getContext("2d");
+      const mid = cctx.createImageData(w, h);
+      const md = mid.data;
+      for (let i = 0, p = 0; i < mask.length; i += 1, p += 4) {
+        const a = mask[i] >= 128 ? 255 : 0;
+        md[p] = 255;
+        md[p + 1] = 255;
+        md[p + 2] = 255;
+        md[p + 3] = a;
+      }
+      cctx.putImageData(mid, 0, 0);
+      lctx.globalCompositeOperation = "destination-in";
+      lctx.drawImage(clip, 0, 0);
+      ctx.drawImage(layer, 0, 0);
+      return;
+    }
+
+    ctx.save();
+    backdropPanelPath(ctx, panel, w, h);
+    ctx.clip();
+    paintName(ctx);
+    ctx.restore();
+  }
+
+  async function renderBackdropPreview() {
+    const canvas = document.getElementById("backdrop-canvas");
+    if (!canvas || partyState.decorThemeId !== "custom") return;
+    try {
+      await ensureBackdropAssets();
+    } catch (err) {
+      console.error(err);
+      return;
+    }
+    if (document.fonts?.ready) await document.fonts.ready;
+    const w = BACKDROP.width;
+    const h = BACKDROP.height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.clearRect(0, 0, w, h);
+    ctx.drawImage(backdropState.assets.photo, 0, 0, w, h);
+
+    BACKDROP.panels.forEach((panel) => {
+      const slot = backdropState.panels[panel.id];
+      if (!slot?.img) return;
+      drawPanelPrint(ctx, panel, slot.img, w, h);
+    });
+
+    const name = backdropNameValue();
+    const center = BACKDROP.panels.find((p) => p.id === "center");
+    if (name && center) drawBackdropName(ctx, center, w, h, name);
+
+    // Balloons + plants sit in front of uploads
+    restoreMaskedPhoto(ctx, w, h, backdropState.assets.balloons, 128);
+    paintOcclusion(ctx, w, h);
+    paintBalloons(ctx, w, h);
+  }
+
+  function scheduleBackdropRender() {
+    if (partyState.decorThemeId !== "custom") return;
+    window.clearTimeout(backdropState.renderTimer);
+    backdropState.renderTimer = window.setTimeout(() => {
+      renderBackdropPreview();
+    }, 40);
+  }
+
+  function setBackdropPanel(id, file) {
+    const prev = backdropState.panels[id];
+    if (prev?.url) URL.revokeObjectURL(prev.url);
+    if (!file) {
+      backdropState.panels[id] = null;
+      renderBackdropUploads();
+      scheduleBackdropRender();
+      renderSummary();
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      backdropState.panels[id] = { name: file.name, url, img };
+      renderBackdropUploads();
+      scheduleBackdropRender();
+      renderSummary();
+    };
+    img.src = url;
+  }
+
+  function renderBackdropUploads() {
+    const host = document.getElementById("backdrop-uploads");
+    if (!host) return;
+    host.innerHTML = BACKDROP.panels
+      .map((panel) => {
+        const slot = backdropState.panels[panel.id];
+        const hint = slot ? slot.name : "Tap to upload a print";
+        const thumb = slot ? ` style="background-image:url('${slot.url}')"` : "";
+        const clear = slot
+          ? `<button type="button" class="backdrop-drop__clear" data-clear-panel="${escapeHtml(panel.id)}">Clear</button>`
+          : `<span></span>`;
+        return `
+          <div class="backdrop-drop">
+            <label class="backdrop-drop__hit">
+              <span class="backdrop-drop__thumb"${thumb}></span>
+              <span class="backdrop-drop__copy">
+                <span class="backdrop-drop__label">${escapeHtml(panel.label)}</span>
+                <span class="backdrop-drop__hint">${escapeHtml(hint)}</span>
+              </span>
+              <input type="file" accept="image/*" data-panel="${escapeHtml(panel.id)}">
+            </label>
+            ${clear}
+          </div>`;
+      })
+      .join("");
+    host.querySelectorAll("input[data-panel]").forEach((input) => {
+      input.addEventListener("change", () => {
+        const file = input.files && input.files[0] ? input.files[0] : null;
+        setBackdropPanel(input.dataset.panel, file);
+      });
+    });
+    host.querySelectorAll("[data-clear-panel]").forEach((btn) => {
+      btn.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        setBackdropPanel(btn.dataset.clearPanel, null);
+      });
+    });
+  }
+
+  function renderBackdropColours() {
+    const host = document.getElementById("backdrop-colours");
+    if (!host) return;
+    host.innerHTML = BACKDROP.colours
+      .map((c) => {
+        const val = backdropState.colours[c.id];
+        return `
+          <label class="backdrop-swatch">
+            <span class="backdrop-swatch__chips">
+              <span class="backdrop-swatch__orig" style="background:${escapeHtml(c.original)}" title="Original"></span>
+              <input type="color" data-balloon="${escapeHtml(c.id)}" value="${escapeHtml(val)}" aria-label="${escapeHtml(c.label)}">
+            </span>
+            <span class="backdrop-swatch__name">${escapeHtml(c.label)}</span>
+          </label>`;
+      })
+      .join("");
+    host.querySelectorAll("input[data-balloon]").forEach((input) => {
+      input.addEventListener("input", () => {
+        backdropState.colours[input.dataset.balloon] = input.value;
+        scheduleBackdropRender();
+        renderSummary();
+      });
+    });
+  }
+
+  function backdropPaletteLabel() {
+    return BACKDROP.colours
+      .map((c) => `${c.label} ${backdropState.colours[c.id]}`)
+      .join(", ");
+  }
+
+  function backdropPrintsLabel() {
+    const named = BACKDROP.panels.filter((p) => backdropState.panels[p.id]).map((p) => p.label.toLowerCase());
+    if (!named.length) return "no prints yet";
+    return named.join(", ");
+  }
+
+  function backdropColoursChanged() {
+    return BACKDROP.colours.some((c) => backdropState.colours[c.id].toLowerCase() !== c.original.toLowerCase());
+  }
+
+  function initBackdrop() {
+    renderBackdropUploads();
+    renderBackdropColours();
+    const nameEl = document.getElementById("backdrop-name");
+    if (nameEl) {
+      nameEl.addEventListener("input", () => {
+        backdropState.nameTouched = true;
+        scheduleBackdropRender();
+        renderSummary();
+      });
+    }
+    const child = document.getElementById("child-name");
+    if (child) {
+      child.addEventListener("input", () => {
+        if (!backdropState.nameTouched) {
+          const el = document.getElementById("backdrop-name");
+          const value = child.value.trim();
+          if (el) el.value = value ? `${value}’s Birthday` : "";
+        }
+        if (partyState.decorThemeId === "custom") scheduleBackdropRender();
+      });
+    }
+    const dl = document.getElementById("backdrop-download");
+    if (dl) {
+      dl.addEventListener("click", async () => {
+        await renderBackdropPreview();
+        const canvas = document.getElementById("backdrop-canvas");
+        if (!canvas) return;
+        const a = document.createElement("a");
+        a.href = canvas.toDataURL("image/png");
+        a.download = "tiny-backdrop-mockup.png";
+        a.click();
+        track("builder_backdrop_download", { theme: partyState.decorThemeId });
+      });
+    }
   }
 
   function cakeSrc(src) {
@@ -649,6 +1150,481 @@
     return `IDR ${Math.round(n).toLocaleString("en-US")}`;
   }
 
+  function formatIdrInvoice(n) {
+    if (!n && n !== 0) return "—";
+    return `IDR ${Math.round(n).toLocaleString("id-ID")}`;
+  }
+
+  function formatPartyDateLong(iso) {
+    if (!iso) return "";
+    const d = new Date(`${iso}T12:00:00`);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  }
+
+  function quotationThemeLabel() {
+    const cakeTheme = document.getElementById("cake-theme")?.value.trim() || "";
+    const decor = decorThemeLabel();
+    if (cakeTheme && decor && decor !== "Not chosen yet") return `${decor} · ${cakeTheme}`;
+    if (cakeTheme) return cakeTheme;
+    if (decor && decor !== "Not chosen yet") return decor;
+    return "";
+  }
+
+  function loadScriptOnce(src, ready) {
+    if (ready()) return Promise.resolve();
+    const existing = document.querySelector(`script[data-quote-lib="${src}"]`);
+    if (existing) {
+      return new Promise((resolve, reject) => {
+        if (ready()) {
+          resolve();
+          return;
+        }
+        existing.addEventListener("load", () => resolve());
+        existing.addEventListener("error", () => reject(new Error(`Failed ${src}`)));
+      });
+    }
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = src;
+      script.async = true;
+      script.dataset.quoteLib = src;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error(`Could not load ${src}`));
+      document.head.appendChild(script);
+    });
+  }
+
+  async function loadPdfLibs() {
+    await loadScriptOnce(
+      "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+      () => typeof window.html2canvas === "function"
+    );
+    await loadScriptOnce(
+      "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+      () => !!(window.jspdf && window.jspdf.jsPDF)
+    );
+    if (typeof window.html2canvas !== "function" || !window.jspdf?.jsPDF) {
+      throw new Error("PDF libraries missing");
+    }
+  }
+
+  function ensureQuotePdfStyles() {
+    if (document.getElementById("quote-pdf-styles")) return;
+    const style = document.createElement("style");
+    style.id = "quote-pdf-styles";
+    style.textContent = `
+.quote-pdf-root {
+  box-sizing: border-box;
+  width: 794px;
+  margin: 0;
+  padding: 0;
+  color: #5f7367 !important;
+  background: #fffaf6;
+  font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.quote-pdf-root *, .quote-pdf-root *::before, .quote-pdf-root *::after { box-sizing: border-box; }
+.quote-pdf-root .qp-page {
+  width: 794px;
+  height: 1123px;
+  padding: 68px 68px 82px;
+  position: relative;
+  overflow: hidden;
+  background: #fffaf6;
+  color: #5f7367 !important;
+}
+.quote-pdf-root .qp-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 28px;
+}
+.quote-pdf-root .qp-logo { width: 58px; height: auto; display: block; }
+.quote-pdf-root .qp-title {
+  margin: 0;
+  text-align: right;
+  font-size: 34px;
+  line-height: 1.05;
+  font-weight: 600;
+  color: #7a9a86 !important;
+}
+.quote-pdf-root .qp-meta {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 18px 24px;
+  margin-bottom: 34px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #5f7367 !important;
+}
+.quote-pdf-root .qp-meta-left div,
+.quote-pdf-root .qp-meta-right div { margin: 0 0 2px; }
+.quote-pdf-root .qp-meta strong { font-weight: 600; }
+.quote-pdf-root table.qp-items {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #5f7367 !important;
+}
+.quote-pdf-root table.qp-items thead th {
+  text-align: left;
+  font-weight: 600;
+  color: #7a9a86 !important;
+  padding: 0 8px 10px 0;
+  border-bottom: 1.5px solid #5f7367;
+}
+.quote-pdf-root table.qp-items .qp-num,
+.quote-pdf-root table.qp-items .qp-qty {
+  text-align: right;
+  white-space: nowrap;
+}
+.quote-pdf-root table.qp-items .qp-qty { width: 48px; padding-left: 12px; }
+.quote-pdf-root table.qp-items .qp-num { width: 120px; }
+.quote-pdf-root table.qp-items tbody td {
+  padding: 11px 8px 11px 0;
+  vertical-align: top;
+  border-bottom: 1px solid rgba(95, 115, 103, 0.18);
+  color: #5f7367 !important;
+}
+.quote-pdf-root .qp-note {
+  margin-top: 3px;
+  font-size: 11px;
+  color: rgba(95, 115, 103, 0.72) !important;
+  line-height: 1.4;
+}
+.quote-pdf-root .qp-totals-wrap {
+  margin-top: 18px;
+  display: flex;
+  justify-content: flex-end;
+}
+.quote-pdf-root .qp-totals { width: 270px; font-size: 14px; color: #5f7367 !important; }
+.quote-pdf-root .qp-totals-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 5px 0;
+}
+.quote-pdf-root .qp-totals-row.is-grand {
+  margin-top: 8px;
+  font-weight: 700;
+  font-size: 16px;
+}
+.quote-pdf-root .qp-totals-row.is-grand .qp-amount {
+  border-bottom: 3px double #5f7367;
+  padding-bottom: 2px;
+}
+.quote-pdf-root .qp-totals-row.is-dp { margin-top: 10px; font-weight: 600; }
+.quote-pdf-root .qp-flowers {
+  position: absolute;
+  left: 46px;
+  bottom: 38px;
+  width: 180px;
+  height: auto;
+  pointer-events: none;
+}
+.quote-pdf-root .qp-flowers--right {
+  left: auto;
+  right: 38px;
+  width: 196px;
+}
+.quote-pdf-root .qp-mockup {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin-top: 4px;
+  border-radius: 4px;
+}
+.quote-pdf-root .qp-rules-title {
+  margin: 8px 0 18px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #5f7367 !important;
+}
+.quote-pdf-root .qp-rules-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px 28px;
+}
+.quote-pdf-root .qp-rule h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #5f7367 !important;
+}
+.quote-pdf-root .qp-rule p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #5f7367 !important;
+}
+.quote-pdf-root .qp-estimate {
+  margin-top: 22px;
+  font-size: 11px;
+  color: rgba(95, 115, 103, 0.75) !important;
+  max-width: 420px;
+}`;
+    document.head.appendChild(style);
+  }
+
+  function buildQuotationPdfMarkup() {
+    const q = buildQuotation();
+    const pkg = selectedPackage();
+    const child = document.getElementById("child-name")?.value.trim() || "";
+    const partyDate = document.getElementById("party-date")?.value || "";
+    const dateLabel = formatPartyDateLong(partyDate);
+    const guests = guestLabel();
+    const theme = quotationThemeLabel();
+    const dp = Math.round(q.total * 0.3);
+    const logoSrc = new URL("img/quote/logo-tiny.png?v=20260827logo", window.location.href).href;
+    const flowers1 = new URL("img/quote/flowers-page1.png", window.location.href).href;
+    const flowers2 = new URL("img/quote/flowers-page2.png", window.location.href).href;
+
+    const rows = (q.lines || [])
+      .filter((line) => !line.note)
+      .map((line) => {
+        const price = formatIdrInvoice(line.value);
+        return `<tr>
+          <td class="qp-details">${escapeHtml(line.label)}${
+            line.detail
+              ? `<div class="qp-note">${escapeHtml(line.detail)}</div>`
+              : ""
+          }</td>
+          <td class="qp-num">${escapeHtml(price)}</td>
+          <td class="qp-qty">1</td>
+          <td class="qp-num">${escapeHtml(price)}</td>
+        </tr>`;
+      })
+      .join("");
+
+    const tbcRows = (q.lines || [])
+      .filter((line) => line.note)
+      .map(
+        (line) => `<tr>
+          <td class="qp-details">${escapeHtml(line.label)}</td>
+          <td class="qp-num">TBC</td>
+          <td class="qp-qty">1</td>
+          <td class="qp-num">TBC</td>
+        </tr>`
+      )
+      .join("");
+
+    const metaBlock = `
+      <div class="qp-meta">
+        <div class="qp-meta-left">
+          <div><strong>Name</strong> : ${escapeHtml(child)}</div>
+          <div><strong>Phone</strong> :</div>
+          <div><strong>Time</strong> :</div>
+          <div><strong>Total Pax</strong> : ${escapeHtml(guests === "—" ? "" : guests)}</div>
+          <div><strong>Theme</strong> : ${escapeHtml(theme)}</div>
+        </div>
+        <div class="qp-meta-right">
+          <div><strong>Date</strong> : ${escapeHtml(
+            dateLabel || (pkg ? `${pkg.name} estimate` : "")
+          )}</div>
+        </div>
+      </div>`;
+
+    const header = `
+      <div class="qp-header">
+        <img class="qp-logo" src="${logoSrc}" alt="Tiny">
+        <h1 class="qp-title">Birthday Bash<br>at Tiny</h1>
+      </div>`;
+
+    return `
+<div class="qp-page">
+  ${header}
+  ${metaBlock}
+  <table class="qp-items">
+    <thead>
+      <tr>
+        <th>Details</th>
+        <th class="qp-num">Price</th>
+        <th class="qp-qty">Qty</th>
+        <th class="qp-num">Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${
+        rows ||
+        `<tr><td class="qp-details">No package selected</td><td class="qp-num">—</td><td class="qp-qty">—</td><td class="qp-num">—</td></tr>`
+      }
+      ${tbcRows}
+    </tbody>
+  </table>
+  <div class="qp-totals-wrap">
+    <div class="qp-totals">
+      <div class="qp-totals-row"><span>Total :</span><span>${escapeHtml(formatIdrInvoice(q.subtotal))}</span></div>
+      <div class="qp-totals-row"><span>Service (+5%) :</span><span>${escapeHtml(formatIdrInvoice(q.service))}</span></div>
+      <div class="qp-totals-row"><span>Tax (+10%) :</span><span>${escapeHtml(formatIdrInvoice(q.tax))}</span></div>
+      <div class="qp-totals-row is-grand"><span>TOTAL:</span><span class="qp-amount">${escapeHtml(formatIdrInvoice(q.total))}</span></div>
+      <div class="qp-totals-row is-dp"><span>DP 30% :</span><span>${escapeHtml(formatIdrInvoice(dp))}</span></div>
+    </div>
+  </div>
+  <p class="qp-estimate">Estimate only — final quotation confirmed by Tiny. Items marked TBC are priced on request.</p>
+  <img class="qp-flowers" src="${flowers1}" alt="" crossorigin="anonymous">
+</div>
+<div class="qp-page">
+  ${header}
+  ${metaBlock}
+  <h2 class="qp-rules-title">Reservation Rules:</h2>
+  <div class="qp-rules-grid">
+    <div class="qp-rule">
+      <h4>Hold Time for Reservations:</h4>
+      <p>Reservations will be held for a maximum of 20 minutes after the designated reservation time. If guests fail to arrive within this time frame, the reservation may be released to accommodate other diners.</p>
+    </div>
+    <div class="qp-rule">
+      <h4>Cancellation Policy:</h4>
+      <p>Guests are kindly requested to provide at least 24 hours notice for any cancellations or changes to their reservation. Failure to do so may result in a cancellation fee or restriction on future reservations. There is no refund for any cancellations.</p>
+    </div>
+    <div class="qp-rule">
+      <h4>Outside Food and Drinks:</h4>
+      <p>No outside food or drinks are permitted.</p>
+    </div>
+    <div class="qp-rule">
+      <h4>Service Charge and Taxes:</h4>
+      <p>All reservations are subject to a 5% service charge and a 10% tax, as per local regulations. Prices exclude service charge and taxes unless otherwise stated.</p>
+    </div>
+    <div class="qp-rule">
+      <h4>Availability and Capacity:</h4>
+      <p>Reservations are subject to availability and capacity limits.</p>
+    </div>
+    <div class="qp-rule">
+      <h4>Special Requests:</h4>
+      <p>Guests must ensure all special requests are communicated and provide mandatory details at least 4 days before the event.</p>
+    </div>
+  </div>
+  <img class="qp-flowers qp-flowers--right" src="${flowers2}" alt="" crossorigin="anonymous">
+</div>${
+      partyState.decorThemeId === "custom" && document.getElementById("backdrop-canvas")
+        ? `
+<div class="qp-page">
+  ${header}
+  ${metaBlock}
+  <h2 class="qp-rules-title">Backdrop mockup</h2>
+  <img class="qp-mockup" src="${document.getElementById("backdrop-canvas").toDataURL("image/jpeg", 0.9)}" alt="Custom terrace backdrop">
+  <p class="qp-estimate">Balloon colours: ${escapeHtml(backdropPaletteLabel())}. Prints: ${escapeHtml(backdropPrintsLabel())}. Briefing mockup only.</p>
+</div>`
+        : ""
+    }`;
+  }
+
+  async function waitForImages(root) {
+    const imgs = [...root.querySelectorAll("img")];
+    await Promise.all(
+      imgs.map((img) =>
+        img.complete && img.naturalWidth
+          ? Promise.resolve()
+          : new Promise((res) => {
+              img.onload = res;
+              img.onerror = res;
+            })
+      )
+    );
+  }
+
+  async function exportQuotationPdf() {
+    const status = document.getElementById("send-status");
+    if (!partyState.packageId) {
+      if (status) {
+        status.textContent = "Please choose a package first.";
+        status.className = "form-status is-error";
+      }
+      scrollToId("#package");
+      return;
+    }
+
+    if (status) {
+      status.textContent = "Preparing PDF…";
+      status.className = "form-status";
+    }
+
+    if (partyState.decorThemeId === "custom") {
+      await renderBackdropPreview();
+    }
+
+    document.getElementById("quote-pdf-root")?.remove();
+    ensureQuotePdfStyles();
+
+    const host = document.createElement("div");
+    host.id = "quote-pdf-root";
+    host.className = "quote-pdf-root";
+    host.setAttribute("aria-hidden", "true");
+    // Absolute + on-screen. Fixed/off-screen/opacity:0 captures often go blank.
+    host.style.cssText =
+      "position:absolute;left:0;top:0;width:794px;z-index:2147483000;pointer-events:none;opacity:1;background:#fffaf6;";
+    host.innerHTML = buildQuotationPdfMarkup();
+    document.body.appendChild(host);
+
+    try {
+      await loadPdfLibs();
+      await waitForImages(host);
+      if (document.fonts?.ready) await document.fonts.ready;
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+      const pages = [...host.querySelectorAll(".qp-page")];
+      if (!pages.length) throw new Error("No quotation pages to export");
+
+      const JsPDF = window.jspdf.jsPDF;
+      const pdf = new JsPDF({
+        unit: "mm",
+        format: "a4",
+        orientation: "portrait",
+        compress: true,
+      });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+
+      for (let i = 0; i < pages.length; i += 1) {
+        const canvas = await window.html2canvas(pages[i], {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: "#fffaf6",
+          scrollX: 0,
+          scrollY: -window.scrollY,
+          windowWidth: 794,
+          logging: false,
+          onclone: (doc) => {
+            const clonedRoot = doc.getElementById("quote-pdf-root");
+            if (clonedRoot) {
+              clonedRoot.style.left = "0";
+              clonedRoot.style.top = "0";
+              clonedRoot.style.opacity = "1";
+              clonedRoot.style.position = "static";
+            }
+          },
+        });
+        const img = canvas.toDataURL("image/jpeg", 0.98);
+        if (i > 0) pdf.addPage();
+        pdf.addImage(img, "JPEG", 0, 0, pageW, pageH, undefined, "FAST");
+      }
+
+      const partyDate = document.getElementById("party-date")?.value || "estimate";
+      pdf.save(`Tiny-Birthday-Quotation-${partyDate}.pdf`);
+
+      track("builder_export_pdf", { package: partyState.packageId });
+      if (status) {
+        status.textContent = "PDF downloaded.";
+        status.className = "form-status is-success";
+      }
+    } catch (err) {
+      console.error(err);
+      if (status) {
+        status.textContent = "Could not export PDF. Please try again.";
+        status.className = "form-status is-error";
+      }
+    } finally {
+      host.remove();
+    }
+  }
+
   function flatExtraItems() {
     const extras = partyData.extras || {};
     const out = [];
@@ -717,22 +1693,67 @@
     });
   }
 
+  const DECOR_RANK = { simple: 1, optimal: 2, terrace: 3 };
+  const DECOR_UPGRADE_PRICE = {
+    simple: 950000,
+    optimal: 2400000,
+    terrace: 4000000,
+  };
+
+  function decorRank(id) {
+    return DECOR_RANK[id] || 0;
+  }
+
+  function includedDecorId() {
+    const pkg = selectedPackage();
+    return pkg?.decorId || "simple";
+  }
+
+  function canSelectDecor(id) {
+    return decorRank(id) >= decorRank(includedDecorId());
+  }
+
+  function decorUpgradeNote(d) {
+    const included = includedDecorId();
+    if (d.id === included) return "Included with your package";
+    if (decorRank(d.id) < decorRank(included)) return "Below your package";
+    const price = DECOR_UPGRADE_PRICE[d.id];
+    return price ? `Upgrade · ${formatIdr(price)}` : "Upgrade available";
+  }
+
   function renderDecorPackages() {
     const grid = document.getElementById("decor-package-grid");
     if (!grid) return;
     const items = partyData.decorPackages || [];
+    const selectedId = partyState.decorPackageId || includedDecorId();
+    if (!canSelectDecor(selectedId)) {
+      partyState.decorPackageId = includedDecorId();
+    }
+    grid.classList.add("photo-grid--decor");
+    grid.dataset.emphasize = partyState.decorPackageId || includedDecorId();
     grid.innerHTML = items
       .map((d) => {
         const selected = d.id === partyState.decorPackageId;
+        const locked = !canSelectDecor(d.id);
         const list = (d.items || []).map((i) => `<li>${escapeHtml(i)}</li>`).join("");
+        const classes = [
+          "photo-card",
+          "photo-card--decor-pkg",
+          selected ? "is-selected" : "is-compact",
+          locked ? "is-locked" : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
         return `
-          <button type="button" class="photo-card${selected ? " is-selected" : ""}" data-decor-pkg="${escapeHtml(d.id)}">
+          <button type="button" class="${classes}" data-decor-pkg="${escapeHtml(d.id)}"${
+            locked ? ' aria-disabled="true" disabled' : ""
+          }>
             <div class="photo-card__media">
               <img src="${escapeHtml(d.image)}" alt="" width="800" height="1000" loading="lazy">
             </div>
             <div class="photo-card__body">
               <h3>${escapeHtml(d.name)}</h3>
-              <p>${escapeHtml(d.note || "")}</p>
+              <p>${escapeHtml(decorUpgradeNote(d))}</p>
               <ul>${list}</ul>
             </div>
           </button>`;
@@ -740,7 +1761,9 @@
       .join("");
     grid.querySelectorAll("[data-decor-pkg]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        partyState.decorPackageId = btn.dataset.decorPkg;
+        const id = btn.dataset.decorPkg;
+        if (!canSelectDecor(id)) return;
+        partyState.decorPackageId = id;
         renderDecorPackages();
         renderSummary();
       });
@@ -785,6 +1808,10 @@
     if (wrap) {
       wrap.hidden = partyState.decorThemeId !== "custom";
     }
+    if (partyState.decorThemeId === "custom") {
+      prefillBackdropName();
+      scheduleBackdropRender();
+    }
   }
 
   function decorPackageLabel() {
@@ -798,7 +1825,14 @@
     if (!t) return partyState.decorThemeId;
     if (t.custom) {
       const custom = document.getElementById("decor-custom")?.value.trim();
-      return custom ? `Custom · ${custom}` : "Build your own";
+      const prints = BACKDROP.panels.filter((p) => backdropState.panels[p.id]).length;
+      const bits = [];
+      if (custom) bits.push(custom);
+      if (prints) bits.push(`${prints} print${prints === 1 ? "" : "s"}`);
+      if (backdropColoursChanged()) bits.push("custom balloon colours");
+      const name = backdropNameValue();
+      if (name) bits.push(`name “${name}”`);
+      return bits.length ? `Custom · ${bits.join(" · ")}` : "Build your own";
     }
     return t.name;
   }
@@ -1063,6 +2097,12 @@
       ["Day", partyState.day === "weekend" ? "Weekend" : "Weekday"],
       ["Decoration package", decorPackageLabel()],
       ["Decoration look", decorThemeLabel()],
+      ...(partyState.decorThemeId === "custom"
+        ? [
+            ["Backdrop prints", backdropPrintsLabel()],
+            ["Balloon colours", backdropPaletteLabel()],
+          ]
+        : []),
       ["Party date", partyDate],
       ["Guests", guests],
       ["Birthday child", age ? `${child} · turning ${age}` : child],
@@ -1100,6 +2140,14 @@
       `Decoration package: ${decorPackageLabel()}`,
       `Decoration look: ${decorThemeLabel()}`,
       decorCustom && partyState.decorThemeId === "custom" ? `Custom theme notes: ${decorCustom}` : "",
+      ...(partyState.decorThemeId === "custom"
+        ? [
+            `Custom backdrop prints: ${backdropPrintsLabel()}`,
+            `Balloon colours: ${backdropPaletteLabel()}`,
+            backdropNameValue() ? `Name on backdrop: ${backdropNameValue()}` : "",
+            "I will send the backdrop mockup in this chat.",
+          ].filter(Boolean)
+        : []),
       partyDate ? `Party date: ${partyDate}` : "",
       guests !== "—" ? `Guests: ${guests}` : "",
       child ? `Birthday child: ${child}${age ? ` (turning ${age})` : ""}` : "",
@@ -1141,7 +2189,13 @@
 
   function initSend() {
     const btn = document.getElementById("send-whatsapp");
+    const exportBtn = document.getElementById("export-quote-pdf");
     const status = document.getElementById("send-status");
+    if (exportBtn) {
+      exportBtn.addEventListener("click", () => {
+        exportQuotationPdf();
+      });
+    }
     if (!btn) return;
     btn.addEventListener("click", () => {
       if (status) {
@@ -1183,6 +2237,7 @@
       "food-notes",
       "cake-theme",
       "decor-custom",
+      "backdrop-name",
     ].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
@@ -1668,6 +2723,7 @@
     initPartyDate();
     renderDecorPackages();
     renderDecorThemes();
+    initBackdrop();
     renderMasterclasses();
     renderExtras();
     renderFood();
