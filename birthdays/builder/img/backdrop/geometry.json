@@ -1,0 +1,37 @@
+{
+  "width": 1024,
+  "height": 678,
+  "defaults": {
+    "forest": "#3a5440",
+    "mint": "#c5dcc8",
+    "sky": "#a3c6dc",
+    "lavender": "#cbb8d4",
+    "white": "#f3f2ed"
+  },
+  "panels": [
+    {
+      "id": "left",
+      "x": 0.2812,
+      "y": 0.6298,
+      "w": 0.0967,
+      "h": 0.3333,
+      "mask": "img/backdrop/panel-left.png"
+    },
+    {
+      "id": "center",
+      "x": 0.376,
+      "y": 0.5177,
+      "w": 0.1553,
+      "h": 0.4454,
+      "mask": "img/backdrop/panel-center.png"
+    },
+    {
+      "id": "right",
+      "x": 0.5312,
+      "y": 0.5177,
+      "w": 0.21,
+      "h": 0.4454,
+      "mask": "img/backdrop/panel-right.png"
+    }
+  ]
+}
