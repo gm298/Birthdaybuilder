@@ -3,6 +3,9 @@
 
   const WA_BASE = "https://wa.me/6282147830142";
   const CAKES_ASSET_BASE = "../../cakes/";
+  const TERRACE_GUEST_MAX = 35;
+  const BUILDER_STEPS = ["details", "package", "decor", "cakes", "addons", "food"];
+  const THEME_COLLAGE_IDS = ["photozone", "character", "minnie", "unicorn"];
 
   const DEFAULT_PARTY = {
     packages: [
@@ -54,9 +57,9 @@
       {
         id: "terrace",
         name: "Whole Terrace",
-        guests: "20 people included · add up to 30",
+        guests: "20 people included · max 35 total",
         guestsIncluded: 20,
-        guestsMax: 30,
+        guestsMax: 35,
         priceWeekday: "IDR 12.7M",
         priceWeekend: "IDR 20.5M",
         priceWeekdayValue: 12700000,
@@ -254,7 +257,7 @@
     galleryExpanded: false,
   };
 
-  const BACKDROP = {
+  const TERRACE_BACKDROP = {
     width: 1024,
     height: 678,
     photo: "img/backdrop/terrace.jpg?v=20260827e",
@@ -274,18 +277,77 @@
     ],
   };
 
+  const BACKDROP_BY_PKG = {
+    simple: {
+      id: "simple",
+      name: "Simple",
+      mode: "static",
+      photo: "img/decor/simple.jpg",
+      panels: [],
+      colours: [],
+      lede: "Describe your theme and preferred colours — we’ll create simple balloon decor to match.",
+    },
+    optimal: {
+      id: "optimal",
+      name: "Optimal",
+      mode: "colours",
+      photo: "img/decor/optimal.jpg",
+      panels: [],
+      colours: TERRACE_BACKDROP.colours,
+      lede: "Choose your preferred balloon colours and describe your photozone theme.",
+    },
+    terrace: {
+      id: "terrace",
+      name: "Whole Terrace",
+      mode: "full",
+      ...TERRACE_BACKDROP,
+      lede: "Upload a print for each board and remap the five balloon colours. Balloons stay in front of the prints.",
+    },
+  };
+
+  const BACKDROP = TERRACE_BACKDROP;
+
   const backdropState = {
     ready: false,
     loading: null,
     nameTouched: false,
     renderTimer: 0,
     panels: { left: null, center: null, right: null },
-    colours: Object.fromEntries(BACKDROP.colours.map((c) => [c.id, c.original])),
+    colours: Object.fromEntries(TERRACE_BACKDROP.colours.map((c) => [c.id, c.original])),
     assets: null,
   };
 
   let partyData = DEFAULT_PARTY;
   let cakeData = DEFAULT_CAKES;
+  let guestLimitShown = false;
+
+  function getBackdropConfig() {
+    const pkgId = partyState.decorPackageId || includedDecorId();
+    return BACKDROP_BY_PKG[pkgId] || BACKDROP_BY_PKG.terrace;
+  }
+
+  function invalidateBackdropAssets() {
+    backdropState.assets = null;
+    backdropState.loading = null;
+    backdropState.ready = false;
+  }
+
+  function activeBackdropPanels() {
+    return getBackdropConfig().panels || [];
+  }
+
+  function activeBackdropColours() {
+    return getBackdropConfig().colours || [];
+  }
+
+  function designRequestValue() {
+    return document.getElementById("decor-design-request")?.value.trim() || "";
+  }
+
+  function totalGuests() {
+    const { kids, adults } = guestCounts();
+    return kids + adults;
+  }
 
   function track(eventName, params) {
     try {
@@ -396,16 +458,25 @@
   }
 
   async function ensureBackdropAssets() {
-    if (backdropState.assets) return backdropState.assets;
+    const cfg = getBackdropConfig();
+    if (cfg.mode !== "full") {
+      if (backdropState.assets?.photoOnly) return backdropState.assets;
+      const photo = await loadImage(cfg.photo);
+      backdropState.assets = { photo, photoOnly: true };
+      backdropState.ready = true;
+      return backdropState.assets;
+    }
+    if (backdropState.assets && !backdropState.assets.photoOnly) return backdropState.assets;
     if (backdropState.loading) return backdropState.loading;
     backdropState.loading = (async () => {
-      const w = BACKDROP.width;
-      const h = BACKDROP.height;
-      const photo = await loadImage(BACKDROP.photo);
-      const maskImgs = await Promise.all(BACKDROP.colours.map((c) => loadImage(c.mask)));
-      const panelMaskImgs = await Promise.all(BACKDROP.panels.map((p) => loadImage(p.mask)));
-      const occlusionImg = await loadImage(BACKDROP.occlusion);
-      const balloonsImg = await loadImage(BACKDROP.balloonsMask);
+      const w = TERRACE_BACKDROP.width;
+      const h = TERRACE_BACKDROP.height;
+      const photo = await loadImage(TERRACE_BACKDROP.photo);
+      const colours = TERRACE_BACKDROP.colours;
+      const maskImgs = await Promise.all(colours.map((c) => loadImage(c.mask)));
+      const panelMaskImgs = await Promise.all(TERRACE_BACKDROP.panels.map((p) => loadImage(p.mask)));
+      const occlusionImg = await loadImage(TERRACE_BACKDROP.occlusion);
+      const balloonsImg = await loadImage(TERRACE_BACKDROP.balloonsMask);
       const off = document.createElement("canvas");
       off.width = w;
       off.height = h;
@@ -416,7 +487,7 @@
         photoData: ctx.getImageData(0, 0, w, h),
         masks: maskImgs.map((img) => maskBytes(img, w, h)),
         panelMasks: Object.fromEntries(
-          BACKDROP.panels.map((p, i) => [p.id, maskBytes(panelMaskImgs[i], w, h)])
+          TERRACE_BACKDROP.panels.map((p, i) => [p.id, maskBytes(panelMaskImgs[i], w, h)])
         ),
         occlusion: maskBytes(occlusionImg, w, h),
         balloons: maskBytes(balloonsImg, w, h),
@@ -486,8 +557,9 @@
 
   function paintBalloons(ctx, w, h) {
     const assets = backdropState.assets;
-    if (!assets) return;
-    const anyChanged = BACKDROP.colours.some(
+    if (!assets || assets.photoOnly) return;
+    const colours = TERRACE_BACKDROP.colours;
+    const anyChanged = colours.some(
       (c) => backdropState.colours[c.id].toLowerCase() !== c.original.toLowerCase()
     );
     if (!anyChanged) return;
@@ -495,8 +567,8 @@
     const out = ctx.getImageData(0, 0, w, h);
     const od = out.data;
     const pd = assets.photoData.data;
-    const rgb = BACKDROP.colours.map((c) => hexToRgb(backdropState.colours[c.id]));
-    const orig = BACKDROP.colours.map((c) => hexToRgb(c.original));
+    const rgb = colours.map((c) => hexToRgb(backdropState.colours[c.id]));
+    const orig = colours.map((c) => hexToRgb(c.original));
     const THRESH = 128;
     const sil = assets.balloons;
     const n = w * h;
@@ -601,7 +673,19 @@
 
   async function renderBackdropPreview() {
     const canvas = document.getElementById("backdrop-canvas");
+    const staticImg = document.getElementById("backdrop-static");
     if (!canvas || partyState.decorThemeId !== "custom") return;
+    const cfg = getBackdropConfig();
+    if (cfg.mode !== "full") {
+      if (staticImg) {
+        staticImg.src = cfg.photo;
+        staticImg.hidden = false;
+      }
+      canvas.hidden = true;
+      return;
+    }
+    if (staticImg) staticImg.hidden = true;
+    canvas.hidden = false;
     try {
       await ensureBackdropAssets();
     } catch (err) {
@@ -609,23 +693,22 @@
       return;
     }
     if (document.fonts?.ready) await document.fonts.ready;
-    const w = BACKDROP.width;
-    const h = BACKDROP.height;
+    const w = TERRACE_BACKDROP.width;
+    const h = TERRACE_BACKDROP.height;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(backdropState.assets.photo, 0, 0, w, h);
 
-    BACKDROP.panels.forEach((panel) => {
+    TERRACE_BACKDROP.panels.forEach((panel) => {
       const slot = backdropState.panels[panel.id];
       if (!slot?.img) return;
       drawPanelPrint(ctx, panel, slot.img, w, h);
     });
 
     const name = backdropNameValue();
-    const center = BACKDROP.panels.find((p) => p.id === "center");
+    const center = TERRACE_BACKDROP.panels.find((p) => p.id === "center");
     if (name && center) drawBackdropName(ctx, center, w, h, name);
 
-    // Balloons + plants sit in front of uploads
     restoreMaskedPhoto(ctx, w, h, backdropState.assets.balloons, 128);
     paintOcclusion(ctx, w, h);
     paintBalloons(ctx, w, h);
@@ -663,7 +746,8 @@
   function renderBackdropUploads() {
     const host = document.getElementById("backdrop-uploads");
     if (!host) return;
-    host.innerHTML = BACKDROP.panels
+    const panels = activeBackdropPanels();
+    host.innerHTML = panels
       .map((panel) => {
         const slot = backdropState.panels[panel.id];
         const hint = slot ? slot.name : "Tap to upload a print";
@@ -703,7 +787,8 @@
   function renderBackdropColours() {
     const host = document.getElementById("backdrop-colours");
     if (!host) return;
-    host.innerHTML = BACKDROP.colours
+    const colours = activeBackdropColours();
+    host.innerHTML = colours
       .map((c) => {
         const val = backdropState.colours[c.id];
         return `
@@ -726,19 +811,103 @@
   }
 
   function backdropPaletteLabel() {
-    return BACKDROP.colours
+    return activeBackdropColours()
       .map((c) => `${c.label} ${backdropState.colours[c.id]}`)
       .join(", ");
   }
 
   function backdropPrintsLabel() {
-    const named = BACKDROP.panels.filter((p) => backdropState.panels[p.id]).map((p) => p.label.toLowerCase());
+    const named = activeBackdropPanels()
+      .filter((p) => backdropState.panels[p.id])
+      .map((p) => p.label.toLowerCase());
     if (!named.length) return "no prints yet";
     return named.join(", ");
   }
 
   function backdropColoursChanged() {
-    return BACKDROP.colours.some((c) => backdropState.colours[c.id].toLowerCase() !== c.original.toLowerCase());
+    return activeBackdropColours().some(
+      (c) => backdropState.colours[c.id].toLowerCase() !== c.original.toLowerCase()
+    );
+  }
+
+  function updateBackdropBuilderUI() {
+    const cfg = getBackdropConfig();
+    const lede = document.getElementById("backdrop-lede");
+    const uploads = document.getElementById("backdrop-uploads");
+    const nameField = document.getElementById("backdrop-name-field");
+    const coloursField = document.getElementById("backdrop-colours-field");
+    const downloadBtn = document.getElementById("backdrop-download");
+    const pkgLabel = document.getElementById("builder-pkg-label");
+    if (lede) lede.textContent = cfg.lede || "";
+    if (uploads) uploads.hidden = cfg.mode !== "full";
+    if (nameField) nameField.hidden = cfg.mode === "static";
+    if (coloursField) coloursField.hidden = !cfg.colours?.length;
+    if (downloadBtn) downloadBtn.hidden = cfg.mode !== "full";
+    if (pkgLabel) {
+      pkgLabel.textContent = `Builder for ${cfg.name} decoration package`;
+    }
+    renderBackdropUploads();
+    renderBackdropColours();
+    scheduleBackdropRender();
+  }
+
+  function openCustomBuilderModal() {
+    partyState.decorThemeId = "custom";
+    const modal = document.getElementById("custom-builder-modal");
+    if (!modal) return;
+    updateBackdropBuilderUI();
+    prefillBackdropName();
+    scheduleBackdropRender();
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    renderSummary();
+    updateStepProgress();
+    track("builder_custom_theme_open", { decorPackage: partyState.decorPackageId });
+  }
+
+  function closeCustomBuilderModal() {
+    const modal = document.getElementById("custom-builder-modal");
+    if (!modal) return;
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+    updateStepProgress();
+    renderSummary();
+  }
+
+  function showGuestLimitModal() {
+    if (guestLimitShown) return;
+    guestLimitShown = true;
+    const modal = document.getElementById("guest-limit-modal");
+    if (!modal) return;
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    track("builder_guest_limit", { guests: totalGuests() });
+  }
+
+  function closeGuestLimitModal() {
+    const modal = document.getElementById("guest-limit-modal");
+    if (!modal) return;
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    if (document.getElementById("custom-builder-modal")?.hidden !== false) {
+      document.body.style.overflow = "";
+    }
+  }
+
+  function checkTerraceGuestLimit() {
+    const pkg = selectedPackage();
+    if (pkg?.id !== "terrace") {
+      guestLimitShown = false;
+      return;
+    }
+    if (totalGuests() > TERRACE_GUEST_MAX) {
+      showGuestLimitModal();
+    } else {
+      guestLimitShown = false;
+    }
   }
 
   function initBackdrop() {
@@ -967,8 +1136,12 @@
 
   function syncStepsBarH() {
     const steps = document.querySelector(".steps-bar");
+    const progress = document.getElementById("steps-progress");
     if (!steps) return;
-    const height = Math.ceil(steps.getBoundingClientRect().height);
+    const stepsH = Math.ceil(steps.getBoundingClientRect().height);
+    const progressH = progress ? Math.ceil(progress.getBoundingClientRect().height) : 0;
+    const height = stepsH + progressH;
+    document.documentElement.style.setProperty("--steps-bar-only-h", `${stepsH}px`);
     document.documentElement.style.setProperty("--steps-bar-h", `${height}px`);
     const spacer = document.getElementById("steps-bar-spacer");
     if (spacer && steps.classList.contains("is-fixed")) {
@@ -986,7 +1159,9 @@
       bar.classList.toggle("is-fixed", fixed);
       document.body.classList.toggle("steps-pinned", fixed);
       if (spacer) {
-        spacer.style.height = fixed ? `${bar.offsetHeight}px` : "0";
+        const progress = document.getElementById("steps-progress");
+        const totalH = bar.offsetHeight + (progress ? progress.offsetHeight : 0);
+        spacer.style.height = fixed ? `${totalH}px` : "0";
       }
       bar.style.top = "0";
       syncStepsBarH();
@@ -1005,7 +1180,9 @@
       () => {
         bar.style.top = "0";
         if (bar.classList.contains("is-fixed") && spacer) {
-          spacer.style.height = `${bar.offsetHeight}px`;
+          const progress = document.getElementById("steps-progress");
+          const totalH = bar.offsetHeight + (progress ? progress.offsetHeight : 0);
+          spacer.style.height = `${totalH}px`;
         }
         syncStepsBarH();
       },
@@ -1082,11 +1259,15 @@
     }
     if (pkg?.decorId) {
       partyState.decorPackageId = pkg.decorId;
+      invalidateBackdropAssets();
       renderDecorPackages();
+      updateBackdropBuilderUI();
     }
     renderPackages();
     renderFood();
+    checkTerraceGuestLimit();
     renderSummary();
+    updateStepProgress();
   }
 
   function selectedPackage() {
@@ -1689,6 +1870,7 @@
       btn.addEventListener("click", () => {
         applyPackageSelection(btn.dataset.package);
         track("builder_package", { package: partyState.packageId });
+        updateStepProgress();
       });
     });
   }
@@ -1764,54 +1946,34 @@
         const id = btn.dataset.decorPkg;
         if (!canSelectDecor(id)) return;
         partyState.decorPackageId = id;
+        invalidateBackdropAssets();
         renderDecorPackages();
+        updateBackdropBuilderUI();
         renderSummary();
+        updateStepProgress();
       });
     });
   }
 
-  function renderDecorThemes() {
-    const grid = document.getElementById("decor-theme-grid");
-    const wrap = document.getElementById("custom-theme-wrap");
-    if (!grid) return;
+  function renderThemeCollage() {
+    const host = document.getElementById("theme-collage");
+    if (!host) return;
     const themes = partyData.decorThemes || [];
-    grid.innerHTML = themes
-      .map((t) => {
-        const selected = t.id === partyState.decorThemeId;
-        if (t.custom) {
-          return `
-            <button type="button" class="photo-card photo-card--custom${selected ? " is-selected" : ""}" data-decor-theme="${escapeHtml(t.id)}">
-              <div class="photo-card__body">
-                <h3>${escapeHtml(t.name)}</h3>
-                <p>Describe colours, characters and backdrop.</p>
-              </div>
-            </button>`;
-        }
-        return `
-          <button type="button" class="photo-card${selected ? " is-selected" : ""}" data-decor-theme="${escapeHtml(t.id)}">
-            <div class="photo-card__media photo-card__media--wide">
-              <img src="${escapeHtml(t.image)}" alt="" width="900" height="600" loading="lazy">
-            </div>
-            <div class="photo-card__body">
-              <h4>${escapeHtml(t.name)}</h4>
-            </div>
-          </button>`;
-      })
+    const collageThemes = THEME_COLLAGE_IDS.map((id) => themes.find((t) => t.id === id)).filter(Boolean);
+    host.removeAttribute("aria-hidden");
+    host.innerHTML = collageThemes
+      .map(
+        (t) => `
+        <div class="theme-collage__item">
+          <img src="${escapeHtml(t.image)}" alt="" width="400" height="500" loading="lazy">
+          <span class="theme-collage__caption">${escapeHtml(t.name)}</span>
+        </div>`
+      )
       .join("");
-    grid.querySelectorAll("[data-decor-theme]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        partyState.decorThemeId = btn.dataset.decorTheme;
-        renderDecorThemes();
-        renderSummary();
-      });
-    });
-    if (wrap) {
-      wrap.hidden = partyState.decorThemeId !== "custom";
-    }
-    if (partyState.decorThemeId === "custom") {
-      prefillBackdropName();
-      scheduleBackdropRender();
-    }
+  }
+
+  function renderDecorThemes() {
+    renderThemeCollage();
   }
 
   function decorPackageLabel() {
@@ -1825,9 +1987,11 @@
     if (!t) return partyState.decorThemeId;
     if (t.custom) {
       const custom = document.getElementById("decor-custom")?.value.trim();
-      const prints = BACKDROP.panels.filter((p) => backdropState.panels[p.id]).length;
+      const designRequest = designRequestValue();
+      const prints = activeBackdropPanels().filter((p) => backdropState.panels[p.id]).length;
       const bits = [];
       if (custom) bits.push(custom);
+      if (designRequest) bits.push(`design request: ${designRequest}`);
       if (prints) bits.push(`${prints} print${prints === 1 ? "" : "s"}`);
       if (backdropColoursChanged()) bits.push("custom balloon colours");
       const name = backdropNameValue();
@@ -1949,6 +2113,7 @@
     }
     renderExtras();
     renderSummary();
+    updateStepProgress();
   }
 
   function renderExtras() {
@@ -2099,6 +2264,7 @@
       ["Decoration look", decorThemeLabel()],
       ...(partyState.decorThemeId === "custom"
         ? [
+            ["Design request", designRequestValue() || "—"],
             ["Backdrop prints", backdropPrintsLabel()],
             ["Balloon colours", backdropPaletteLabel()],
           ]
@@ -2132,6 +2298,7 @@
     const foodNotes = document.getElementById("food-notes")?.value.trim() || "";
     const cakeTheme = document.getElementById("cake-theme")?.value.trim() || "";
     const decorCustom = document.getElementById("decor-custom")?.value.trim() || "";
+    const designRequest = designRequestValue();
     const q = buildQuotation();
 
     const lines = [
@@ -2140,12 +2307,19 @@
       `Decoration package: ${decorPackageLabel()}`,
       `Decoration look: ${decorThemeLabel()}`,
       decorCustom && partyState.decorThemeId === "custom" ? `Custom theme notes: ${decorCustom}` : "",
+      designRequest && partyState.decorThemeId === "custom"
+        ? `Design request (build for us): ${designRequest}`
+        : "",
       ...(partyState.decorThemeId === "custom"
         ? [
-            `Custom backdrop prints: ${backdropPrintsLabel()}`,
-            `Balloon colours: ${backdropPaletteLabel()}`,
+            getBackdropConfig().mode === "full"
+              ? `Custom backdrop prints: ${backdropPrintsLabel()}`
+              : "",
+            activeBackdropColours().length ? `Balloon colours: ${backdropPaletteLabel()}` : "",
             backdropNameValue() ? `Name on backdrop: ${backdropNameValue()}` : "",
-            "I will send the backdrop mockup in this chat.",
+            getBackdropConfig().mode === "full"
+              ? "I will send the backdrop mockup in this chat."
+              : "",
           ].filter(Boolean)
         : []),
       partyDate ? `Party date: ${partyDate}` : "",
@@ -2237,12 +2411,19 @@
       "food-notes",
       "cake-theme",
       "decor-custom",
+      "decor-design-request",
       "backdrop-name",
     ].forEach((id) => {
       const el = document.getElementById(id);
       if (!el) return;
-      el.addEventListener("input", renderSummary);
-      el.addEventListener("change", renderSummary);
+      el.addEventListener("input", () => {
+        renderSummary();
+        updateStepProgress();
+      });
+      el.addEventListener("change", () => {
+        renderSummary();
+        updateStepProgress();
+      });
     });
   }
 
@@ -2391,6 +2572,8 @@
   function closeAllLightboxes() {
     closeLightbox();
     closePhotoLightbox();
+    closeCustomBuilderModal();
+    closeGuestLimitModal();
   }
 
   function initLightbox() {
@@ -2467,6 +2650,102 @@
     }
   }
 
+  function isStepComplete(stepId) {
+    switch (stepId) {
+      case "details": {
+        const date = document.getElementById("party-date")?.value || "";
+        const child = document.getElementById("child-name")?.value.trim() || "";
+        return Boolean(date && child && totalGuests() > 0);
+      }
+      case "package":
+        return Boolean(partyState.packageId);
+      case "decor":
+        return partyState.decorThemeId === "custom";
+      case "cakes":
+        return cakeState.sponges.length > 0 && Boolean(cakeState.size);
+      case "addons":
+        return true;
+      case "food":
+        return Boolean(partyState.packageId);
+      default:
+        return false;
+    }
+  }
+
+  function updateStepProgress() {
+    const completed = BUILDER_STEPS.filter((id) => isStepComplete(id)).length;
+    const total = BUILDER_STEPS.length;
+    const fill = document.getElementById("steps-progress-fill");
+    const text = document.getElementById("steps-progress-text");
+    const track = document.getElementById("steps-progress-track");
+    if (fill) fill.style.width = `${(completed / total) * 100}%`;
+    if (text) text.textContent = `${completed} out of ${total} steps complete`;
+    if (track) {
+      track.setAttribute("aria-valuenow", String(completed));
+      track.setAttribute("aria-valuemax", String(total));
+    }
+    document.querySelectorAll(".step-chip[data-step]").forEach((chip) => {
+      const stepId = chip.dataset.step;
+      chip.classList.toggle("is-complete", isStepComplete(stepId));
+    });
+  }
+
+  function initCollapsibleAddons() {
+    document.querySelectorAll(".addon-collapse").forEach((wrap) => {
+      const toggle = wrap.querySelector(".addon-collapse__toggle");
+      const panel = wrap.querySelector(".addon-collapse__panel");
+      if (!toggle || !panel || toggle.dataset.bound) return;
+      toggle.dataset.bound = "1";
+      toggle.addEventListener("click", () => {
+        const open = toggle.getAttribute("aria-expanded") === "true";
+        toggle.setAttribute("aria-expanded", open ? "false" : "true");
+        wrap.classList.toggle("is-open", !open);
+        panel.hidden = open;
+      });
+    });
+  }
+
+  function initBuilderModals() {
+    const openBtn = document.getElementById("open-custom-builder");
+    if (openBtn && !openBtn.dataset.bound) {
+      openBtn.dataset.bound = "1";
+      openBtn.addEventListener("click", openCustomBuilderModal);
+    }
+    document.querySelectorAll("[data-close-builder]").forEach((el) => {
+      if (el.dataset.boundClose) return;
+      el.dataset.boundClose = "1";
+      el.addEventListener("click", closeCustomBuilderModal);
+    });
+    document.querySelectorAll("[data-close-guest-limit]").forEach((el) => {
+      if (el.dataset.boundCloseGuest) return;
+      el.dataset.boundCloseGuest = "1";
+      el.addEventListener("click", closeGuestLimitModal);
+    });
+  }
+
+  function initGuestLimit() {
+    ["guest-kids", "guest-adults"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el || el.dataset.guestLimitBound) return;
+      el.dataset.guestLimitBound = "1";
+      el.addEventListener("input", () => {
+        checkTerraceGuestLimit();
+        updateStepProgress();
+      });
+      el.addEventListener("change", () => {
+        checkTerraceGuestLimit();
+        updateStepProgress();
+      });
+    });
+    ["party-date", "child-name", "child-age"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el || el.dataset.stepBound) return;
+      el.dataset.stepBound = "1";
+      el.addEventListener("input", updateStepProgress);
+      el.addEventListener("change", updateStepProgress);
+    });
+  }
+
   function initStepChips() {
     const chips = document.querySelectorAll(".step-chip");
     const sections = ["#details", "#package", "#decor", "#cakes", "#addons", "#food", "#send"]
@@ -2481,6 +2760,7 @@
       chips.forEach((chip) => {
         chip.classList.toggle("is-active", chip.getAttribute("href") === `#${active.id}`);
       });
+      updateStepProgress();
     };
     window.addEventListener("scroll", update, { passive: true });
     update();
@@ -2532,6 +2812,7 @@
         }
         renderSpongeOptions();
         renderSummary();
+        updateStepProgress();
       });
     });
     if (hint) {
@@ -2724,6 +3005,10 @@
     renderDecorPackages();
     renderDecorThemes();
     initBackdrop();
+    updateBackdropBuilderUI();
+    initBuilderModals();
+    initCollapsibleAddons();
+    initGuestLimit();
     renderMasterclasses();
     renderExtras();
     renderFood();
@@ -2749,9 +3034,13 @@
     window.addEventListener("resize", syncStepsBarH);
     if (window.ResizeObserver) {
       const steps = document.querySelector(".steps-bar");
+      const progress = document.getElementById("steps-progress");
       if (steps) new ResizeObserver(syncStepsBarH).observe(steps);
+      if (progress) new ResizeObserver(syncStepsBarH).observe(progress);
     }
     initMobileSticky();
     initStepChips();
+    updateStepProgress();
+    checkTerraceGuestLimit();
   });
 })();

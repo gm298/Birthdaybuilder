@@ -49,9 +49,9 @@
     {
       "id": "terrace",
       "name": "Whole Terrace",
-      "guests": "20 people included · add up to 30",
+      "guests": "20 people included · max 35 total",
       "guestsIncluded": 20,
-      "guestsMax": 30,
+      "guestsMax": 35,
       "priceWeekday": "IDR 12.7M",
       "priceWeekend": "IDR 20.5M",
       "priceWeekdayValue": 12700000,

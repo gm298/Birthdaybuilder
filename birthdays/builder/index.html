@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../cakes/css/styles.css?v=20260826h">
-  <link rel="stylesheet" href="css/styles.css?v=20260827e">
+  <link rel="stylesheet" href="css/styles.css?v=20260831a">
   <link rel="stylesheet" href="../../shared/chrome.css?v=20260826f">
 </head>
 <body data-page="builder">
@@ -34,14 +34,20 @@
 
     <div class="steps-bar-anchor" id="steps-bar-anchor" aria-hidden="true"></div>
     <nav class="steps-bar" id="steps-bar" aria-label="Builder steps">
-      <a class="step-chip" href="#details">01 Details</a>
-      <a class="step-chip" href="#package">02 Package</a>
-      <a class="step-chip" href="#decor">03 Decorations</a>
-      <a class="step-chip" href="#cakes">04 Cake</a>
-      <a class="step-chip" href="#addons">05 Add ons</a>
-      <a class="step-chip" href="#food">06 Food</a>
-      <a class="step-chip" href="#send">Quote</a>
+      <a class="step-chip" href="#details" data-step="details"><span class="step-chip__check" aria-hidden="true"></span>01 Details</a>
+      <a class="step-chip" href="#package" data-step="package"><span class="step-chip__check" aria-hidden="true"></span>02 Package</a>
+      <a class="step-chip" href="#decor" data-step="decor"><span class="step-chip__check" aria-hidden="true"></span>03 Decorations</a>
+      <a class="step-chip" href="#cakes" data-step="cakes"><span class="step-chip__check" aria-hidden="true"></span>04 Cake</a>
+      <a class="step-chip" href="#addons" data-step="addons"><span class="step-chip__check" aria-hidden="true"></span>05 Add ons</a>
+      <a class="step-chip" href="#food" data-step="food"><span class="step-chip__check" aria-hidden="true"></span>06 Food</a>
+      <a class="step-chip step-chip--quote" href="#send">Quote</a>
     </nav>
+    <div class="steps-progress" id="steps-progress" aria-live="polite">
+      <div class="steps-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0" id="steps-progress-track">
+        <div class="steps-progress__fill" id="steps-progress-fill"></div>
+      </div>
+      <p class="steps-progress__text" id="steps-progress-text">0 out of 6 steps complete</p>
+    </div>
     <div class="steps-bar-spacer" id="steps-bar-spacer" aria-hidden="true"></div>
 
     <section class="builder-section builder-section--cream" id="details">
@@ -115,32 +121,9 @@
       </div>
   <div class="photo-grid photo-grid--3 photo-grid--decor" id="decor-package-grid"></div>
       <h3 class="subhead">Build your own custom theme</h3>
-      <div class="photo-grid photo-grid--themes" id="decor-theme-grid"></div>
-      <div id="custom-theme-wrap" hidden>
-        <div class="field field--theme">
-          <label class="field__label" for="decor-custom">Describe the theme</label>
-          <input type="text" id="decor-custom" name="decor-custom" placeholder="e.g. Minecraft and Bluey, name on the backdrop">
-        </div>
-        <div class="backdrop-builder" id="backdrop-builder">
-          <div class="backdrop-builder__preview">
-            <canvas id="backdrop-canvas" width="1024" height="678" aria-label="Terrace backdrop preview"></canvas>
-            <p class="backdrop-builder__hint">A briefing mockup — Tiny will match the look, not every pixel.</p>
-          </div>
-          <div class="backdrop-builder__controls">
-            <p class="backdrop-builder__lede">Upload a print for each board and remap the five balloon colours. Balloons stay in front of the prints.</p>
-            <div class="backdrop-uploads" id="backdrop-uploads"></div>
-            <div class="field">
-              <label class="field__label" for="backdrop-name">Name on the center board</label>
-              <input type="text" id="backdrop-name" name="backdrop-name" placeholder="e.g. Mira’s Birthday" autocomplete="off">
-            </div>
-            <div class="field">
-              <span class="field__label" id="backdrop-colours-label">Balloon colours</span>
-              <p class="backdrop-builder__lede">Each picker replaces one colour from the photo. The small chip is the original.</p>
-              <div class="backdrop-colours" id="backdrop-colours" role="group" aria-labelledby="backdrop-colours-label"></div>
-            </div>
-            <button class="btn btn--outline" type="button" id="backdrop-download">Download mockup PNG</button>
-          </div>
-        </div>
+      <div class="theme-collage" id="theme-collage" aria-hidden="true"></div>
+      <div class="theme-collage__action">
+        <button type="button" class="btn" id="open-custom-builder">Build your own</button>
       </div>
     </section>
 
@@ -264,11 +247,25 @@
       <h3 class="subhead">Entertainment</h3>
       <div class="photo-grid photo-grid--entertain" id="extras-entertainment"></div>
 
-      <h3 class="subhead">Decoration</h3>
-      <div class="photo-grid photo-grid--extras" id="extras-decoration"></div>
+      <div class="addon-collapse" id="addon-decoration-collapse">
+        <button type="button" class="addon-collapse__toggle" aria-expanded="false" aria-controls="addon-decoration-panel" id="addon-decoration-toggle">
+          <span class="addon-collapse__title">Add On Decoration Package</span>
+          <span class="addon-collapse__arrow" aria-hidden="true"></span>
+        </button>
+        <div class="addon-collapse__panel" id="addon-decoration-panel" hidden>
+          <div class="photo-grid photo-grid--extras" id="extras-decoration"></div>
+        </div>
+      </div>
 
-      <h3 class="subhead">Extra cake</h3>
-      <div class="check-list check-list--row" id="extras-cake"></div>
+      <div class="addon-collapse" id="addon-cake-collapse">
+        <button type="button" class="addon-collapse__toggle" aria-expanded="false" aria-controls="addon-cake-panel" id="addon-cake-toggle">
+          <span class="addon-collapse__title">Extra cake</span>
+          <span class="addon-collapse__arrow" aria-hidden="true"></span>
+        </button>
+        <div class="addon-collapse__panel" id="addon-cake-panel" hidden>
+          <div class="check-list check-list--row" id="extras-cake"></div>
+        </div>
+      </div>
     </section>
 
     <section class="builder-section builder-section--white builder-section--food" id="food">
@@ -328,6 +325,60 @@
     </div>
   </div>
 
+  <div class="builder-modal" id="custom-builder-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="custom-builder-title" hidden>
+    <button class="builder-modal__backdrop" type="button" aria-label="Close custom builder" data-close-builder></button>
+    <div class="builder-modal__panel">
+      <button class="builder-modal__close" type="button" aria-label="Close" data-close-builder>&times;</button>
+      <h3 class="builder-modal__title" id="custom-builder-title">Build your own custom theme</h3>
+      <p class="builder-modal__pkg" id="builder-pkg-label"></p>
+      <div id="custom-theme-wrap">
+        <div class="field field--theme">
+          <label class="field__label" for="decor-custom">Describe the theme</label>
+          <input type="text" id="decor-custom" name="decor-custom" placeholder="e.g. Minecraft and Bluey, name on the backdrop">
+        </div>
+        <div class="field field--design-request">
+          <label class="field__label" for="decor-design-request">Want us to design and build it for you?</label>
+          <p class="field__hint">Give us your design request — tell us what you would like and we’ll take care of the rest.</p>
+          <input type="text" id="decor-design-request" name="decor-design-request" placeholder="e.g. Full Minecraft backdrop with name arch and matching table styling">
+        </div>
+        <div class="backdrop-builder" id="backdrop-builder">
+          <div class="backdrop-builder__preview">
+            <canvas id="backdrop-canvas" width="1024" height="678" aria-label="Decoration preview"></canvas>
+            <img class="backdrop-builder__static" id="backdrop-static" alt="" width="1024" height="678" hidden>
+            <p class="backdrop-builder__hint">A briefing mockup — Tiny will match the look, not every pixel.</p>
+          </div>
+          <div class="backdrop-builder__controls">
+            <p class="backdrop-builder__lede" id="backdrop-lede">Upload a print for each board and remap the five balloon colours. Balloons stay in front of the prints.</p>
+            <div class="backdrop-uploads" id="backdrop-uploads"></div>
+            <div class="field" id="backdrop-name-field">
+              <label class="field__label" for="backdrop-name">Name on the center board</label>
+              <input type="text" id="backdrop-name" name="backdrop-name" placeholder="e.g. Mira’s Birthday" autocomplete="off">
+            </div>
+            <div class="field" id="backdrop-colours-field">
+              <span class="field__label" id="backdrop-colours-label">Balloon colours</span>
+              <p class="backdrop-builder__lede backdrop-builder__lede--colours">Each picker replaces one colour from the photo. The small chip is the original.</p>
+              <div class="backdrop-colours" id="backdrop-colours" role="group" aria-labelledby="backdrop-colours-label"></div>
+            </div>
+            <button class="btn btn--outline" type="button" id="backdrop-download">Download mockup PNG</button>
+          </div>
+        </div>
+      </div>
+      <div class="builder-modal__footer">
+        <button type="button" class="btn" data-close-builder>Done</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="builder-modal builder-modal--alert" id="guest-limit-modal" role="alertdialog" aria-modal="true" aria-hidden="true" aria-labelledby="guest-limit-title" hidden>
+    <button class="builder-modal__backdrop" type="button" aria-label="Close" data-close-guest-limit></button>
+    <div class="builder-modal__panel builder-modal__panel--compact">
+      <button class="builder-modal__close" type="button" aria-label="Close" data-close-guest-limit>&times;</button>
+      <h3 class="builder-modal__title" id="guest-limit-title">Guest limit</h3>
+      <p>For guests exceeding 35 people please contact us for a custom quotation.</p>
+      <a class="btn" href="https://wa.me/6282147830142?text=Hi%20Tiny!%20I%27d%20like%20a%20custom%20quotation%20for%20a%20Whole%20Terrace%20birthday%20party%20with%20more%20than%2035%20guests." target="_blank" rel="noopener noreferrer" data-wa="builder_guest_limit">Contact us on WhatsApp</a>
+    </div>
+  </div>
+
   <div class="lightbox lightbox--photo" id="photo-lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="photo-lightbox-name">
     <button class="lightbox__close" type="button" aria-label="Close" data-close-photo>&times;</button>
     <div class="lightbox__panel lightbox__panel--photo">
@@ -340,6 +391,6 @@
   </div>
 
   <script src="../../shared/chrome.js?v=20260826d" defer></script>
-  <script src="js/main.js?v=20260827f" defer></script>
+  <script src="js/main.js?v=20260831a" defer></script>
 </body>
 </html>
