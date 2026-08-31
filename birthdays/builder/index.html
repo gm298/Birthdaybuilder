@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../cakes/css/styles.css?v=20260826h">
-  <link rel="stylesheet" href="css/styles.css?v=20260831a">
+  <link rel="stylesheet" href="css/styles.css?v=20260831c">
   <link rel="stylesheet" href="../../shared/chrome.css?v=20260826f">
 </head>
 <body data-page="builder">
@@ -62,14 +62,14 @@
         <div class="details-row details-row--top">
           <div class="field">
             <label class="field__label" for="party-date">When would you like to celebrate?</label>
-            <input type="date" id="party-date" name="party-date">
+            <input type="date" id="party-date" name="party-date" required>
           </div>
           <div class="field field--guests">
-            <span class="field__label">How many people?</span>
+            <span class="field__label">How many people? <span class="field__req">*</span></span>
             <div class="guest-pair">
               <div class="field">
                 <label class="field__label field__label--soft" for="guest-kids">Kids</label>
-                <input type="number" id="guest-kids" name="guest-kids" min="0" placeholder="e.g. 12" inputmode="numeric">
+                <input type="number" id="guest-kids" name="guest-kids" min="0" placeholder="e.g. 12" inputmode="numeric" required>
               </div>
               <div class="field">
                 <label class="field__label field__label--soft" for="guest-adults">Adults</label>
@@ -78,13 +78,23 @@
             </div>
           </div>
         </div>
-        <div class="field">
-          <label class="field__label" for="child-name">Birthday child’s name</label>
-          <input type="text" id="child-name" name="child-name" placeholder="e.g. Mira">
+        <div class="details-row details-row--schedule">
+          <div class="field">
+            <label class="field__label" for="party-time">Start time <span class="field__req">*</span></label>
+            <input type="time" id="party-time" name="party-time" required>
+          </div>
+          <div class="field">
+            <span class="field__label">Duration</span>
+            <p class="field__static" id="party-duration">3 hours (included with every package)</p>
+          </div>
         </div>
         <div class="field">
-          <label class="field__label" for="child-age">Turning</label>
-          <input type="text" id="child-age" name="child-age" placeholder="e.g. 5">
+          <label class="field__label" for="child-name">Birthday child’s name <span class="field__req">*</span></label>
+          <input type="text" id="child-name" name="child-name" placeholder="e.g. Mira" required>
+        </div>
+        <div class="field">
+          <label class="field__label" for="child-age">Turning <span class="field__req">*</span></label>
+          <input type="text" id="child-age" name="child-age" placeholder="e.g. 5" required>
         </div>
         <div class="field field--full">
           <label class="field__label" for="food-notes">Allergies or food notes</label>
@@ -108,6 +118,7 @@
         </div>
       </div>
       <p class="section-note" style="margin:-8px 0 24px">Simple, Optimal or Whole Terrace. Three hours, set up before you arrive.</p>
+      <p class="package-hint" id="package-hint" role="status">Enter how many people in step 01 before you can choose a package.</p>
       <div class="pkg-grid" id="package-grid"></div>
     </section>
 
@@ -123,7 +134,7 @@
       <h3 class="subhead">Build your own custom theme</h3>
       <div class="theme-collage" id="theme-collage" aria-hidden="true"></div>
       <div class="theme-collage__action">
-        <button type="button" class="btn" id="open-custom-builder">Build your own</button>
+        <button type="button" class="btn btn--build-own" id="open-custom-builder">Build your own</button>
       </div>
     </section>
 
@@ -174,7 +185,7 @@
           <div class="field">
             <span class="field__label" id="addons-label">Diet options</span>
             <div class="option-row" id="addon-options" role="group" aria-labelledby="addons-label"></div>
-            <span class="field__hint field__hint--soft">Gluten-free and no added sugar filter the sponge list below. Both cost extra — we’ll quote it in the chat.</span>
+            <span class="field__hint field__hint--soft">Choose a diet option or leave on “No special requirements” to see every cake and sponge. Gluten-free and no added sugar filter the sponge list below — both cost extra.</span>
           </div>
 
           <div class="field">
@@ -241,10 +252,11 @@
       </div>
 
       <h3 class="subhead subhead--tight">Masterclass activities</h3>
-      <button type="button" class="btn-none-master" id="no-masterclass" data-master="">No masterclass</button>
+      <button type="button" class="btn-none-addon" id="no-masterclass" data-master="">No masterclass add on</button>
       <div class="photo-grid photo-grid--master" id="masterclass-grid"></div>
 
       <h3 class="subhead">Entertainment</h3>
+      <button type="button" class="btn-none-addon" id="no-entertainment">No entertainment add on</button>
       <div class="photo-grid photo-grid--entertain" id="extras-entertainment"></div>
 
       <div class="addon-collapse" id="addon-decoration-collapse">
@@ -307,6 +319,8 @@
   </main>
 
   <div id="site-chrome-footer"></div>
+
+  <a class="btn btn--next-step" href="#package" id="next-step">Next: Package</a>
 
   <div class="mobile-sticky" id="mobile-sticky" aria-label="Quick actions">
     <a class="btn" href="#send">Review &amp; send</a>
@@ -391,6 +405,6 @@
   </div>
 
   <script src="../../shared/chrome.js?v=20260826d" defer></script>
-  <script src="js/main.js?v=20260831b" defer></script>
+  <script src="js/main.js?v=20260831c" defer></script>
 </body>
 </html>

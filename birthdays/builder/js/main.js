@@ -4,7 +4,18 @@
   const WA_BASE = "https://wa.me/6282147830142";
   const CAKES_ASSET_BASE = "../../cakes/";
   const TERRACE_GUEST_MAX = 35;
-  const BUILDER_STEPS = ["details", "package", "decor", "cakes", "addons", "food"];
+  const BUILDER_FLOW = [
+    { id: "details", href: "#details", nextLabel: "Next: Package" },
+    { id: "package", href: "#package", nextLabel: "Next: Decorations" },
+    { id: "decor", href: "#decor", nextLabel: "Next: Cake" },
+    { id: "cakes", href: "#cakes", nextLabel: "Next: Add ons" },
+    { id: "addons", href: "#addons", nextLabel: "Next: Food" },
+    { id: "food", href: "#food", nextLabel: "Next: Quote" },
+    { id: "send", href: "#send", nextLabel: "" },
+  ];
+  const DIET_NONE = "No special requirements";
+  const PARTY_DURATION_HOURS = 3;
+  const BUILDER_STEPS = BUILDER_FLOW.filter((step) => step.id !== "send").map((step) => step.id);
   const THEME_COLLAGE_IDS = ["photozone", "character", "minnie", "unicorn"];
   const SIMPLE_BUILDER_AGE_MIN = 1;
   const SIMPLE_BUILDER_AGE_MAX = 7;
@@ -240,10 +251,14 @@
 
   const partyState = {
     day: "weekday",
-    packageId: "signature",
+    packageId: "",
+    packageChosen: false,
     decorPackageId: "optimal",
     decorThemeId: "",
     masterclassId: "",
+    masterclassReviewed: false,
+    entertainmentReviewed: false,
+    foodReviewed: false,
     extras: [],
   };
 
@@ -324,6 +339,81 @@
   let partyData = DEFAULT_PARTY;
   let cakeData = DEFAULT_CAKES;
   let guestLimitShown = false;
+
+  function canSelectPackage() {
+    return totalGuests() > 0;
+  }
+
+  function renderPackageHint() {
+    const hint = document.getElementById("package-hint");
+    if (!hint) return;
+    hint.hidden = canSelectPackage();
+  }
+
+  function partyTimeValue() {
+    return document.getElementById("party-time")?.value || "";
+  }
+
+  function partyEndTimeLabel() {
+    const start = partyTimeValue();
+    if (!start) return "";
+    const [h, m] = start.split(":").map((n) => parseInt(n, 10));
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return "";
+    const endMins = h * 60 + m + PARTY_DURATION_HOURS * 60;
+    const eh = Math.floor(endMins / 60) % 24;
+    const em = endMins % 60;
+    const fmt = (n) => String(n).padStart(2, "0");
+    return `${fmt(eh)}:${fmt(em)}`;
+  }
+
+  function detailsAreComplete() {
+    const date = document.getElementById("party-date")?.value || "";
+    const time = partyTimeValue();
+    const child = document.getElementById("child-name")?.value.trim() || "";
+    const age = parseChildAge();
+    return Boolean(date && time && child && age && totalGuests() > 0);
+  }
+
+  function validateDetailsSection(showErrors) {
+    const fields = [
+      { id: "party-date", test: () => Boolean(document.getElementById("party-date")?.value) },
+      { id: "party-time", test: () => Boolean(partyTimeValue()) },
+      { id: "child-name", test: () => Boolean(document.getElementById("child-name")?.value.trim()) },
+      { id: "child-age", test: () => parseChildAge() != null },
+      { id: "guest-kids", test: () => totalGuests() > 0 },
+    ];
+    let ok = true;
+    fields.forEach(({ id, test }) => {
+      const input = document.getElementById(id);
+      const wrap = input?.closest(".field");
+      const valid = test();
+      if (!valid) ok = false;
+      if (showErrors && wrap) wrap.classList.toggle("is-invalid", !valid);
+      else if (wrap) wrap.classList.remove("is-invalid");
+    });
+    return ok;
+  }
+
+  function entertainmentExtraIds() {
+    const items = (partyData.extras && partyData.extras.entertainment) || [];
+    const ids = [];
+    items.forEach((item) => {
+      if (item.options) item.options.forEach((o) => ids.push(o.id));
+      else ids.push(item.id);
+    });
+    return ids;
+  }
+
+  function hasEntertainmentExtra() {
+    const entIds = new Set(entertainmentExtraIds());
+    return partyState.extras.some((id) => entIds.has(id));
+  }
+
+  function markAddonsReviewed() {
+    if (partyState.masterclassReviewed && partyState.entertainmentReviewed) {
+      updateStepProgress();
+    }
+  }
 
   function parseChildAge() {
     const raw = document.getElementById("child-age")?.value.trim() || "";
@@ -1318,7 +1408,12 @@
   }
 
   function applyPackageSelection(packageId) {
+    if (!canSelectPackage()) {
+      renderPackageHint();
+      return;
+    }
     partyState.packageId = packageId;
+    partyState.packageChosen = true;
     const pkg = selectedPackage();
     if (pkg?.cakeSize) {
       cakeState.size = pkg.cakeSize;
@@ -1331,6 +1426,7 @@
       updateBackdropBuilderUI();
     }
     renderPackages();
+    renderPackageHint();
     renderFood();
     checkTerraceGuestLimit();
     renderSummary();
@@ -1338,10 +1434,8 @@
   }
 
   function selectedPackage() {
-    return (
-      partyData.packages.find((p) => p.id === partyState.packageId) ||
-      partyData.packages[0]
-    );
+    if (!partyState.packageId) return null;
+    return partyData.packages.find((p) => p.id === partyState.packageId) || null;
   }
 
   function packagePrice(pkg) {
@@ -1896,9 +1990,10 @@
   function renderPackages() {
     const grid = document.getElementById("package-grid");
     if (!grid) return;
+    const locked = !canSelectPackage();
     grid.innerHTML = partyData.packages
       .map((pkg) => {
-        const selected = pkg.id === partyState.packageId;
+        const selected = partyState.packageChosen && pkg.id === partyState.packageId;
         const badge = pkg.featured
           ? `<span class="pkg-card__badge">${escapeHtml(pkg.badge || "Most popular")}</span>`
           : "";
@@ -1914,7 +2009,9 @@
         return `
           <button type="button" class="pkg-card${pkg.featured ? " pkg-card--featured" : ""}${
             selected ? " is-selected" : ""
-          }" data-package="${escapeHtml(pkg.id)}">
+          }${locked ? " is-locked" : ""}" data-package="${escapeHtml(pkg.id)}"${
+            locked ? ' aria-disabled="true" tabindex="-1"' : ""
+          }>
             ${badge}
             ${media}
             <div class="pkg-card__body">
@@ -1935,11 +2032,17 @@
 
     grid.querySelectorAll("[data-package]").forEach((btn) => {
       btn.addEventListener("click", () => {
+        if (!canSelectPackage()) {
+          renderPackageHint();
+          scrollToId("#details");
+          return;
+        }
         applyPackageSelection(btn.dataset.package);
         track("builder_package", { package: partyState.packageId });
         updateStepProgress();
       });
     });
+    renderPackageHint();
   }
 
   const DECOR_RANK = { simple: 1, optimal: 2, terrace: 3 };
@@ -2134,13 +2237,13 @@
     const grid = document.getElementById("masterclass-grid");
     const noneBtn = document.getElementById("no-masterclass");
     if (!grid) return;
-    const noneSelected = !partyState.masterclassId;
+    const noneSelected = partyState.masterclassReviewed && !partyState.masterclassId;
     if (noneBtn) noneBtn.classList.toggle("is-selected", noneSelected);
 
     grid.innerHTML = partyData.masterclasses
       .map(
         (m) => `
-        <button type="button" class="photo-card${
+        <button type="button" class="photo-card photo-card--addon photo-card--selectable${
           partyState.masterclassId === m.id ? " is-selected" : ""
         }" data-master="${escapeHtml(m.id)}">
           ${mediaExpandHtml(m.image || "", m.name)}
@@ -2154,8 +2257,11 @@
 
     const pick = (id) => {
       partyState.masterclassId = id || "";
+      partyState.masterclassReviewed = true;
       renderMasterclasses();
       renderSummary();
+      markAddonsReviewed();
+      updateStepProgress();
     };
 
     grid.querySelectorAll("[data-master]").forEach((btn) => {
@@ -2168,7 +2274,16 @@
     }
   }
 
+  function clearEntertainmentExtras() {
+    const entIds = new Set(entertainmentExtraIds());
+    partyState.extras = partyState.extras.filter((id) => !entIds.has(id));
+  }
+
   function toggleExtra(id, groupIds) {
+    const entIds = new Set(entertainmentExtraIds());
+    if (entIds.has(id) || (groupIds && groupIds.some((g) => entIds.has(g)))) {
+      partyState.entertainmentReviewed = true;
+    }
     const on = partyState.extras.includes(id);
     if (groupIds && groupIds.length) {
       partyState.extras = partyState.extras.filter((x) => !groupIds.includes(x));
@@ -2185,6 +2300,22 @@
 
   function renderExtras() {
     const entEl = document.getElementById("extras-entertainment");
+    const noneEntBtn = document.getElementById("no-entertainment");
+    if (noneEntBtn) {
+      const noneEntSelected = partyState.entertainmentReviewed && !hasEntertainmentExtra();
+      noneEntBtn.classList.toggle("is-selected", noneEntSelected);
+      if (!noneEntBtn.dataset.bound) {
+        noneEntBtn.dataset.bound = "1";
+        noneEntBtn.addEventListener("click", () => {
+          clearEntertainmentExtras();
+          partyState.entertainmentReviewed = true;
+          renderExtras();
+          renderSummary();
+          markAddonsReviewed();
+          updateStepProgress();
+        });
+      }
+    }
     if (entEl) {
       const items = (partyData.extras && partyData.extras.entertainment) || [];
       entEl.innerHTML = items
@@ -2204,7 +2335,7 @@
               )
               .join("");
             return `
-              <div class="photo-card${selectedOpt ? " is-selected" : ""}">
+              <div class="photo-card photo-card--addon${selectedOpt ? " is-selected" : ""}">
                 ${mediaExpandHtml(item.image || "", item.name)}
                 <div class="photo-card__body">
                   <h4>${escapeHtml(item.name)}</h4>
@@ -2213,7 +2344,7 @@
               </div>`;
           }
           return `
-            <button type="button" class="photo-card${
+            <button type="button" class="photo-card photo-card--addon photo-card--selectable${
               partyState.extras.includes(item.id) ? " is-selected" : ""
             }" data-extra="${escapeHtml(item.id)}">
               ${mediaExpandHtml(item.image || "", item.name)}
@@ -2302,7 +2433,9 @@
         : "",
       cakeState.mode === "own" ? "Cake design: my own idea" : "",
       theme ? `Cake theme/name: ${theme}` : "",
-      cakeState.addons.length ? `Cake diet: ${cakeState.addons.join(", ")}` : "",
+      cakeState.addons.length
+        ? `Cake diet: ${cakeState.addons.join(", ")}`
+        : "Cake diet: No special requirements",
       cakeState.fileName ? `Cake reference photo: ${cakeState.fileName}` : "",
     ].filter(Boolean);
   }
@@ -2337,6 +2470,12 @@
           ]
         : []),
       ["Party date", partyDate],
+      [
+        "Party time",
+        partyTimeValue()
+          ? `${partyTimeValue()} – ${partyEndTimeLabel() || "—"} (${PARTY_DURATION_HOURS} hours)`
+          : "—",
+      ],
       ["Guests", guests],
       ["Birthday child", age ? `${child} · turning ${age}` : child],
       ["Cake", cakeText],
@@ -2390,6 +2529,9 @@
           ].filter(Boolean)
         : []),
       partyDate ? `Party date: ${partyDate}` : "",
+      partyTimeValue()
+        ? `Start time: ${partyTimeValue()} (${PARTY_DURATION_HOURS} hours, until ${partyEndTimeLabel() || "—"})`
+        : "",
       guests !== "—" ? `Guests: ${guests}` : "",
       child ? `Birthday child: ${child}${age ? ` (turning ${age})` : ""}` : "",
       foodNotes ? `Food / allergies: ${foodNotes}` : "",
@@ -2404,7 +2546,7 @@
         : "",
       cakeState.mode === "own" ? "Design: my own idea" : "",
       cakeTheme ? `Theme on cake: ${cakeTheme}` : "",
-      cakeState.addons.length ? `Diet: ${cakeState.addons.join(", ")}` : "",
+      cakeState.addons.length ? `Diet: ${cakeState.addons.join(", ")}` : "Diet: No special requirements",
       cakeState.fileName ? `I have a reference photo to send: ${cakeState.fileName}` : "",
       "",
       `Masterclass: ${masterclassLabel()}`,
@@ -2443,7 +2585,7 @@
         status.textContent = "";
         status.className = "form-status";
       }
-      if (!partyState.packageId) {
+      if (!partyState.packageChosen || !partyState.packageId) {
         if (status) {
           status.textContent = "Please choose a package first.";
           status.classList.add("is-error");
@@ -2470,6 +2612,7 @@
 
     [
       "party-date",
+      "party-time",
       "guest-kids",
       "guest-adults",
       "child-name",
@@ -2684,7 +2827,7 @@
     const note = document.getElementById("size-note");
     if (!el) return;
     const pkg = selectedPackage();
-    const includedSize = pkg?.cakeSize || "";
+    const includedSize = partyState.packageChosen && pkg?.cakeSize ? pkg.cakeSize : "";
     el.innerHTML = cakeData.sizes
       .map(
         (s) => `
@@ -2719,28 +2862,25 @@
 
   function isStepComplete(stepId) {
     switch (stepId) {
-      case "details": {
-        const date = document.getElementById("party-date")?.value || "";
-        const child = document.getElementById("child-name")?.value.trim() || "";
-        return Boolean(date && child && totalGuests() > 0);
-      }
+      case "details":
+        return detailsAreComplete();
       case "package":
-        return Boolean(partyState.packageId);
+        return partyState.packageChosen && Boolean(partyState.packageId);
       case "decor":
         return partyState.decorThemeId === "custom";
       case "cakes":
         return cakeState.sponges.length > 0 && Boolean(cakeState.size);
       case "addons":
-        return true;
+        return partyState.masterclassReviewed && partyState.entertainmentReviewed;
       case "food":
-        return Boolean(partyState.packageId);
+        return partyState.foodReviewed;
       default:
         return false;
     }
   }
 
   function updateStepProgress() {
-    const completed = BUILDER_STEPS.filter((id) => isStepComplete(id)).length;
+    const completed = BUILDER_FLOW.filter((step) => step.id !== "send" && isStepComplete(step.id)).length;
     const total = BUILDER_STEPS.length;
     const fill = document.getElementById("steps-progress-fill");
     const text = document.getElementById("steps-progress-text");
@@ -2790,6 +2930,63 @@
     });
   }
 
+  function getActiveFlowIndex() {
+    let active = 0;
+    const offset = headerOffset();
+    BUILDER_FLOW.forEach((step, index) => {
+      const el = document.querySelector(step.href);
+      if (el && el.getBoundingClientRect().top - offset <= 80) active = index;
+    });
+    return active;
+  }
+
+  function updateNextStepButton() {
+    const btn = document.getElementById("next-step");
+    if (!btn) return;
+    const index = getActiveFlowIndex();
+    const current = BUILDER_FLOW[index];
+    const next = BUILDER_FLOW[index + 1];
+    if (!next || current.id === "send") {
+      btn.hidden = true;
+      return;
+    }
+    btn.hidden = false;
+    btn.textContent = current.nextLabel || "Next step";
+    btn.setAttribute("href", next.href);
+  }
+
+  function initNextStep() {
+    const btn = document.getElementById("next-step");
+    if (!btn || btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", (e) => {
+      const current = BUILDER_FLOW[getActiveFlowIndex()];
+      if (current.id === "details" && !validateDetailsSection(true)) {
+        e.preventDefault();
+        scrollToId("#details");
+      }
+    });
+    const update = () => updateNextStepButton();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    update();
+  }
+
+  function initFoodStepObserver() {
+    const food = document.getElementById("food");
+    if (!food) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        partyState.foodReviewed = true;
+        updateStepProgress();
+        observer.disconnect();
+      },
+      { threshold: 0.2, rootMargin: "-80px 0px 0px 0px" }
+    );
+    observer.observe(food);
+  }
+
   function initGuestLimit() {
     ["guest-kids", "guest-adults"].forEach((id) => {
       const el = document.getElementById(id);
@@ -2797,19 +2994,31 @@
       el.dataset.guestLimitBound = "1";
       el.addEventListener("input", () => {
         checkTerraceGuestLimit();
+        renderPackages();
+        renderPackageHint();
         updateStepProgress();
       });
       el.addEventListener("change", () => {
         checkTerraceGuestLimit();
+        renderPackages();
+        renderPackageHint();
         updateStepProgress();
       });
     });
-    ["party-date", "child-name", "child-age"].forEach((id) => {
+    ["party-date", "party-time", "child-name", "child-age"].forEach((id) => {
       const el = document.getElementById(id);
       if (!el || el.dataset.stepBound) return;
       el.dataset.stepBound = "1";
-      el.addEventListener("input", updateStepProgress);
-      el.addEventListener("change", updateStepProgress);
+      el.addEventListener("input", () => {
+        validateDetailsSection(false);
+        updateStepProgress();
+        renderSummary();
+      });
+      el.addEventListener("change", () => {
+        validateDetailsSection(false);
+        updateStepProgress();
+        renderSummary();
+      });
     });
   }
 
@@ -2828,6 +3037,7 @@
         chip.classList.toggle("is-active", chip.getAttribute("href") === `#${active.id}`);
       });
       updateStepProgress();
+      updateNextStepButton();
     };
     window.addEventListener("scroll", update, { passive: true });
     update();
@@ -2919,28 +3129,39 @@
   function renderAddons() {
     const el = document.getElementById("addon-options");
     if (!el) return;
-    el.innerHTML = (cakeData.addons || ["Gluten-free", "No added sugar"])
-      .map(
-        (label) =>
-          `<button type="button" class="option-btn option-btn--sm${
-            cakeState.addons.includes(label) ? " is-active" : ""
-          }" data-addon="${escapeHtml(label)}">${escapeHtml(label)}</button>`
-      )
+    const dietOptions = [
+      DIET_NONE,
+      ...(cakeData.addons || []).filter((label) => label !== DIET_NONE),
+    ];
+    el.innerHTML = dietOptions
+      .map((label) => {
+        const active =
+          label === DIET_NONE
+            ? cakeState.addons.length === 0
+            : cakeState.addons.includes(label);
+        return `<button type="button" class="option-btn option-btn--sm${
+          active ? " is-active" : ""
+        }" data-addon="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
+      })
       .join("");
     el.querySelectorAll("[data-addon]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const label = btn.dataset.addon;
-        if (cakeState.addons.includes(label)) {
+        if (label === DIET_NONE) {
+          cakeState.addons = [];
+        } else if (cakeState.addons.includes(label)) {
           cakeState.addons = cakeState.addons.filter((a) => a !== label);
         } else {
-          cakeState.addons = cakeState.addons.concat(label);
+          cakeState.addons = [label];
         }
         pruneSpongesToAvailable();
         syncSugarSpongeVisibility();
         renderAddons();
         renderSpongeOptions();
         renderSugarSpongeOptions();
+        renderGallery();
         renderSummary();
+        updateStepProgress();
       });
     });
   }
@@ -3063,11 +3284,8 @@
       partyState.packageId = packageParam;
     }
 
-    const pkg = selectedPackage();
-    if (pkg && pkg.cakeSize) cakeState.size = pkg.cakeSize;
-    if (pkg && pkg.decorId) partyState.decorPackageId = pkg.decorId;
-
     renderPackages();
+    renderPackageHint();
     initPartyDate();
     renderDecorPackages();
     renderDecorThemes();
@@ -3107,6 +3325,8 @@
     }
     initMobileSticky();
     initStepChips();
+    initNextStep();
+    initFoodStepObserver();
     updateStepProgress();
     checkTerraceGuestLimit();
   });
