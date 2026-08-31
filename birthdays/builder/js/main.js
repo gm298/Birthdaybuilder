@@ -282,6 +282,8 @@
     photo: "img/backdrop/terrace.jpg?v=20260827e",
     occlusion: "img/backdrop/occlusion.png?v=20260827e",
     balloonsMask: "img/backdrop/balloons-mask.png?v=20260827e",
+    namePanelId: "center",
+    namePanelLabel: "Name on the center board",
     panels: [
       { id: "left", label: "Left panel", x: 0.2812, y: 0.6298, w: 0.0967, h: 0.3333, arch: 0.22, mask: "img/backdrop/panel-left.png?v=20260827e" },
       { id: "center", label: "Center panel", x: 0.376, y: 0.5177, w: 0.1553, h: 0.4454, arch: 0.5, mask: "img/backdrop/panel-center.png?v=20260827e" },
@@ -293,6 +295,24 @@
       { id: "white", label: "White", original: "#f3f2ed", mask: "img/backdrop/balloon-white.png?v=20260827e" },
       { id: "sky", label: "Sky blue", original: "#a3c6dc", mask: "img/backdrop/balloon-sky.png?v=20260827e" },
       { id: "lavender", label: "Lavender", original: "#cbb8d4", mask: "img/backdrop/balloon-lavender.png?v=20260827e" },
+    ],
+  };
+
+  const OPTIMAL_BACKDROP = {
+    width: 819,
+    height: 1024,
+    photo: "img/backdrop/optimal/optimal.jpg?v=20260831a",
+    balloonsMask: "img/backdrop/optimal/balloons-mask.png?v=20260831a",
+    namePanelId: "right",
+    namePanelLabel: "Name on the right arch",
+    panels: [
+      { id: "left", label: "Left arch", x: 0.21, y: 0.5078, w: 0.1429, h: 0.3105, arch: 0.5, mask: "img/backdrop/optimal/panel-left.png?v=20260831a" },
+      { id: "right", label: "Right arch", x: 0.4835, y: 0.4082, w: 0.2589, h: 0.4082, arch: 0.5, mask: "img/backdrop/optimal/panel-right.png?v=20260831a" },
+    ],
+    colours: [
+      { id: "colour1", label: "Balloon group 1", original: "#cab9be", mask: "img/backdrop/optimal/balloon-colour-1.png?v=20260831a" },
+      { id: "colour2", label: "Balloon group 2", original: "#c5b3b8", mask: "img/backdrop/optimal/balloon-colour-2.png?v=20260831a" },
+      { id: "colour3", label: "Balloon group 3", original: "#d0c4c8", mask: "img/backdrop/optimal/balloon-colour-3.png?v=20260831a" },
     ],
   };
 
@@ -309,11 +329,9 @@
     optimal: {
       id: "optimal",
       name: "Optimal",
-      mode: "colours",
-      photo: "img/decor/optimal.jpg",
-      panels: [],
-      colours: TERRACE_BACKDROP.colours,
-      lede: "Choose your preferred balloon colours and describe your photozone theme.",
+      mode: "full",
+      ...OPTIMAL_BACKDROP,
+      lede: "Upload a print for each arch and remap the three balloon groups. Balloons stay in front of the prints.",
     },
     terrace: {
       id: "terrace",
@@ -324,7 +342,9 @@
     },
   };
 
-  const BACKDROP = TERRACE_BACKDROP;
+  function defaultBackdropColours(cfg) {
+    return Object.fromEntries((cfg.colours || []).map((c) => [c.id, c.original]));
+  }
 
   const backdropState = {
     ready: false,
@@ -332,7 +352,7 @@
     nameTouched: false,
     renderTimer: 0,
     panels: { left: null, center: null, right: null },
-    colours: Object.fromEntries(TERRACE_BACKDROP.colours.map((c) => [c.id, c.original])),
+    colours: defaultBackdropColours(BACKDROP_BY_PKG.optimal),
     assets: null,
   };
 
@@ -456,6 +476,11 @@
     backdropState.assets = null;
     backdropState.loading = null;
     backdropState.ready = false;
+  }
+
+  function resetBackdropForPackage() {
+    invalidateBackdropAssets();
+    backdropState.colours = defaultBackdropColours(getBackdropConfig());
   }
 
   function activeBackdropPanels() {
@@ -595,30 +620,37 @@
       backdropState.ready = true;
       return backdropState.assets;
     }
-    if (backdropState.assets && !backdropState.assets.photoOnly) return backdropState.assets;
+    if (
+      backdropState.assets &&
+      !backdropState.assets.photoOnly &&
+      backdropState.assets.configId === cfg.id
+    ) {
+      return backdropState.assets;
+    }
     if (backdropState.loading) return backdropState.loading;
     backdropState.loading = (async () => {
-      const w = TERRACE_BACKDROP.width;
-      const h = TERRACE_BACKDROP.height;
-      const photo = await loadImage(TERRACE_BACKDROP.photo);
-      const colours = TERRACE_BACKDROP.colours;
+      const w = cfg.width;
+      const h = cfg.height;
+      const photo = await loadImage(cfg.photo);
+      const colours = cfg.colours || [];
       const maskImgs = await Promise.all(colours.map((c) => loadImage(c.mask)));
-      const panelMaskImgs = await Promise.all(TERRACE_BACKDROP.panels.map((p) => loadImage(p.mask)));
-      const occlusionImg = await loadImage(TERRACE_BACKDROP.occlusion);
-      const balloonsImg = await loadImage(TERRACE_BACKDROP.balloonsMask);
+      const panelMaskImgs = await Promise.all((cfg.panels || []).map((p) => loadImage(p.mask)));
+      const balloonsImg = await loadImage(cfg.balloonsMask);
+      const occlusionImg = cfg.occlusion ? await loadImage(cfg.occlusion) : null;
       const off = document.createElement("canvas");
       off.width = w;
       off.height = h;
       const ctx = off.getContext("2d", { willReadFrequently: true });
       ctx.drawImage(photo, 0, 0, w, h);
       backdropState.assets = {
+        configId: cfg.id,
         photo,
         photoData: ctx.getImageData(0, 0, w, h),
         masks: maskImgs.map((img) => maskBytes(img, w, h)),
         panelMasks: Object.fromEntries(
-          TERRACE_BACKDROP.panels.map((p, i) => [p.id, maskBytes(panelMaskImgs[i], w, h)])
+          (cfg.panels || []).map((p, i) => [p.id, maskBytes(panelMaskImgs[i], w, h)])
         ),
-        occlusion: maskBytes(occlusionImg, w, h),
+        occlusion: occlusionImg ? maskBytes(occlusionImg, w, h) : null,
         balloons: maskBytes(balloonsImg, w, h),
       };
       backdropState.ready = true;
@@ -687,7 +719,7 @@
   function paintBalloons(ctx, w, h) {
     const assets = backdropState.assets;
     if (!assets || assets.photoOnly) return;
-    const colours = TERRACE_BACKDROP.colours;
+    const colours = activeBackdropColours();
     const anyChanged = colours.some(
       (c) => backdropState.colours[c.id].toLowerCase() !== c.original.toLowerCase()
     );
@@ -748,7 +780,7 @@
     const mask = assets?.panelMasks?.[panel.id];
 
     const paintName = (target) => {
-      if (!backdropState.panels.center) {
+      if (!backdropState.panels[panel.id]) {
         target.fillStyle = "#f4f2ee";
         if (mask) target.fillRect(0, 0, w, h);
         else target.fill();
@@ -828,21 +860,23 @@
       return;
     }
     if (document.fonts?.ready) await document.fonts.ready;
-    const w = TERRACE_BACKDROP.width;
-    const h = TERRACE_BACKDROP.height;
+    const w = cfg.width;
+    const h = cfg.height;
+    canvas.width = w;
+    canvas.height = h;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     ctx.clearRect(0, 0, w, h);
     ctx.drawImage(backdropState.assets.photo, 0, 0, w, h);
 
-    TERRACE_BACKDROP.panels.forEach((panel) => {
+    (cfg.panels || []).forEach((panel) => {
       const slot = backdropState.panels[panel.id];
       if (!slot?.img) return;
       drawPanelPrint(ctx, panel, slot.img, w, h);
     });
 
     const name = backdropNameValue();
-    const center = TERRACE_BACKDROP.panels.find((p) => p.id === "center");
-    if (name && center) drawBackdropName(ctx, center, w, h, name);
+    const namePanel = (cfg.panels || []).find((p) => p.id === (cfg.namePanelId || "center"));
+    if (name && namePanel) drawBackdropName(ctx, namePanel, w, h, name);
 
     restoreMaskedPhoto(ctx, w, h, backdropState.assets.balloons, 128);
     paintOcclusion(ctx, w, h);
@@ -925,7 +959,7 @@
     const colours = activeBackdropColours();
     host.innerHTML = colours
       .map((c) => {
-        const val = backdropState.colours[c.id];
+        const val = backdropState.colours[c.id] || c.original;
         return `
           <label class="backdrop-swatch">
             <span class="backdrop-swatch__chips">
@@ -980,6 +1014,11 @@
     if (downloadBtn) downloadBtn.hidden = cfg.mode !== "full";
     if (pkgLabel) {
       pkgLabel.textContent = `Builder for ${cfg.name} decoration package`;
+    }
+    const nameLabel = document.querySelector('label[for="backdrop-name"]');
+    if (nameLabel) {
+      nameLabel.textContent =
+        cfg.namePanelLabel || (cfg.mode === "full" ? "Name on the backdrop" : "Name on the center board");
     }
     const hint = document.querySelector(".backdrop-builder__hint");
     if (hint) {
@@ -1421,7 +1460,7 @@
     }
     if (pkg?.decorId) {
       partyState.decorPackageId = pkg.decorId;
-      invalidateBackdropAssets();
+      resetBackdropForPackage();
       renderDecorPackages();
       updateBackdropBuilderUI();
     }
@@ -1850,7 +1889,7 @@
   ${header}
   ${metaBlock}
   <h2 class="qp-rules-title">Backdrop mockup</h2>
-  <img class="qp-mockup" src="${document.getElementById("backdrop-canvas").toDataURL("image/jpeg", 0.9)}" alt="Custom terrace backdrop">
+  <img class="qp-mockup" src="${document.getElementById("backdrop-canvas").toDataURL("image/jpeg", 0.9)}" alt="Custom decoration mockup">
   <p class="qp-estimate">Balloon colours: ${escapeHtml(backdropPaletteLabel())}. Prints: ${escapeHtml(backdropPrintsLabel())}. Briefing mockup only.</p>
 </div>`
         : ""
@@ -2116,7 +2155,7 @@
         const id = btn.dataset.decorPkg;
         if (!canSelectDecor(id)) return;
         partyState.decorPackageId = id;
-        invalidateBackdropAssets();
+        resetBackdropForPackage();
         renderDecorPackages();
         updateBackdropBuilderUI();
         renderSummary();

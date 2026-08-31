@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20260826h">
+  <link rel="stylesheet" href="css/styles.css?v=20260831a">
   <link rel="stylesheet" href="../shared/chrome.css?v=20260826f">
 </head>
 <body data-page="cakes">
@@ -48,6 +48,7 @@
       <div class="facts__cell"><strong>2 days</strong><span>notice is all we need</span></div>
     </section>
 
+    <div id="cakes">
     <section class="gallery" id="gallery">
       <div class="gallery__head">
         <h2>Cakes we bake</h2>
@@ -87,19 +88,18 @@
         <div class="field">
           <span class="field__label" id="addons-label">Diet options</span>
           <div class="option-row" id="addon-options" role="group" aria-labelledby="addons-label"></div>
-          <span class="field__hint field__hint--soft">Gluten-free and no added sugar filter the sponge list below. Both cost extra — we'll quote it in the chat.</span>
+          <span class="field__hint field__hint--soft">Choose a diet option or leave on “No special requirements” to see every cake and sponge. Gluten-free and no added sugar filter the sponge list below — both cost extra.</span>
         </div>
 
-        <div class="form-row">
-          <div class="field">
-            <label class="field__label" for="cake-date">Date you need it</label>
-            <input type="date" id="cake-date" name="date" required>
-          </div>
-          <div class="field">
-            <span class="field__label" id="size-label">Size</span>
-            <div class="option-row" id="size-options" role="group" aria-labelledby="size-label"></div>
-            <span class="field__hint" id="size-note">18 cm — the usual birthday size, about 12–16 slices.</span>
-          </div>
+        <div class="field">
+          <label class="field__label" for="cake-date">Date you need it</label>
+          <input type="date" id="cake-date" name="date" required>
+        </div>
+
+        <div class="field">
+          <span class="field__label" id="size-label">Size</span>
+          <div class="option-row" id="size-options" role="group" aria-labelledby="size-label"></div>
+          <span class="field__hint" id="size-note">18 cm — the usual birthday size, about 12–16 slices.</span>
         </div>
 
         <div class="form-row">
@@ -149,6 +149,7 @@
         </ul>
       </form>
     </section>
+    </div>
   </main>
 
   <div id="site-chrome-footer"></div>
@@ -171,6 +172,6 @@
   </div>
 
   <script src="../shared/chrome.js?v=20260826d" defer></script>
-  <script src="js/main.js?v=20260826e" defer></script>
+  <script src="js/main.js?v=20260831a" defer></script>
 </body>
 </html>

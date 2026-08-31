@@ -4,6 +4,7 @@
   const WA_BASE = "https://wa.me/6282147830142";
   const HEADER_OFFSET = 90;
   const GALLERY_PREVIEW = 6;
+  const DIET_NONE = "No special requirements";
 
   const SPONGE_FLOURLESS = "Flourless Zucchini Chocolate (Gluten free)";
   const SPONGES_ALL = [
@@ -439,27 +440,37 @@
   function renderAddons() {
     const el = document.getElementById("addon-options");
     if (!el) return;
-    el.innerHTML = data.addons
-      .map(
-        (label) =>
-          `<button type="button" class="option-btn option-btn--sm${
-            state.addons.includes(label) ? " is-active" : ""
-          }" data-addon="${escapeHtml(label)}">${escapeHtml(label)}</button>`
-      )
+    const dietOptions = [
+      DIET_NONE,
+      ...(data.addons || []).filter((label) => label !== DIET_NONE),
+    ];
+    el.innerHTML = dietOptions
+      .map((label) => {
+        const active =
+          label === DIET_NONE
+            ? state.addons.length === 0
+            : state.addons.includes(label);
+        return `<button type="button" class="option-btn option-btn--sm${
+          active ? " is-active" : ""
+        }" data-addon="${escapeHtml(label)}">${escapeHtml(label)}</button>`;
+      })
       .join("");
     el.querySelectorAll("[data-addon]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const label = btn.dataset.addon;
-        if (state.addons.includes(label)) {
+        if (label === DIET_NONE) {
+          state.addons = [];
+        } else if (state.addons.includes(label)) {
           state.addons = state.addons.filter((a) => a !== label);
         } else {
-          state.addons = state.addons.concat(label);
+          state.addons = [label];
         }
         pruneSpongesToAvailable();
         syncSugarSpongeVisibility();
         renderAddons();
         renderSpongeOptions();
         renderSugarSpongeOptions();
+        renderGallery();
       });
     });
   }
@@ -545,7 +556,7 @@
         : "",
       state.mode === "own" ? "Design: my own idea" : "",
       theme ? `Theme: ${theme}` : "",
-      state.addons.length ? `Diet: ${state.addons.join(", ")}` : "",
+      state.addons.length ? `Diet: ${state.addons.join(", ")}` : "Diet: No special requirements",
       state.fileName ? `I have a reference photo to send: ${state.fileName}` : "",
     ].filter(Boolean);
     return lines.join("\n");
