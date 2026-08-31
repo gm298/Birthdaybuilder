@@ -6,6 +6,10 @@
   const TERRACE_GUEST_MAX = 35;
   const BUILDER_STEPS = ["details", "package", "decor", "cakes", "addons", "food"];
   const THEME_COLLAGE_IDS = ["photozone", "character", "minnie", "unicorn"];
+  const SIMPLE_BUILDER_AGE_MIN = 1;
+  const SIMPLE_BUILDER_AGE_MAX = 7;
+  const SIMPLE_BUILDER_PHOTO_FALLBACK = "img/decor/simple.jpg";
+  const SIMPLE_BUILDER_PHOTO_VERSION = "20260831b";
 
   const DEFAULT_PARTY = {
     packages: [
@@ -282,10 +286,10 @@
       id: "simple",
       name: "Simple",
       mode: "static",
-      photo: "img/decor/simple.jpg",
+      photo: SIMPLE_BUILDER_PHOTO_FALLBACK,
       panels: [],
       colours: [],
-      lede: "Describe your theme and preferred colours — we’ll create simple balloon decor to match.",
+      lede: "Enter the turning age in Details to preview the standing number balloon, then describe your theme and colours.",
     },
     optimal: {
       id: "optimal",
@@ -320,6 +324,38 @@
   let partyData = DEFAULT_PARTY;
   let cakeData = DEFAULT_CAKES;
   let guestLimitShown = false;
+
+  function parseChildAge() {
+    const raw = document.getElementById("child-age")?.value.trim() || "";
+    const match = raw.match(/\d+/);
+    if (!match) return null;
+    const age = parseInt(match[0], 10);
+    return Number.isFinite(age) && age > 0 ? age : null;
+  }
+
+  function simpleBuilderPhoto(age) {
+    if (age == null) return SIMPLE_BUILDER_PHOTO_FALLBACK;
+    if (age >= SIMPLE_BUILDER_AGE_MIN && age <= SIMPLE_BUILDER_AGE_MAX) {
+      return `img/backdrop/simple/simple-${age}.jpg?v=${SIMPLE_BUILDER_PHOTO_VERSION}`;
+    }
+    return SIMPLE_BUILDER_PHOTO_FALLBACK;
+  }
+
+  function backdropPhotoForConfig(cfg) {
+    if (cfg?.id === "simple") return simpleBuilderPhoto(parseChildAge());
+    return cfg?.photo || "";
+  }
+
+  function simpleBuilderHint() {
+    const age = parseChildAge();
+    if (!age) {
+      return "Enter the turning age in Details to preview the standing number balloon.";
+    }
+    if (age < SIMPLE_BUILDER_AGE_MIN || age > SIMPLE_BUILDER_AGE_MAX) {
+      return `No preview for age ${age} yet — we have sample looks for ages ${SIMPLE_BUILDER_AGE_MIN}–${SIMPLE_BUILDER_AGE_MAX}. Tell us the age in your design request.`;
+    }
+    return `Preview for age ${age} — Tiny will match the look, not every pixel.`;
+  }
 
   function getBackdropConfig() {
     const pkgId = partyState.decorPackageId || includedDecorId();
@@ -460,9 +496,12 @@
   async function ensureBackdropAssets() {
     const cfg = getBackdropConfig();
     if (cfg.mode !== "full") {
-      if (backdropState.assets?.photoOnly) return backdropState.assets;
-      const photo = await loadImage(cfg.photo);
-      backdropState.assets = { photo, photoOnly: true };
+      const photoPath = backdropPhotoForConfig(cfg);
+      if (backdropState.assets?.photoOnly && backdropState.assets.photoPath === photoPath) {
+        return backdropState.assets;
+      }
+      const photo = await loadImage(photoPath);
+      backdropState.assets = { photo, photoOnly: true, photoPath };
       backdropState.ready = true;
       return backdropState.assets;
     }
@@ -676,11 +715,17 @@
     const staticImg = document.getElementById("backdrop-static");
     if (!canvas || partyState.decorThemeId !== "custom") return;
     const cfg = getBackdropConfig();
+    const photoPath = backdropPhotoForConfig(cfg);
     if (cfg.mode !== "full") {
       if (staticImg) {
-        staticImg.src = cfg.photo;
+        staticImg.src = photoPath;
+        staticImg.alt = cfg.id === "simple" && parseChildAge()
+          ? `Simple balloon decor preview for age ${parseChildAge()}`
+          : "Decoration preview";
         staticImg.hidden = false;
       }
+      const hint = document.querySelector(".backdrop-builder__hint");
+      if (hint && cfg.id === "simple") hint.textContent = simpleBuilderHint();
       canvas.hidden = true;
       return;
     }
@@ -846,6 +891,13 @@
     if (pkgLabel) {
       pkgLabel.textContent = `Builder for ${cfg.name} decoration package`;
     }
+    const hint = document.querySelector(".backdrop-builder__hint");
+    if (hint) {
+      hint.textContent =
+        cfg.id === "simple"
+          ? simpleBuilderHint()
+          : "A briefing mockup — Tiny will match the look, not every pixel.";
+    }
     renderBackdropUploads();
     renderBackdropColours();
     scheduleBackdropRender();
@@ -922,6 +974,7 @@
       });
     }
     const child = document.getElementById("child-name");
+    const childAge = document.getElementById("child-age");
     if (child) {
       child.addEventListener("input", () => {
         if (!backdropState.nameTouched) {
@@ -930,6 +983,20 @@
           if (el) el.value = value ? `${value}’s Birthday` : "";
         }
         if (partyState.decorThemeId === "custom") scheduleBackdropRender();
+      });
+    }
+    if (childAge) {
+      childAge.addEventListener("input", () => {
+        if (getBackdropConfig().id === "simple") invalidateBackdropAssets();
+        if (partyState.decorThemeId === "custom") scheduleBackdropRender();
+        updateStepProgress();
+        renderSummary();
+      });
+      childAge.addEventListener("change", () => {
+        if (getBackdropConfig().id === "simple") invalidateBackdropAssets();
+        if (partyState.decorThemeId === "custom") scheduleBackdropRender();
+        updateStepProgress();
+        renderSummary();
       });
     }
     const dl = document.getElementById("backdrop-download");
