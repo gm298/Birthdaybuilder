@@ -1,6 +1,7 @@
 (() => {
   "use strict";
 
+  const BUILDER_VERSION = "20260831e";
   const WA_BASE = "https://wa.me/6282147830142";
   const CAKES_ASSET_BASE = "../../cakes/";
   const TERRACE_GUEST_MAX = 35;
@@ -301,18 +302,18 @@
   const OPTIMAL_BACKDROP = {
     width: 819,
     height: 1024,
-    photo: "img/backdrop/optimal/optimal.jpg?v=20260831a",
-    balloonsMask: "img/backdrop/optimal/balloons-mask.png?v=20260831a",
+    photo: "img/backdrop/optimal/optimal.jpg?v=20260831e",
+    balloonsMask: "img/backdrop/optimal/balloons-mask.png?v=20260831e",
     namePanelId: "right",
     namePanelLabel: "Name on the right arch",
     panels: [
-      { id: "left", label: "Left arch", x: 0.21, y: 0.5078, w: 0.1429, h: 0.3105, arch: 0.5, mask: "img/backdrop/optimal/panel-left.png?v=20260831a" },
-      { id: "right", label: "Right arch", x: 0.4835, y: 0.4082, w: 0.2589, h: 0.4082, arch: 0.5, mask: "img/backdrop/optimal/panel-right.png?v=20260831a" },
+      { id: "left", label: "Left arch", x: 0.21, y: 0.5078, w: 0.1429, h: 0.3105, arch: 0.5, mask: "img/backdrop/optimal/panel-left.png?v=20260831e" },
+      { id: "right", label: "Right arch", x: 0.4835, y: 0.4082, w: 0.2589, h: 0.4082, arch: 0.5, mask: "img/backdrop/optimal/panel-right.png?v=20260831e" },
     ],
     colours: [
-      { id: "colour1", label: "Balloon group 1", original: "#cab9be", mask: "img/backdrop/optimal/balloon-colour-1.png?v=20260831a" },
-      { id: "colour2", label: "Balloon group 2", original: "#c5b3b8", mask: "img/backdrop/optimal/balloon-colour-2.png?v=20260831a" },
-      { id: "colour3", label: "Balloon group 3", original: "#d0c4c8", mask: "img/backdrop/optimal/balloon-colour-3.png?v=20260831a" },
+      { id: "colour1", label: "Balloon group 1", original: "#cab9be", mask: "img/backdrop/optimal/balloon-colour-1.png?v=20260831e" },
+      { id: "colour2", label: "Balloon group 2", original: "#c5b3b8", mask: "img/backdrop/optimal/balloon-colour-2.png?v=20260831e" },
+      { id: "colour3", label: "Balloon group 3", original: "#d0c4c8", mask: "img/backdrop/optimal/balloon-colour-3.png?v=20260831e" },
     ],
   };
 
@@ -1034,6 +1035,14 @@
 
   function openCustomBuilderModal() {
     partyState.decorThemeId = "custom";
+    const pkg = selectedPackage();
+    if (pkg?.decorId) {
+      const decorId = partyState.decorPackageId || pkg.decorId;
+      if (!partyState.decorPackageId || decorRank(decorId) < decorRank(pkg.decorId)) {
+        partyState.decorPackageId = pkg.decorId;
+        resetBackdropForPackage();
+      }
+    }
     const modal = document.getElementById("custom-builder-modal");
     if (!modal) return;
     updateBackdropBuilderUI();
@@ -3320,7 +3329,9 @@
     const params = new URLSearchParams(window.location.search);
     const packageParam = params.get("package");
     if (packageParam && partyData.packages.some((p) => p.id === packageParam)) {
+      const pkg = partyData.packages.find((p) => p.id === packageParam);
       partyState.packageId = packageParam;
+      if (pkg?.decorId) partyState.decorPackageId = pkg.decorId;
     }
 
     renderPackages();
