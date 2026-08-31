@@ -1010,8 +1010,8 @@
     const pkgLabel = document.getElementById("builder-pkg-label");
     if (lede) lede.textContent = cfg.lede || "";
     if (uploads) uploads.hidden = cfg.mode !== "full";
-    if (nameField) nameField.hidden = cfg.mode === "static";
-    if (coloursField) coloursField.hidden = !cfg.colours?.length;
+    if (nameField) nameField.hidden = cfg.id === "simple" || cfg.mode !== "full";
+    if (coloursField) coloursField.hidden = cfg.mode !== "full" || !cfg.colours?.length;
     if (downloadBtn) downloadBtn.hidden = cfg.mode !== "full";
     if (pkgLabel) {
       pkgLabel.textContent = `Builder for ${cfg.name} decoration package`;
@@ -2204,11 +2204,9 @@
     const t = (partyData.decorThemes || []).find((x) => x.id === partyState.decorThemeId);
     if (!t) return partyState.decorThemeId;
     if (t.custom) {
-      const custom = document.getElementById("decor-custom")?.value.trim();
       const designRequest = designRequestValue();
       const prints = activeBackdropPanels().filter((p) => backdropState.panels[p.id]).length;
       const bits = [];
-      if (custom) bits.push(custom);
       if (designRequest) bits.push(`design request: ${designRequest}`);
       if (prints) bits.push(`${prints} print${prints === 1 ? "" : "s"}`);
       if (backdropColoursChanged()) bits.push("custom balloon colours");
@@ -2551,7 +2549,6 @@
     const notes = document.getElementById("party-notes")?.value.trim() || "";
     const foodNotes = document.getElementById("food-notes")?.value.trim() || "";
     const cakeTheme = document.getElementById("cake-theme")?.value.trim() || "";
-    const decorCustom = document.getElementById("decor-custom")?.value.trim() || "";
     const designRequest = designRequestValue();
     const q = buildQuotation();
 
@@ -2560,7 +2557,6 @@
       pkg ? `Package: ${pkg.name} (${packagePrice(pkg)}, ${partyState.day})` : "",
       `Decoration package: ${decorPackageLabel()}`,
       `Decoration look: ${decorThemeLabel()}`,
-      decorCustom && partyState.decorThemeId === "custom" ? `Custom theme notes: ${decorCustom}` : "",
       designRequest && partyState.decorThemeId === "custom"
         ? `Design request (build for us): ${designRequest}`
         : "",
@@ -2668,7 +2664,6 @@
       "party-notes",
       "food-notes",
       "cake-theme",
-      "decor-custom",
       "decor-design-request",
       "backdrop-name",
     ].forEach((id) => {
