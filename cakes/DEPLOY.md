@@ -25,8 +25,10 @@ Opening `index.html` as `file://` also works (cake data is embedded as a fallbac
 - Appearance → Menus → add a Custom Link: URL `/cakes`, label `Cakes`.
 - Keep the Birthdays link to `/birthdays` if already added.
 
-## Optional analytics
-Events already fire: `whatsapp_click`, `cake_form_submit`, `cake_filter`, `cake_lightbox_open`.
+## Analytics (gtag / GA4)
+- Paste your Measurement ID into `shared/analytics.js` (`GA_MEASUREMENT_ID`).
+- Shared events: `page_view`, `link_click`, `page_time`.
+- Page events also fire: `whatsapp_click`, `cake_form_submit`, `cake_filter`, `cake_lightbox_open`.
 
 ## Replace before launch
 - Add real prices in `data/cakes.json` (sizes currently "Price on request").

@@ -18,9 +18,10 @@ Opening `index.html` as a `file://` URL now works (packages are in the HTML). Fo
 ## Main site navigation
 - Appearance ? Menus ? add a Custom Link: URL `/birthdays`, label `Birthdays`.
 
-## Optional analytics
-- Add your GA4 snippet to `index.html` `<head>` if not already loaded site-wide.
-  Events already fire: `whatsapp_click`, `pdf_form_submit`, `scroll_past_packages`.
+## Analytics (gtag / GA4)
+- Paste your Measurement ID into `shared/analytics.js` (`GA_MEASUREMENT_ID`).
+- Shared events: `page_view`, `link_click`, `page_time`.
+- Page events also fire: `whatsapp_click`, `pdf_form_submit`, `scroll_past_packages`.
 
 ## Replace before launch
 - `pdf/Tiny-Birthday-Packages-2026.pdf` (add real PDF)

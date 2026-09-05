@@ -1,22 +1,23 @@
 (() => {
   "use strict";
 
-  const BUILDER_VERSION = "20260831e";
+  const BUILDER_VERSION = "20260905a";
   const WA_BASE = "https://wa.me/6282147830142";
   const CAKES_ASSET_BASE = "../../cakes/";
   const TERRACE_GUEST_MAX = 35;
   const BUILDER_FLOW = [
-    { id: "details", href: "#details", nextLabel: "Next: Package" },
-    { id: "package", href: "#package", nextLabel: "Next: Decorations" },
-    { id: "decor", href: "#decor", nextLabel: "Next: Cake" },
-    { id: "cakes", href: "#cakes", nextLabel: "Next: Add ons" },
-    { id: "addons", href: "#addons", nextLabel: "Next: Food" },
-    { id: "food", href: "#food", nextLabel: "Next: Quote" },
-    { id: "send", href: "#send", nextLabel: "" },
+    { id: "intro", href: "#intro", nextLabel: "Continue", required: false },
+    { id: "details", href: "#details", nextLabel: "Next: Package", required: true },
+    { id: "package", href: "#package", nextLabel: "Next: Decorations", required: true },
+    { id: "decor", href: "#decor", nextLabel: "Next: Cake", required: true },
+    { id: "cakes", href: "#cakes", nextLabel: "Next: Add ons", required: true },
+    { id: "addons", href: "#addons", nextLabel: "Next: Food", required: true },
+    { id: "food", href: "#food", nextLabel: "Next: Quote", required: true },
+    { id: "send", href: "#send", nextLabel: "", required: false },
   ];
   const DIET_NONE = "No special requirements";
   const PARTY_DURATION_HOURS = 3;
-  const BUILDER_STEPS = BUILDER_FLOW.filter((step) => step.id !== "send").map((step) => step.id);
+  const BUILDER_STEPS = BUILDER_FLOW.filter((step) => step.required).map((step) => step.id);
   const THEME_COLLAGE_IDS = ["photozone", "character", "minnie", "unicorn"];
   const SIMPLE_BUILDER_AGE_MIN = 1;
   const SIMPLE_BUILDER_AGE_MAX = 7;
@@ -260,8 +261,11 @@
     masterclassReviewed: false,
     entertainmentReviewed: false,
     foodReviewed: false,
+    decorReviewed: false,
     extras: [],
   };
+
+  let currentStepId = "intro";
 
   const cakeState = {
     filter: "All",
@@ -1035,6 +1039,7 @@
 
   function openCustomBuilderModal() {
     partyState.decorThemeId = "custom";
+    partyState.decorReviewed = true;
     const pkg = selectedPackage();
     if (pkg?.decorId) {
       const decorId = partyState.decorPackageId || pkg.decorId;
@@ -1218,12 +1223,10 @@
   }
 
   function headerOffset() {
-    const root = getComputedStyle(document.documentElement);
-    const stepsBar = parseFloat(root.getPropertyValue("--steps-bar-h")) || 52;
-    const pinned = document.body.classList.contains("steps-pinned");
-    if (pinned) return stepsBar + 12;
-    const siteHeader = parseFloat(root.getPropertyValue("--site-header-h")) || 80;
-    return siteHeader + stepsBar + 16;
+    const chrome = document.getElementById("steps-chrome");
+    const intro = currentStepId === "intro";
+    const stepsH = !intro && chrome ? chrome.getBoundingClientRect().height : 0;
+    return Math.ceil(stepsH) + 12;
   }
 
   function foodDepositAmount(pkg) {
@@ -1340,59 +1343,21 @@
   }
 
   function syncStepsBarH() {
-    const steps = document.querySelector(".steps-bar");
-    const progress = document.getElementById("steps-progress");
-    if (!steps) return;
-    const stepsH = Math.ceil(steps.getBoundingClientRect().height);
-    const progressH = progress ? Math.ceil(progress.getBoundingClientRect().height) : 0;
-    const height = stepsH + progressH;
-    document.documentElement.style.setProperty("--steps-bar-only-h", `${stepsH}px`);
+    const chrome = document.getElementById("steps-chrome");
+    if (!chrome) return;
+    const height = Math.ceil(chrome.getBoundingClientRect().height);
+    document.documentElement.style.setProperty("--steps-bar-only-h", `${height}px`);
     document.documentElement.style.setProperty("--steps-bar-h", `${height}px`);
-    const spacer = document.getElementById("steps-bar-spacer");
-    if (spacer && steps.classList.contains("is-fixed")) {
-      spacer.style.height = `${height}px`;
-    }
   }
 
   function initStickySteps() {
-    const bar = document.getElementById("steps-bar");
-    const anchor = document.getElementById("steps-bar-anchor");
-    const spacer = document.getElementById("steps-bar-spacer");
-    if (!bar || !anchor) return;
-
-    const setFixed = (fixed) => {
-      bar.classList.toggle("is-fixed", fixed);
-      document.body.classList.toggle("steps-pinned", fixed);
-      if (spacer) {
-        const progress = document.getElementById("steps-progress");
-        const totalH = bar.offsetHeight + (progress ? progress.offsetHeight : 0);
-        spacer.style.height = fixed ? `${totalH}px` : "0";
-      }
-      bar.style.top = "0";
-      syncStepsBarH();
-    };
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        setFixed(!entry.isIntersecting);
-      },
-      { root: null, threshold: 0, rootMargin: "0px 0px 0px 0px" }
-    );
-
-    observer.observe(anchor);
-    window.addEventListener(
-      "resize",
-      () => {
-        bar.style.top = "0";
-        if (bar.classList.contains("is-fixed") && spacer) {
-          const progress = document.getElementById("steps-progress");
-          const totalH = bar.offsetHeight + (progress ? progress.offsetHeight : 0);
-          spacer.style.height = `${totalH}px`;
-        }
-        syncStepsBarH();
-      },
-      { passive: true }
-    );
+    const chrome = document.getElementById("steps-chrome");
+    if (!chrome) return;
+    syncStepsBarH();
+    window.addEventListener("resize", syncStepsBarH, { passive: true });
+    if (window.ResizeObserver) {
+      new ResizeObserver(syncStepsBarH).observe(chrome);
+    }
   }
 
   function dayFromDate(dateStr) {
@@ -1493,14 +1458,33 @@
   function initSmoothScroll() {
     document.addEventListener("click", (e) => {
       const a = e.target.closest('a[href^="#"]');
-      if (!a) return;
+      if (!a || a.id === "next-step" || a.classList.contains("step-chip")) return;
       const id = a.getAttribute("href");
       if (!id || id === "#") return;
-      if (!document.querySelector(id)) return;
+      const stepId = id.slice(1);
+      if (BUILDER_FLOW.some((step) => step.id === stepId)) {
+        e.preventDefault();
+        if (window.TinyChrome) window.TinyChrome.closeDrawer();
+        closeAllLightboxes();
+        if (canVisitStep(stepId)) {
+          goToStep(stepId);
+        } else {
+          const fallback = firstIncompleteRequiredStep();
+          goToStep(fallback);
+          showStepGate(stepIncompleteMessage(fallback));
+        }
+        return;
+      }
+      const el = document.querySelector(id);
+      if (!el) return;
       e.preventDefault();
       if (window.TinyChrome) window.TinyChrome.closeDrawer();
       closeAllLightboxes();
-      scrollToId(id);
+      const page = el.closest(".builder-page");
+      if (page && page.id !== currentStepId && canVisitStep(page.id)) {
+        goToStep(page.id);
+      }
+      requestAnimationFrame(() => scrollToId(id));
     });
   }
 
@@ -1926,7 +1910,18 @@
         status.textContent = "Please choose a package first.";
         status.className = "form-status is-error";
       }
-      scrollToId("#package");
+      goToStep("package");
+      showStepGate("Please choose a package first.");
+      return;
+    }
+    const incomplete = firstIncompleteRequiredStep();
+    if (incomplete !== "send") {
+      if (status) {
+        status.textContent = stepIncompleteMessage(incomplete);
+        status.className = "form-status is-error";
+      }
+      goToStep(incomplete);
+      showStepGate(stepIncompleteMessage(incomplete));
       return;
     }
 
@@ -2082,7 +2077,8 @@
       btn.addEventListener("click", () => {
         if (!canSelectPackage()) {
           renderPackageHint();
-          scrollToId("#details");
+          goToStep("details");
+          showStepGate("Enter how many people before you can choose a package.");
           return;
         }
         applyPackageSelection(btn.dataset.package);
@@ -2164,6 +2160,7 @@
         const id = btn.dataset.decorPkg;
         if (!canSelectDecor(id)) return;
         partyState.decorPackageId = id;
+        partyState.decorReviewed = true;
         resetBackdropForPackage();
         renderDecorPackages();
         updateBackdropBuilderUI();
@@ -2634,7 +2631,18 @@
           status.textContent = "Please choose a package first.";
           status.classList.add("is-error");
         }
-        scrollToId("#package");
+        goToStep("package");
+        showStepGate("Please choose a package first.");
+        return;
+      }
+      const incomplete = firstIncompleteRequiredStep();
+      if (incomplete !== "send") {
+        if (status) {
+          status.textContent = stepIncompleteMessage(incomplete);
+          status.classList.add("is-error");
+        }
+        goToStep(incomplete);
+        showStepGate(stepIncompleteMessage(incomplete));
         return;
       }
       const message = composeWhatsAppMessage();
@@ -2891,6 +2899,7 @@
         cakeState.size = btn.dataset.size;
         renderSizeOptions();
         renderSummary();
+        updateStepProgress();
       });
     });
     if (note) {
@@ -2905,25 +2914,168 @@
 
   function isStepComplete(stepId) {
     switch (stepId) {
+      case "intro":
+        return true;
       case "details":
         return detailsAreComplete();
       case "package":
         return partyState.packageChosen && Boolean(partyState.packageId);
       case "decor":
-        return partyState.decorThemeId === "custom";
+        return partyState.decorReviewed || partyState.decorThemeId === "custom";
       case "cakes":
         return cakeState.sponges.length > 0 && Boolean(cakeState.size);
       case "addons":
         return partyState.masterclassReviewed && partyState.entertainmentReviewed;
       case "food":
         return partyState.foodReviewed;
+      case "send":
+        return BUILDER_STEPS.every((id) => isStepComplete(id));
       default:
         return false;
     }
   }
 
+  function stepIncompleteMessage(stepId) {
+    switch (stepId) {
+      case "details":
+        return "Please fill out the required details.";
+      case "package":
+        return "Please choose a package.";
+      case "decor":
+        return "Please choose a decoration look or build your own.";
+      case "cakes":
+        return "Please choose a cake size and at least one sponge flavour.";
+      case "addons":
+        return "Please choose a masterclass and entertainment option, or select no add on.";
+      case "food":
+        return "Please review food and drink, then continue.";
+      default:
+        return "Please complete this step to continue.";
+    }
+  }
+
+  function showStepGate(message) {
+    const el = document.getElementById("step-gate");
+    if (!el) return;
+    if (!message) {
+      el.hidden = true;
+      el.textContent = "";
+      return;
+    }
+    el.hidden = false;
+    el.textContent = message;
+  }
+
+  function flowIndex(stepId) {
+    return BUILDER_FLOW.findIndex((step) => step.id === stepId);
+  }
+
+  function firstIncompleteRequiredStep() {
+    const incomplete = BUILDER_FLOW.find((step) => step.required && !isStepComplete(step.id));
+    return incomplete ? incomplete.id : "send";
+  }
+
+  function canVisitStep(stepId) {
+    const target = flowIndex(stepId);
+    if (target < 0) return false;
+    for (let i = 0; i < target; i += 1) {
+      const step = BUILDER_FLOW[i];
+      if (!step.required) continue;
+      if (!isStepComplete(step.id)) return false;
+    }
+    return true;
+  }
+
+  function markStepSeen(stepId) {
+    if (stepId === "food") partyState.foodReviewed = true;
+  }
+
+  function updateStepChips() {
+    document.querySelectorAll(".step-chip[data-step]").forEach((chip) => {
+      const stepId = chip.dataset.step;
+      const allowed = canVisitStep(stepId);
+      chip.classList.toggle("is-active", stepId === currentStepId);
+      chip.classList.toggle("is-complete", isStepComplete(stepId));
+      chip.classList.toggle("is-locked", !allowed);
+      chip.setAttribute("aria-disabled", allowed ? "false" : "true");
+      if (stepId === currentStepId) chip.setAttribute("aria-current", "step");
+      else chip.removeAttribute("aria-current");
+    });
+  }
+
+  function goToStep(stepId, options = {}) {
+    const fromHistory = Boolean(options.fromHistory);
+    let nextId = BUILDER_FLOW.some((step) => step.id === stepId) ? stepId : "intro";
+    if (!canVisitStep(nextId)) nextId = firstIncompleteRequiredStep();
+    currentStepId = nextId;
+    document.body.dataset.builderStep = nextId;
+    document.body.classList.add("is-wizard");
+    document.querySelectorAll(".builder-page").forEach((el) => {
+      const active = el.id === nextId;
+      el.classList.toggle("is-active", active);
+      el.hidden = !active;
+    });
+    markStepSeen(nextId);
+    showStepGate("");
+    window.scrollTo({ top: 0, behavior: "auto" });
+    const hash = `#${nextId}`;
+    if (!fromHistory && location.hash !== hash) {
+      history.pushState({ step: nextId }, "", hash);
+    } else if (fromHistory && location.hash !== hash) {
+      history.replaceState({ step: nextId }, "", hash);
+    }
+    const heading = document.querySelector(`#${nextId} h1, #${nextId} h2`);
+    if (heading) {
+      if (!heading.hasAttribute("tabindex")) heading.setAttribute("tabindex", "-1");
+      heading.focus({ preventScroll: true });
+    }
+    updateStepProgress();
+    updateStepChips();
+    updateNextStepButton();
+    syncStepsBarH();
+    if (nextId === "send") renderSummary();
+  }
+
+  function validateCurrentStep(showErrors) {
+    const current = BUILDER_FLOW[flowIndex(currentStepId)] || BUILDER_FLOW[0];
+    if (current.id === "details") return validateDetailsSection(showErrors);
+    if (current.id === "cakes") {
+      const ok = isStepComplete("cakes");
+      const spongeField = document.getElementById("sponge-options")?.closest(".field");
+      if (showErrors && spongeField) spongeField.classList.toggle("is-invalid", !ok);
+      return ok;
+    }
+    if (current.id === "decor") {
+      if (partyState.decorPackageId) partyState.decorReviewed = true;
+    }
+    if (current.id === "food") {
+      partyState.foodReviewed = true;
+    }
+    if (!current.required) return true;
+    return isStepComplete(current.id);
+  }
+
+  function tryAdvance(e) {
+    if (e) e.preventDefault();
+    const current = BUILDER_FLOW[flowIndex(currentStepId)] || BUILDER_FLOW[0];
+    if (!validateCurrentStep(true)) {
+      showStepGate(stepIncompleteMessage(current.id));
+      if (current.id === "details") {
+        document.querySelector("#details .field.is-invalid")?.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+      return false;
+    }
+    const next = BUILDER_FLOW[flowIndex(current.id) + 1];
+    if (!next) return false;
+    goToStep(next.id);
+    return true;
+  }
+
   function updateStepProgress() {
-    const completed = BUILDER_FLOW.filter((step) => step.id !== "send" && isStepComplete(step.id)).length;
+    const completed = BUILDER_STEPS.filter((id) => isStepComplete(id)).length;
     const total = BUILDER_STEPS.length;
     const fill = document.getElementById("steps-progress-fill");
     const text = document.getElementById("steps-progress-text");
@@ -2934,10 +3086,7 @@
       track.setAttribute("aria-valuenow", String(completed));
       track.setAttribute("aria-valuemax", String(total));
     }
-    document.querySelectorAll(".step-chip[data-step]").forEach((chip) => {
-      const stepId = chip.dataset.step;
-      chip.classList.toggle("is-complete", isStepComplete(stepId));
-    });
+    updateStepChips();
   }
 
   function initCollapsibleAddons() {
@@ -2973,23 +3122,13 @@
     });
   }
 
-  function getActiveFlowIndex() {
-    let active = 0;
-    const offset = headerOffset();
-    BUILDER_FLOW.forEach((step, index) => {
-      const el = document.querySelector(step.href);
-      if (el && el.getBoundingClientRect().top - offset <= 80) active = index;
-    });
-    return active;
-  }
-
   function updateNextStepButton() {
     const btn = document.getElementById("next-step");
     if (!btn) return;
-    const index = getActiveFlowIndex();
-    const current = BUILDER_FLOW[index];
+    const index = flowIndex(currentStepId);
+    const current = BUILDER_FLOW[index] || BUILDER_FLOW[0];
     const next = BUILDER_FLOW[index + 1];
-    if (!next || current.id === "send") {
+    if (!next || current.id === "send" || current.id === "intro") {
       btn.hidden = true;
       return;
     }
@@ -3002,32 +3141,19 @@
     const btn = document.getElementById("next-step");
     if (!btn || btn.dataset.bound) return;
     btn.dataset.bound = "1";
-    btn.addEventListener("click", (e) => {
-      const current = BUILDER_FLOW[getActiveFlowIndex()];
-      if (current.id === "details" && !validateDetailsSection(true)) {
-        e.preventDefault();
-        scrollToId("#details");
-      }
-    });
-    const update = () => updateNextStepButton();
-    window.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    update();
+    btn.addEventListener("click", tryAdvance);
   }
 
-  function initFoodStepObserver() {
-    const food = document.getElementById("food");
-    if (!food) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) return;
-        partyState.foodReviewed = true;
-        updateStepProgress();
-        observer.disconnect();
-      },
-      { threshold: 0.2, rootMargin: "-80px 0px 0px 0px" }
-    );
-    observer.observe(food);
+  function initWizard() {
+    const requested = (location.hash || "#intro").replace("#", "") || "intro";
+    goToStep(requested, { fromHistory: true });
+    if (location.hash !== `#${currentStepId}`) {
+      history.replaceState({ step: currentStepId }, "", `#${currentStepId}`);
+    }
+    window.addEventListener("popstate", () => {
+      const stepId = (location.hash || "#intro").replace("#", "") || "intro";
+      goToStep(stepId, { fromHistory: true });
+    });
   }
 
   function initGuestLimit() {
@@ -3066,24 +3192,22 @@
   }
 
   function initStepChips() {
-    const chips = document.querySelectorAll(".step-chip");
-    const sections = ["#details", "#package", "#decor", "#cakes", "#addons", "#food", "#send"]
-      .map((id) => document.querySelector(id))
-      .filter(Boolean);
-    const update = () => {
-      let active = sections[0];
-      const offset = headerOffset();
-      sections.forEach((sec) => {
-        if (sec.getBoundingClientRect().top - offset <= 0) active = sec;
+    document.querySelectorAll(".step-chip[data-step]").forEach((chip) => {
+      if (chip.dataset.wizardBound) return;
+      chip.dataset.wizardBound = "1";
+      chip.addEventListener("click", (e) => {
+        e.preventDefault();
+        const stepId = chip.dataset.step;
+        if (canVisitStep(stepId)) {
+          goToStep(stepId);
+          return;
+        }
+        const fallback = firstIncompleteRequiredStep();
+        goToStep(fallback);
+        showStepGate(stepIncompleteMessage(fallback));
       });
-      chips.forEach((chip) => {
-        chip.classList.toggle("is-active", chip.getAttribute("href") === `#${active.id}`);
-      });
-      updateStepProgress();
-      updateNextStepButton();
-    };
-    window.addEventListener("scroll", update, { passive: true });
-    update();
+    });
+    updateStepChips();
   }
 
   function renderChoiceList(containerId, options, selected, key) {
@@ -3133,6 +3257,8 @@
         renderSpongeOptions();
         renderSummary();
         updateStepProgress();
+        const spongeField = document.getElementById("sponge-options")?.closest(".field");
+        if (spongeField && cakeState.sponges.length) spongeField.classList.remove("is-invalid");
       });
     });
     if (hint) {
@@ -3282,26 +3408,9 @@
       form.addEventListener("submit", (e) => {
         e.preventDefault();
         renderSummary();
-        scrollToId("#send");
+        tryAdvance();
       });
     }
-  }
-
-  function initMobileSticky() {
-    const bar = document.getElementById("mobile-sticky");
-    const hero = document.querySelector(".builder-hero");
-    if (!bar || !hero) return;
-    const update = () => {
-      const isMobile = window.matchMedia("(max-width: 900px)").matches;
-      if (!isMobile) {
-        bar.classList.remove("is-visible");
-        return;
-      }
-      bar.classList.toggle("is-visible", window.scrollY > hero.offsetHeight * 0.4);
-    };
-    window.addEventListener("scroll", update, { passive: true });
-    window.addEventListener("resize", update);
-    update();
   }
 
   async function loadJson(url, fallback) {
@@ -3360,18 +3469,9 @@
     initPhotoLightbox();
     initSmoothScroll();
     initStickySteps();
-    syncStepsBarH();
-    window.addEventListener("resize", syncStepsBarH);
-    if (window.ResizeObserver) {
-      const steps = document.querySelector(".steps-bar");
-      const progress = document.getElementById("steps-progress");
-      if (steps) new ResizeObserver(syncStepsBarH).observe(steps);
-      if (progress) new ResizeObserver(syncStepsBarH).observe(progress);
-    }
-    initMobileSticky();
     initStepChips();
     initNextStep();
-    initFoodStepObserver();
+    initWizard();
     updateStepProgress();
     checkTerraceGuestLimit();
   });

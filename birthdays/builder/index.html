@@ -15,46 +15,47 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../cakes/css/styles.css?v=20260831f">
-  <link rel="stylesheet" href="css/styles.css?v=20260831f">
+  <link rel="stylesheet" href="css/styles.css?v=20260905a">
   <link rel="stylesheet" href="../../shared/chrome.css?v=20260826f">
+  <script src="../../shared/analytics.js?v=20260905a"></script>
 </head>
-<body data-page="builder">
+<body data-page="builder" class="is-wizard" data-builder-step="intro">
   <div id="site-chrome-header"></div>
 
   <main>
-    <section class="builder-hero" aria-label="Build your birthday">
+    <section class="builder-page builder-hero is-active" id="intro" aria-label="Welcome to the birthday builder">
       <img class="builder-hero__img" src="img/hero.jpg" alt="Children celebrating at Tiny with balloon photozone and tropical terrace" width="1800" height="1200">
       <div class="builder-hero__copy">
         <p class="builder-hero__brand">Tiny</p>
-        <h1>Build your birthday</h1>
-        <p class="builder-hero__sub">Package, decorations, cake and extras — then one WhatsApp to our team.</p>
-        <a class="btn btn--lg" href="#details">Start with your details</a>
+        <h1 tabindex="-1">Welcome to our birthday builder where you can build your birthday from custom decoration designs and custom birthday cake.</h1>
+        <p class="builder-hero__note">Please note this process will take approximately 5 minutes</p>
+        <a class="btn btn--lg" href="#details" id="intro-continue">Continue</a>
       </div>
     </section>
 
-    <div class="steps-bar-anchor" id="steps-bar-anchor" aria-hidden="true"></div>
-    <nav class="steps-bar" id="steps-bar" aria-label="Builder steps">
-      <a class="step-chip" href="#details" data-step="details"><span class="step-chip__check" aria-hidden="true"></span>01 Details</a>
-      <a class="step-chip" href="#package" data-step="package"><span class="step-chip__check" aria-hidden="true"></span>02 Package</a>
-      <a class="step-chip" href="#decor" data-step="decor"><span class="step-chip__check" aria-hidden="true"></span>03 Decorations</a>
-      <a class="step-chip" href="#cakes" data-step="cakes"><span class="step-chip__check" aria-hidden="true"></span>04 Cake</a>
-      <a class="step-chip" href="#addons" data-step="addons"><span class="step-chip__check" aria-hidden="true"></span>05 Add ons</a>
-      <a class="step-chip" href="#food" data-step="food"><span class="step-chip__check" aria-hidden="true"></span>06 Food</a>
-      <a class="step-chip step-chip--quote" href="#send">Quote</a>
-    </nav>
-    <div class="steps-progress" id="steps-progress" aria-live="polite">
-      <div class="steps-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0" id="steps-progress-track">
-        <div class="steps-progress__fill" id="steps-progress-fill"></div>
+    <div class="steps-chrome" id="steps-chrome">
+      <nav class="steps-bar" id="steps-bar" aria-label="Builder steps">
+        <a class="step-chip" href="#details" data-step="details"><span class="step-chip__check" aria-hidden="true"></span>01 Details</a>
+        <a class="step-chip" href="#package" data-step="package"><span class="step-chip__check" aria-hidden="true"></span>02 Package</a>
+        <a class="step-chip" href="#decor" data-step="decor"><span class="step-chip__check" aria-hidden="true"></span>03 Decorations</a>
+        <a class="step-chip" href="#cakes" data-step="cakes"><span class="step-chip__check" aria-hidden="true"></span>04 Cake</a>
+        <a class="step-chip" href="#addons" data-step="addons"><span class="step-chip__check" aria-hidden="true"></span>05 Add ons</a>
+        <a class="step-chip" href="#food" data-step="food"><span class="step-chip__check" aria-hidden="true"></span>06 Food</a>
+        <a class="step-chip step-chip--quote" href="#send" data-step="send">Quote</a>
+      </nav>
+      <div class="steps-progress" id="steps-progress" aria-live="polite">
+        <div class="steps-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0" id="steps-progress-track">
+          <div class="steps-progress__fill" id="steps-progress-fill"></div>
+        </div>
+        <p class="steps-progress__text" id="steps-progress-text">0 out of 6 steps complete</p>
       </div>
-      <p class="steps-progress__text" id="steps-progress-text">0 out of 6 steps complete</p>
     </div>
-    <div class="steps-bar-spacer" id="steps-bar-spacer" aria-hidden="true"></div>
 
-    <section class="builder-section builder-section--cream" id="details">
+    <section class="builder-page builder-section builder-section--cream" id="details" hidden>
       <div class="section-head">
         <div>
           <div class="eyebrow">01 · Fill out your details</div>
-          <h2>When &amp; who</h2>
+          <h2 tabindex="-1">When &amp; who</h2>
         </div>
         <p class="section-note">A few essentials so we can check the date and tailor the party.</p>
       </div>
@@ -107,11 +108,11 @@
       </div>
     </section>
 
-    <section class="builder-section builder-section--white" id="package">
+    <section class="builder-page builder-section builder-section--white" id="package" hidden>
       <div class="section-head">
         <div>
           <div class="eyebrow">02 · Choose package</div>
-          <h2>Choose your package</h2>
+          <h2 tabindex="-1">Choose your package</h2>
         </div>
         <div class="day-toggle day-toggle--readonly" id="day-indicator" role="status" aria-live="polite">
           <span class="day-indicator__label" id="day-indicator-label">Weekday pricing</span>
@@ -122,11 +123,11 @@
       <div class="pkg-grid" id="package-grid"></div>
     </section>
 
-    <section class="builder-section builder-section--cream" id="decor">
+    <section class="builder-page builder-section builder-section--cream" id="decor" hidden>
       <div class="section-head">
         <div>
           <div class="eyebrow">03 · Choose decoration</div>
-          <h2>Choose decoration</h2>
+          <h2 tabindex="-1">Choose decoration</h2>
         </div>
         <p class="section-note">Your package includes a decoration set. Pick the look from our parties, or build your own custom theme.</p>
       </div>
@@ -138,11 +139,11 @@
       </div>
     </section>
 
-    <section class="builder-section builder-section--white" id="cakes">
+    <section class="builder-page builder-section builder-section--white" id="cakes" hidden>
       <div class="section-head">
         <div>
           <div class="eyebrow">04 · Build your cake</div>
-          <h2>Choose your cake</h2>
+          <h2 tabindex="-1">Choose your cake</h2>
         </div>
         <p class="section-note">This is Tiny’s cake catalogue. Browse the gallery, then build size, sponge and design below.</p>
       </div>
@@ -242,11 +243,11 @@
       </section>
     </section>
 
-    <section class="builder-section builder-section--cream" id="addons">
+    <section class="builder-page builder-section builder-section--cream" id="addons" hidden>
       <div class="section-head">
         <div>
           <div class="eyebrow">05 · Choose add ons</div>
-          <h2>Add some extra magic</h2>
+          <h2 tabindex="-1">Add some extra magic</h2>
         </div>
         <p class="section-note">Masterclass, entertainment, extra cake or more décor. Skip anything you don’t need.</p>
       </div>
@@ -280,11 +281,11 @@
       </div>
     </section>
 
-    <section class="builder-section builder-section--white builder-section--food" id="food">
+    <section class="builder-page builder-section builder-section--white builder-section--food" id="food" hidden>
       <div class="section-head section-head--stack">
         <div>
           <div class="eyebrow">06 · Food &amp; drink</div>
-          <h2>Choose food &amp; drink</h2>
+          <h2 tabindex="-1">Choose food &amp; drink</h2>
           <p class="section-lede" id="food-lede">Food and drink sit in the package as a play-area deposit. Tell us allergies and we’ll set the table from Tiny’s kitchen.</p>
         </div>
       </div>
@@ -298,11 +299,11 @@
       <p class="food-included" id="food-included"></p>
     </section>
 
-    <section class="builder-section builder-section--sage" id="send">
+    <section class="builder-page builder-section builder-section--sage" id="send" hidden>
       <div class="section-head">
         <div>
           <div class="eyebrow">Quotation</div>
-          <h2>Review &amp; send</h2>
+          <h2 tabindex="-1">Review &amp; send</h2>
         </div>
       </div>
       <div class="summary-panel">
@@ -320,12 +321,8 @@
 
   <div id="site-chrome-footer"></div>
 
-  <a class="btn btn--next-step" href="#package" id="next-step">Next: Package</a>
-
-  <div class="mobile-sticky" id="mobile-sticky" aria-label="Quick actions">
-    <a class="btn" href="#send">Review &amp; send</a>
-    <a class="btn btn--outline" href="#package">Package</a>
-  </div>
+  <p class="step-gate" id="step-gate" role="status" aria-live="polite" hidden></p>
+  <a class="btn btn--next-step" href="#details" id="next-step" hidden>Continue</a>
 
   <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="lightbox-name">
     <button class="lightbox__close" type="button" aria-label="Close">&times;</button>
@@ -401,6 +398,6 @@
   </div>
 
   <script src="../../shared/chrome.js?v=20260826d" defer></script>
-  <script src="js/main.js?v=20260831f" defer></script>
+  <script src="js/main.js?v=20260905a" defer></script>
 </body>
 </html>

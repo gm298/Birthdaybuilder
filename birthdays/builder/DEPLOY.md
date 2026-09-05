@@ -21,3 +21,4 @@ Then open:
 - Cake step reuses the cakes catalogue assets from `/cakes/` (`../../cakes/...`).
 - Package deep links: `/birthdays/builder/?package=simple|signature|terrace`
 - Shared header/footer: `shared/chrome.js` + `shared/chrome.css` on landing, cakes, and builder.
+- Analytics: paste the GA4 Measurement ID into `shared/analytics.js`.
