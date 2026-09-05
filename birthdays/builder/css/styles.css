@@ -130,7 +130,8 @@ h3 {
   position: relative;
   min-height: min(88vh, 820px);
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: center;
   padding: 0;
   overflow: hidden;
   background: #2c3a32;
@@ -162,9 +163,13 @@ h3 {
   position: relative;
   z-index: 1;
   width: 100%;
-  padding: 72px var(--pad-x) 56px;
-  background: linear-gradient(to top, rgba(44, 58, 50, 0.72) 0%, rgba(44, 58, 50, 0.08) 70%, transparent 100%);
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px var(--pad-x);
+  text-align: center;
+  background: none;
   color: #fff;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.35);
 }
 
 .builder-hero__brand {
@@ -178,13 +183,13 @@ h3 {
 }
 
 .builder-hero h1 {
-  margin: 10px 0 0;
+  margin: 10px auto 0;
   font-size: clamp(22px, 3vw, 36px);
   font-weight: 500;
   line-height: 1.25;
   color: #fff;
   text-wrap: pretty;
-  max-width: 36ch;
+  max-width: 28ch;
 }
 
 .builder-hero__sub {
@@ -196,16 +201,26 @@ h3 {
 }
 
 .builder-hero__note {
-  margin: 16px 0 24px;
-  font-size: 16px;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.9);
-  max-width: 440px;
+  margin: 22px auto 28px;
+  font-size: clamp(22px, 2.8vw, 32px);
+  font-weight: 500;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.96);
+  max-width: 22em;
 }
 
 .builder-hero .btn {
   background: var(--cream);
   color: var(--deep);
+}
+
+.builder-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: radial-gradient(ellipse at center, rgba(44, 58, 50, 0.58) 0%, rgba(44, 58, 50, 0.28) 55%, rgba(44, 58, 50, 0.18) 100%);
+  pointer-events: none;
 }
 
 .builder-hero .btn:hover {
@@ -409,6 +424,7 @@ body.steps-pinned .site-header {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
+  margin-top: 28px;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(100, 124, 110, 0.18);
@@ -441,7 +457,7 @@ body.steps-pinned .site-header {
 }
 
 .theme-collage__action {
-  margin-top: 18px;
+  margin: 0 0 28px;
 }
 
 .addon-collapse {
@@ -597,7 +613,7 @@ body.steps-pinned .site-header {
 }
 
 .theme-collage__action {
-  margin-top: 18px;
+  margin: 0 0 28px;
 }
 
 .theme-collage__action .btn--build-own,
@@ -1168,6 +1184,10 @@ body.steps-pinned .site-header {
 
 .subhead--tight {
   margin-bottom: 10px;
+}
+
+#decor .subhead--tight {
+  margin-top: 0;
 }
 
 .btn-none-master {
@@ -2171,7 +2191,7 @@ body.steps-pinned .site-header {
   }
 
   .builder-hero__copy {
-    padding: 48px var(--pad-x) 36px;
+    padding: 36px var(--pad-x);
   }
 
   .builder-hero h1 {
@@ -2179,7 +2199,7 @@ body.steps-pinned .site-header {
   }
 
   .builder-hero__note {
-    font-size: 14px;
+    font-size: 22px;
   }
 
   .builder-hero__sub {
