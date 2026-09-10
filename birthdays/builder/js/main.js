@@ -29,7 +29,7 @@
       {
         id: "simple",
         name: "Simple",
-        guests: "5 people included Â· add up to 9",
+        guests: "5 people included · add up to 9",
         guestsIncluded: 5,
         guestsMax: 9,
         priceWeekday: "IDR 2.3M",
@@ -39,7 +39,7 @@
         featured: false,
         image: "img/packages/simple.jpg",
         includes: [
-          "Birthday cake Â· 15cm, 2 layers",
+          "Birthday cake · 15cm, 2 layers",
           "Requested themed party",
           "Table decor (no flowers)",
           "Simple balloon decor",
@@ -51,7 +51,7 @@
       {
         id: "signature",
         name: "Optimal",
-        guests: "10 people included Â· add up to 20",
+        guests: "10 people included · add up to 20",
         guestsIncluded: 10,
         guestsMax: 20,
         priceWeekday: "IDR 5.3M",
@@ -62,7 +62,7 @@
         badge: "Most popular",
         image: "img/packages/signature.jpg",
         includes: [
-          "Birthday cake Â· 18cm, 2 layers",
+          "Birthday cake · 18cm, 2 layers",
           "Requested themed party",
           "Medium balloon decor",
           "Photozone",
@@ -74,7 +74,7 @@
       {
         id: "terrace",
         name: "Whole Terrace",
-        guests: "20 people included Â· max 35 total",
+        guests: "20 people included · max 35 total",
         guestsIncluded: 20,
         guestsMax: 35,
         priceWeekday: "IDR 12.7M",
@@ -111,7 +111,7 @@
           "1 rounded garland",
           "1 head character",
           "1 standing number",
-          "1 set balloon (1 star Â· 1 glitter Â· 5 pcs)",
+          "1 set balloon (1 star · 1 glitter · 5 pcs)",
           "Tiny rounded table",
           "1 cloud garland (1.5m)",
         ],
@@ -142,10 +142,10 @@
       { id: "custom", name: "Build your own", image: "", custom: true },
     ],
     masterclasses: [
-      { id: "bunny-mask", name: "Bunny mask", note: "+200k / kid Â· min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/bunny-mask.jpg" },
-      { id: "lava-lab", name: "Lava lab", note: "+200k / kid Â· min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/lava-lab.jpg" },
-      { id: "clay-painting", name: "Clay painting", note: "+200k / kid Â· min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/clay-painting.jpg" },
-      { id: "cooking-class", name: "Cooking class", note: "+200k / kid Â· min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/cooking-class.jpg" },
+      { id: "bunny-mask", name: "Bunny mask", note: "+200k / kid · min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/bunny-mask.jpg" },
+      { id: "lava-lab", name: "Lava lab", note: "+200k / kid · min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/lava-lab.jpg" },
+      { id: "clay-painting", name: "Clay painting", note: "+200k / kid · min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/clay-painting.jpg" },
+      { id: "cooking-class", name: "Cooking class", note: "+200k / kid · min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/cooking-class.jpg" },
     ],
     extras: {
       entertainment: [
@@ -177,7 +177,7 @@
     extraGuest: { weekday: 150000, weekend: 300000 },
     food: {
       image: "img/food.jpg",
-      lede: "Food and drink sit in the package as a play-area deposit. Tell us allergies and weâ€™ll set the table from Tinyâ€™s kitchen.",
+      lede: "Food and drink sit in the package as a play-area deposit. Tell us allergies and we’ll set the table from Tiny’s kitchen.",
       menuUrl: "https://drive.google.com/drive/folders/1-Ubm3u3EvXdcDY-TdVo_sA4bPH5s5ARI?usp=drive_link",
       depositByPackage: {
         simple: {
@@ -219,9 +219,9 @@
 
   const DEFAULT_CAKES = {
     sizes: [
-      { label: "15 cm", note: "Small family table â€” about 8â€“10 slices", line: "15 cm â€” small family table, about 8â€“10 slices." },
-      { label: "18 cm", note: "The usual birthday size â€” about 12â€“16 slices", line: "18 cm â€” the usual birthday size, about 12â€“16 slices." },
-      { label: "22 cm", note: "Bigger parties â€” about 20â€“25 slices", line: "22 cm â€” bigger parties, about 20â€“25 slices." },
+      { label: "15 cm", note: "Small family table — about 8–10 slices", line: "15 cm — small family table, about 8–10 slices." },
+      { label: "18 cm", note: "The usual birthday size — about 12–16 slices", line: "18 cm — the usual birthday size, about 12–16 slices." },
+      { label: "22 cm", note: "Bigger parties — about 20–25 slices", line: "22 cm — bigger parties, about 20–25 slices." },
     ],
     sponges: SPONGES_ALL.slice(),
     sugarSponges: SUGAR_SPONGES.slice(),
@@ -230,16 +230,16 @@
     cakes: [
       { id: "safari-chocolate", src: "img/cakes/safari-chocolate.jpg", name: "Chocolate safari", theme: "Animals" },
       { id: "dino-meadow", src: "img/cakes/dino-meadow.jpg", name: "Dino meadow", theme: "Dinosaurs" },
-      { id: "dino-sand-first", src: "img/cakes/dino-sand-first.jpg", name: "Dino sands, first birthday", theme: "Dinosaurs Â· first birthday" },
+      { id: "dino-sand-first", src: "img/cakes/dino-sand-first.jpg", name: "Dino sands, first birthday", theme: "Dinosaurs · first birthday" },
       { id: "digger-berries", src: "img/cakes/digger-berries.jpg", name: "Digger and berries", theme: "Vehicles" },
-      { id: "construction-crane", src: "img/cakes/construction-crane.jpg", name: "Construction site", theme: "Vehicles Â· named" },
+      { id: "construction-crane", src: "img/cakes/construction-crane.jpg", name: "Construction site", theme: "Vehicles · named" },
       { id: "race-cars", src: "img/cakes/race-cars.jpg", name: "Race day", theme: "Vehicles" },
-      { id: "car-clouds", src: "img/cakes/car-clouds.jpg", name: "Little blue car", theme: "Vehicles Â· first birthdays" },
+      { id: "car-clouds", src: "img/cakes/car-clouds.jpg", name: "Little blue car", theme: "Vehicles · first birthdays" },
       { id: "ocean-tiers", src: "img/cakes/ocean-tiers.jpg", name: "Ocean two-tier", theme: "Ocean" },
-      { id: "undersea-heroes", src: "img/cakes/undersea-heroes.jpg", name: "Undersea friends", theme: "Ocean Â· characters" },
+      { id: "undersea-heroes", src: "img/cakes/undersea-heroes.jpg", name: "Undersea friends", theme: "Ocean · characters" },
       { id: "superhero-city", src: "img/cakes/superhero-city.jpg", name: "Superhero city", theme: "Characters" },
-      { id: "rescue-heroes", src: "img/cakes/rescue-heroes.jpg", name: "Rescue crew", theme: "Characters Â· named" },
-      { id: "blue-characters", src: "img/cakes/blue-characters.jpg", name: "Blue friends", theme: "Characters Â· named" },
+      { id: "rescue-heroes", src: "img/cakes/rescue-heroes.jpg", name: "Rescue crew", theme: "Characters · named" },
+      { id: "blue-characters", src: "img/cakes/blue-characters.jpg", name: "Blue friends", theme: "Characters · named" },
       { id: "rainbow-neon", src: "img/cakes/rainbow-neon.jpg", name: "Rainbow party", theme: "Bright and bold" },
       { id: "pastel-sleepy", src: "img/cakes/pastel-sleepy.jpg", name: "Sleepy pastel", theme: "Bright and bold" },
       { id: "sky-clouds-first", src: "img/cakes/sky-clouds-first.jpg", name: "Clouds and sky, first birthday", theme: "First birthday" },
@@ -475,9 +475,9 @@
       return "Enter the turning age in Details to preview the standing number balloon.";
     }
     if (age < SIMPLE_BUILDER_AGE_MIN || age > SIMPLE_BUILDER_AGE_MAX) {
-      return `No preview for age ${age} yet â€” we have sample looks for ages ${SIMPLE_BUILDER_AGE_MIN}â€“${SIMPLE_BUILDER_AGE_MAX}. Tell us the age in your design request.`;
+      return `No preview for age ${age} yet — we have sample looks for ages ${SIMPLE_BUILDER_AGE_MIN}–${SIMPLE_BUILDER_AGE_MAX}. Tell us the age in your design request.`;
     }
-    return `Preview for age ${age} â€” Tiny will match the look, not every pixel.`;
+    return `Preview for age ${age} — Tiny will match the look, not every pixel.`;
   }
 
   function getBackdropConfig() {
@@ -618,7 +618,7 @@
     const el = document.getElementById("backdrop-name");
     if (!el || backdropState.nameTouched || el.value.trim()) return;
     const child = document.getElementById("child-name")?.value.trim() || "";
-    if (child) el.value = `${child}â€™s Birthday`;
+    if (child) el.value = `${child}’s Birthday`;
   }
 
   async function ensureBackdropAssets() {
@@ -1038,7 +1038,7 @@
       hint.textContent =
         cfg.id === "simple"
           ? simpleBuilderHint()
-          : "A briefing mockup â€” Tiny will match the look, not every pixel.";
+          : "A briefing mockup — Tiny will match the look, not every pixel.";
     }
     renderBackdropUploads();
     renderBackdropColours();
@@ -1131,7 +1131,7 @@
         if (!backdropState.nameTouched) {
           const el = document.getElementById("backdrop-name");
           const value = child.value.trim();
-          if (el) el.value = value ? `${value}â€™s Birthday` : "";
+          if (el) el.value = value ? `${value}’s Birthday` : "";
         }
         if (partyState.decorThemeId === "custom") scheduleBackdropRender();
       });
@@ -1162,6 +1162,91 @@
         a.click();
         track("builder_backdrop_download", { theme: partyState.decorThemeId });
       });
+    }
+  }
+
+  function selectedCakeRecord() {
+    if (cakeState.mode !== "gallery") return null;
+    if (cakeState.activeCake?.name === cakeState.design) return cakeState.activeCake;
+    return (cakeData.cakes || []).find((c) => c.name === cakeState.design) || null;
+  }
+
+  function fileToDataUrl(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ""));
+      reader.onerror = () => reject(new Error("Could not read cake photo"));
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function blobToJpegFile(blob, filename) {
+    if (!blob) return null;
+    if (blob.type === "image/jpeg" || blob.type === "image/jpg") {
+      return new File([blob], filename || "cake.jpg", { type: "image/jpeg" });
+    }
+    try {
+      const bitmap = await createImageBitmap(blob);
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return new File([blob], filename || "cake.jpg", { type: blob.type || "image/jpeg" });
+      ctx.drawImage(bitmap, 0, 0);
+      const jpeg = await new Promise((resolve) => {
+        canvas.toBlob((b) => resolve(b), "image/jpeg", 0.9);
+      });
+      if (!jpeg) return new File([blob], filename || "cake.jpg", { type: blob.type || "image/jpeg" });
+      return new File([jpeg], (filename || "cake.jpg").replace(/\.[^.]+$/, ".jpg"), {
+        type: "image/jpeg",
+      });
+    } catch (_) {
+      return new File([blob], filename || "cake.jpg", { type: blob.type || "image/jpeg" });
+    }
+  }
+
+  async function resolveCakeImageAssets() {
+    const compress = window.TinySubmit?.compressImage;
+    if (cakeState.mode === "own") {
+      const file = cakeState.file || document.getElementById("ref-photo")?.files?.[0] || null;
+      if (!file) return null;
+      const compressed = compress ? await compress(file) : file;
+      const dataUrl = await fileToDataUrl(compressed);
+      return {
+        source: "upload",
+        label: file.name || "Uploaded reference",
+        file: compressed,
+        dataUrl,
+      };
+    }
+
+    const cake = selectedCakeRecord();
+    if (!cake?.src) return null;
+    try {
+      const res = await fetch(cake.src, { cache: "force-cache" });
+      if (!res.ok) throw new Error("Cake image fetch failed");
+      const blob = await res.blob();
+      const file = await blobToJpegFile(blob, `${cake.id || "gallery-cake"}.jpg`);
+      const compressed = compress && file ? await compress(file) : file;
+      const dataUrl = compressed ? await fileToDataUrl(compressed) : "";
+      return {
+        source: "gallery",
+        label: cake.name,
+        cakeId: cake.id || "",
+        cakeSrc: cake.src,
+        file: compressed,
+        dataUrl,
+      };
+    } catch (err) {
+      console.error(err);
+      return {
+        source: "gallery",
+        label: cake.name,
+        cakeId: cake.id || "",
+        cakeSrc: cake.src,
+        file: null,
+        dataUrl: cake.src,
+      };
     }
   }
 
@@ -1265,13 +1350,19 @@
     cakeState.mode = "gallery";
     cakeState.design = cake.name;
     cakeState.activeCake = cake;
+    cakeState.file = null;
+    cakeState.fileName = "";
+    const input = document.getElementById("ref-photo");
+    const label = document.getElementById("file-label");
+    if (input) input.value = "";
+    if (label) label.textContent = "Tap to attach a photo";
     renderMode();
     renderDesignGrid();
     renderGallery();
     renderSummary();
     const status = document.getElementById("form-status");
     if (status) {
-      status.textContent = `Selected â€œ${cake.name}â€ from the gallery.`;
+      status.textContent = `Selected "${cake.name}" from the gallery.`;
       status.className = "form-status is-success";
     }
   }
@@ -1350,7 +1441,7 @@
         const mCost = (m.pricePerKid || 200000) * billKids;
         subtotal += mCost;
         lines.push({
-          label: `Masterclass Â· ${m.name} (${billKids} kids)`,
+          label: `Masterclass · ${m.name} (${billKids} kids)`,
           value: mCost,
         });
       }
@@ -1393,13 +1484,13 @@
     panel.innerHTML = `
       <h3>Quotation</h3>
       <ul>
-        ${rows || "<li><span>Select a package to start</span><span>â€”</span></li>"}
+        ${rows || "<li><span>Select a package to start</span><span>—</span></li>"}
         <li><span>Subtotal</span><span>${escapeHtml(formatIdr(q.subtotal))}</span></li>
         <li><span>Service 5%</span><span>${escapeHtml(formatIdr(q.service))}</span></li>
         <li><span>Tax 10%</span><span>${escapeHtml(formatIdr(q.tax))}</span></li>
         <li class="is-total"><span>Estimated total</span><span>${escapeHtml(formatIdr(q.total))}</span></li>
       </ul>
-      <p class="quote-note">Estimate only â€” final quote confirmed on WhatsApp. Items marked TBC are priced on request.</p>`;
+      <p class="quote-note">Estimate only — final quote confirmed on WhatsApp. Items marked TBC are priced on request.</p>`;
   }
 
   function syncStepsBarH() {
@@ -1432,7 +1523,7 @@
     if (!label) return;
     const dateStr = document.getElementById("party-date")?.value;
     const dayLabel = partyState.day === "weekend" ? "Weekend pricing" : "Weekday pricing";
-    label.textContent = dateStr ? dayLabel : `${dayLabel} Â· pick a date in step 01`;
+    label.textContent = dateStr ? dayLabel : `${dayLabel} · pick a date in step 01`;
   }
 
   function syncDayFromDate() {
@@ -1572,20 +1663,20 @@
 
   function guestLabel() {
     const { kids, adults } = guestCounts();
-    if (!kids && !adults) return "â€”";
+    if (!kids && !adults) return "—";
     const parts = [];
     if (kids) parts.push(`${kids} kids`);
     if (adults) parts.push(`${adults} adults`);
-    return parts.join(" Â· ");
+    return parts.join(" · ");
   }
 
   function formatIdr(n) {
-    if (!n && n !== 0) return "â€”";
+    if (!n && n !== 0) return "—";
     return `IDR ${Math.round(n).toLocaleString("en-US")}`;
   }
 
   function formatIdrInvoice(n) {
-    if (!n && n !== 0) return "â€”";
+    if (!n && n !== 0) return "—";
     return `IDR ${Math.round(n).toLocaleString("id-ID")}`;
   }
 
@@ -1604,7 +1695,7 @@
   function quotationThemeLabel() {
     const cakeTheme = document.getElementById("cake-theme")?.value.trim() || "";
     const decor = decorThemeLabel();
-    if (cakeTheme && decor && decor !== "Not chosen yet") return `${decor} Â· ${cakeTheme}`;
+    if (cakeTheme && decor && decor !== "Not chosen yet") return `${decor} · ${cakeTheme}`;
     if (cakeTheme) return cakeTheme;
     if (decor && decor !== "Not chosen yet") return decor;
     return "";
@@ -1775,6 +1866,15 @@
   margin-top: 4px;
   border-radius: 4px;
 }
+.quote-pdf-root .qp-cake {
+  display: block;
+  width: auto;
+  max-width: 420px;
+  max-height: 520px;
+  margin: 8px auto 0;
+  border-radius: 4px;
+  object-fit: contain;
+}
 .quote-pdf-root .qp-rules-title {
   margin: 8px 0 18px;
   font-size: 18px;
@@ -1807,7 +1907,7 @@
     document.head.appendChild(style);
   }
 
-  function buildQuotationPdfMarkup() {
+  function buildQuotationPdfMarkup(cakeImage) {
     const q = buildQuotation();
     const pkg = selectedPackage();
     const child = document.getElementById("child-name")?.value.trim() || "";
@@ -1819,6 +1919,18 @@
     const logoSrc = new URL("img/quote/logo-tiny.png?v=20260827logo", window.location.href).href;
     const flowers1 = new URL("img/quote/flowers-page1.png", window.location.href).href;
     const flowers2 = new URL("img/quote/flowers-page2.png", window.location.href).href;
+    const cakeTheme = document.getElementById("cake-theme")?.value.trim() || "";
+    const cakeCaption =
+      cakeImage?.source === "upload"
+        ? `Uploaded reference${cakeImage.label ? `: ${cakeImage.label}` : ""}`
+        : cakeImage?.label
+          ? `Gallery cake: ${cakeImage.label}`
+          : cakeState.design || "Cake";
+    const cakeDetailBits = [
+      cakeState.size ? `Size ${cakeState.size}` : "",
+      cakeState.sponges.length ? `Sponge ${cakeState.sponges.join(" + ")}` : "",
+      cakeTheme ? `Theme ${cakeTheme}` : "",
+    ].filter(Boolean);
 
     const rows = (q.lines || [])
       .filter((line) => !line.note)
@@ -1857,7 +1969,7 @@
           <div><strong>Phone</strong> : ${escapeHtml(contact.phone || "")}</div>
           <div><strong>Email</strong> : ${escapeHtml(contact.email || "")}</div>
           <div><strong>Time</strong> : ${escapeHtml(partyTimeValue() || "")}</div>
-          <div><strong>Total Pax</strong> : ${escapeHtml(guests === "â€”" ? "" : guests)}</div>
+          <div><strong>Total Pax</strong> : ${escapeHtml(guests === "—" ? "" : guests)}</div>
           <div><strong>Theme</strong> : ${escapeHtml(theme)}</div>
         </div>
         <div class="qp-meta-right">
@@ -1889,7 +2001,7 @@
     <tbody>
       ${
         rows ||
-        `<tr><td class="qp-details">No package selected</td><td class="qp-num">â€”</td><td class="qp-qty">â€”</td><td class="qp-num">â€”</td></tr>`
+        `<tr><td class="qp-details">No package selected</td><td class="qp-num">—</td><td class="qp-qty">—</td><td class="qp-num">—</td></tr>`
       }
       ${tbcRows}
     </tbody>
@@ -1903,7 +2015,7 @@
       <div class="qp-totals-row is-dp"><span>DP 30% :</span><span>${escapeHtml(formatIdrInvoice(dp))}</span></div>
     </div>
   </div>
-  <p class="qp-estimate">Estimate only â€” final quotation confirmed by Tiny. Items marked TBC are priced on request.</p>
+  <p class="qp-estimate">Estimate only — final quotation confirmed by Tiny. Items marked TBC are priced on request.</p>
   <img class="qp-flowers" src="${flowers1}" alt="" crossorigin="anonymous">
 </div>
 <div class="qp-page">
@@ -1948,6 +2060,19 @@
   <p class="qp-estimate">Balloon colours: ${escapeHtml(backdropPaletteLabel())}. Prints: ${escapeHtml(backdropPrintsLabel())}. Briefing mockup only.</p>
 </div>`
         : ""
+    }${
+      cakeImage?.dataUrl
+        ? `
+<div class="qp-page">
+  ${header}
+  ${metaBlock}
+  <h2 class="qp-rules-title">Cake design</h2>
+  <img class="qp-cake" src="${cakeImage.dataUrl}" alt="Cake design" crossorigin="anonymous">
+  <p class="qp-estimate">${escapeHtml(cakeCaption)}${
+          cakeDetailBits.length ? `. ${escapeHtml(cakeDetailBits.join(" · "))}` : ""
+        }. Reference for Tiny — final cake may vary.</p>
+</div>`
+        : ""
     }`;
   }
 
@@ -1963,74 +2088,6 @@
             })
       )
     );
-  }
-
-  async function buildQuotationPdfBlob() {
-    if (partyState.decorThemeId === "custom") {
-      await renderBackdropPreview();
-    }
-
-    document.getElementById("quote-pdf-root")?.remove();
-    ensureQuotePdfStyles();
-
-    const host = document.createElement("div");
-    host.id = "quote-pdf-root";
-    host.className = "quote-pdf-root";
-    host.setAttribute("aria-hidden", "true");
-    // Absolute + on-screen. Fixed/off-screen/opacity:0 captures often go blank.
-    host.style.cssText =
-      "position:absolute;left:0;top:0;width:794px;z-index:2147483000;pointer-events:none;opacity:1;background:#fffaf6;";
-    host.innerHTML = buildQuotationPdfMarkup();
-    document.body.appendChild(host);
-
-    try {
-      await loadPdfLibs();
-      await waitForImages(host);
-      if (document.fonts?.ready) await document.fonts.ready;
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-
-      const pages = [...host.querySelectorAll(".qp-page")];
-      if (!pages.length) throw new Error("No quotation pages to export");
-
-      const JsPDF = window.jspdf.jsPDF;
-      const pdf = new JsPDF({
-        unit: "mm",
-        format: "a4",
-        orientation: "portrait",
-        compress: true,
-      });
-      const pageW = pdf.internal.pageSize.getWidth();
-      const pageH = pdf.internal.pageSize.getHeight();
-
-      for (let i = 0; i < pages.length; i += 1) {
-        const canvas = await window.html2canvas(pages[i], {
-          scale: 2,
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: "#fffaf6",
-          scrollX: 0,
-          scrollY: -window.scrollY,
-          windowWidth: 794,
-          logging: false,
-          onclone: (doc) => {
-            const clonedRoot = doc.getElementById("quote-pdf-root");
-            if (clonedRoot) {
-              clonedRoot.style.left = "0";
-              clonedRoot.style.top = "0";
-              clonedRoot.style.opacity = "1";
-              clonedRoot.style.position = "static";
-            }
-          },
-        });
-        const img = canvas.toDataURL("image/jpeg", 0.98);
-        if (i > 0) pdf.addPage();
-        pdf.addImage(img, "JPEG", 0, 0, pageW, pageH, undefined, "FAST");
-      }
-
-      return pdf.output("blob");
-    } finally {
-      host.remove();
-    }
   }
 
   async function exportQuotationPdf() {
@@ -2056,7 +2113,7 @@
     }
 
     if (status) {
-      status.textContent = "Preparing PDFâ€¦";
+      status.textContent = "Preparing PDF…";
       status.className = "form-status";
     }
 
@@ -2142,9 +2199,17 @@
         sugarSponge: selectedSugarSponges().join(" + "),
         mode: cakeState.mode,
         design: cakeState.design || "",
+        designId: selectedCakeRecord()?.id || "",
+        designSrc: selectedCakeRecord()?.src || "",
         theme: cakeTheme,
         diet: cakeState.addons.length ? cakeState.addons.slice() : [DIET_NONE],
         referenceOriginalName: cakeState.fileName || "",
+        imageSource:
+          cakeState.mode === "own" && (cakeState.file || cakeState.fileName)
+            ? "upload"
+            : cakeState.mode === "gallery" && cakeState.design
+              ? "gallery"
+              : "",
       },
       addons: {
         masterclassId: partyState.masterclassId || "",
@@ -2178,8 +2243,9 @@
     const compress = window.TinySubmit?.compressImage;
     const toBlob = window.TinySubmit?.canvasToBlob;
 
-    if (statusPreparing) statusPreparing("Preparing quotation PDFâ€¦");
-    const pdfBlob = await buildQuotationPdfBlob();
+    if (statusPreparing) statusPreparing("Preparing quotation PDF…");
+    const cakeImage = await resolveCakeImageAssets();
+    const pdfBlob = await buildQuotationPdfBlobFromAssets(cakeImage);
     files.quotePdf = new File([pdfBlob], "quotation.pdf", { type: "application/pdf" });
 
     const cfg = getBackdropConfig();
@@ -2201,12 +2267,83 @@
       files[`print_${panel.id}`] = compressed;
     }
 
-    const cakeFile = cakeState.file || document.getElementById("ref-photo")?.files?.[0];
-    if (cakeFile) {
-      files.cakePhoto = compress ? await compress(cakeFile) : cakeFile;
+    if (cakeImage?.file) {
+      files.cakePhoto = cakeImage.file;
     }
 
     return files;
+  }
+
+  async function buildQuotationPdfBlobFromAssets(cakeImage) {
+    if (partyState.decorThemeId === "custom") {
+      await renderBackdropPreview();
+    }
+
+    document.getElementById("quote-pdf-root")?.remove();
+    ensureQuotePdfStyles();
+
+    const host = document.createElement("div");
+    host.id = "quote-pdf-root";
+    host.className = "quote-pdf-root";
+    host.setAttribute("aria-hidden", "true");
+    host.style.cssText =
+      "position:absolute;left:0;top:0;width:794px;z-index:2147483000;pointer-events:none;opacity:1;background:#fffaf6;";
+    host.innerHTML = buildQuotationPdfMarkup(cakeImage || null);
+    document.body.appendChild(host);
+
+    try {
+      await loadPdfLibs();
+      await waitForImages(host);
+      if (document.fonts?.ready) await document.fonts.ready;
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+      const pages = [...host.querySelectorAll(".qp-page")];
+      if (!pages.length) throw new Error("No quotation pages to export");
+
+      const JsPDF = window.jspdf.jsPDF;
+      const pdf = new JsPDF({
+        unit: "mm",
+        format: "a4",
+        orientation: "portrait",
+        compress: true,
+      });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+
+      for (let i = 0; i < pages.length; i += 1) {
+        const canvas = await window.html2canvas(pages[i], {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: "#fffaf6",
+          scrollX: 0,
+          scrollY: -window.scrollY,
+          windowWidth: 794,
+          logging: false,
+          onclone: (doc) => {
+            const clonedRoot = doc.getElementById("quote-pdf-root");
+            if (clonedRoot) {
+              clonedRoot.style.left = "0";
+              clonedRoot.style.top = "0";
+              clonedRoot.style.opacity = "1";
+              clonedRoot.style.position = "static";
+            }
+          },
+        });
+        const img = canvas.toDataURL("image/jpeg", 0.98);
+        if (i > 0) pdf.addPage();
+        pdf.addImage(img, "JPEG", 0, 0, pageW, pageH, undefined, "FAST");
+      }
+
+      return pdf.output("blob");
+    } finally {
+      host.remove();
+    }
+  }
+
+  async function buildQuotationPdfBlob() {
+    const cakeImage = await resolveCakeImageAssets();
+    return buildQuotationPdfBlobFromAssets(cakeImage);
   }
 
   let statusPreparing = null;
@@ -2330,7 +2467,7 @@
     if (d.id === included) return "Included with your package";
     if (decorRank(d.id) < decorRank(included)) return "Below your package";
     const price = DECOR_UPGRADE_PRICE[d.id];
-    return price ? `Upgrade Â· ${formatIdr(price)}` : "Upgrade available";
+    return price ? `Upgrade · ${formatIdr(price)}` : "Upgrade available";
   }
 
   function renderDecorPackages() {
@@ -2411,7 +2548,7 @@
 
   function decorPackageLabel() {
     const d = (partyData.decorPackages || []).find((x) => x.id === partyState.decorPackageId);
-    return d ? d.name : "â€”";
+    return d ? d.name : "—";
   }
 
   function decorThemeLabel() {
@@ -2426,8 +2563,8 @@
       if (prints) bits.push(`${prints} print${prints === 1 ? "" : "s"}`);
       if (backdropColoursChanged()) bits.push("custom balloon colours");
       const name = backdropNameValue();
-      if (name) bits.push(`name â€œ${name}â€`);
-      return bits.length ? `Custom Â· ${bits.join(" Â· ")}` : "Build your own";
+      if (name) bits.push(`name “${name}”`);
+      return bits.length ? `Custom · ${bits.join(" · ")}` : "Build your own";
     }
     return t.name;
   }
@@ -2467,7 +2604,7 @@
               : escapeHtml(d.weekendLabel);
           return `<li class="food-deposit${active ? " is-active" : ""}"><strong>${escapeHtml(
             name
-          )}</strong> Â· ${weekdayRate} weekday / ${weekendRate} weekend</li>`;
+          )}</strong> · ${weekdayRate} weekday / ${weekendRate} weekend</li>`;
         })
         .join("");
     }
@@ -2707,29 +2844,29 @@
     const list = document.getElementById("summary-list");
     if (!list) return;
     const pkg = selectedPackage();
-    const partyDate = document.getElementById("party-date")?.value || "â€”";
+    const partyDate = document.getElementById("party-date")?.value || "—";
     const guests = guestLabel();
-    const child = document.getElementById("child-name")?.value.trim() || "â€”";
+    const child = document.getElementById("child-name")?.value.trim() || "—";
     const age = document.getElementById("child-age")?.value.trim() || "";
-    const notes = document.getElementById("party-notes")?.value.trim() || "â€”";
-    const foodNotes = document.getElementById("food-notes")?.value.trim() || "â€”";
+    const notes = document.getElementById("party-notes")?.value.trim() || "—";
+    const foodNotes = document.getElementById("food-notes")?.value.trim() || "—";
     const extras =
       partyState.extras.length > 0
         ? partyState.extras.map(extraLabel).join(", ")
         : "None";
     const cakeBits = cakeSummaryLines();
-    const cakeText = cakeBits.length ? cakeBits.join(" Â· ") : "Not chosen yet";
+    const cakeText = cakeBits.length ? cakeBits.join(" · ") : "Not chosen yet";
 
     const contact = window.TinyContact?.readContact?.() || {};
     const rows = [
-      ["Contact", [contact.email, contact.phone].filter(Boolean).join(" Â· ") || "â€”"],
-      ["Package", pkg ? `${pkg.name} Â· ${packagePrice(pkg)}` : "â€”"],
+      ["Contact", [contact.email, contact.phone].filter(Boolean).join(" · ") || "—"],
+      ["Package", pkg ? `${pkg.name} · ${packagePrice(pkg)}` : "—"],
       ["Day", partyState.day === "weekend" ? "Weekend" : "Weekday"],
       ["Decoration package", decorPackageLabel()],
       ["Decoration look", decorThemeLabel()],
       ...(partyState.decorThemeId === "custom"
         ? [
-            ["Design request", designRequestValue() || "â€”"],
+            ["Design request", designRequestValue() || "—"],
             ["Backdrop prints", backdropPrintsLabel()],
             ["Balloon colours", backdropPaletteLabel()],
           ]
@@ -2738,11 +2875,11 @@
       [
         "Party time",
         partyTimeValue()
-          ? `${partyTimeValue()} â€“ ${partyEndTimeLabel() || "â€”"} (${PARTY_DURATION_HOURS} hours)`
-          : "â€”",
+          ? `${partyTimeValue()} – ${partyEndTimeLabel() || "—"} (${PARTY_DURATION_HOURS} hours)`
+          : "—",
       ],
       ["Guests", guests],
-      ["Birthday child", age ? `${child} Â· turning ${age}` : child],
+      ["Birthday child", age ? `${child} · turning ${age}` : child],
       ["Cake", cakeText],
       ["Masterclass", masterclassLabel()],
       ["Extras", extras],
@@ -2793,14 +2930,14 @@
         : []),
       partyDate ? `Party date: ${partyDate}` : "",
       partyTimeValue()
-        ? `Start time: ${partyTimeValue()} (${PARTY_DURATION_HOURS} hours, until ${partyEndTimeLabel() || "â€”"})`
+        ? `Start time: ${partyTimeValue()} (${PARTY_DURATION_HOURS} hours, until ${partyEndTimeLabel() || "—"})`
         : "",
-      guests !== "â€”" ? `Guests: ${guests}` : "",
+      guests !== "—" ? `Guests: ${guests}` : "",
       child ? `Birthday child: ${child}${age ? ` (turning ${age})` : ""}` : "",
       foodNotes ? `Food / allergies: ${foodNotes}` : "",
       notes ? `Notes: ${notes}` : "",
       "",
-      "â€” Cake â€”",
+      "— Cake —",
       cakeState.size ? `Size: ${cakeState.size}` : "",
       cakeState.sponges.length ? `Sponge: ${cakeState.sponges.join(" + ")}` : "",
       selectedSugarSponges().length
@@ -2819,7 +2956,7 @@
         ? `Extras: ${partyState.extras.map(extraLabel).join(", ")}`
         : "Extras: none",
       "",
-      "â€” Quotation estimate â€”",
+      "— Quotation estimate —",
       ...q.lines.map((line) =>
         line.note ? `${line.label}: TBC` : `${line.label}: ${formatIdr(line.value)}`
       ),
@@ -2884,10 +3021,10 @@
 
       btn.disabled = true;
       if (exportBtn) exportBtn.disabled = true;
-      statusPreparing = (msg) => setStatus(msg || "Saving your requestâ€¦");
+      statusPreparing = (msg) => setStatus(msg || "Saving your request…");
 
       try {
-        statusPreparing("Preparing quotation PDFâ€¦");
+        statusPreparing("Preparing quotation PDF…");
         const files = await collectSubmitFiles();
         const payload = buildRequestPayload();
         const result = await window.TinySubmit.submitRequest({
@@ -2910,7 +3047,7 @@
           saved: true,
         });
         setStatus(
-          code ? `Saved as ${code}. Opening WhatsAppâ€¦` : "Saved. Opening WhatsAppâ€¦",
+          code ? `Saved as ${code}. Opening WhatsApp…` : "Saved. Opening WhatsApp…",
           "is-success"
         );
         openWhatsAppWithMessage(composeWhatsAppMessage(code));
@@ -3201,7 +3338,7 @@
     });
     if (note) {
       if (cakeState.size && cakeState.size === includedSize) {
-        note.textContent = `${cakeState.size} â€” included in selected package.`;
+        note.textContent = `${cakeState.size} — included in selected package.`;
       } else {
         const selected = cakeData.sizes.find((s) => s.label === cakeState.size);
         note.textContent = selected ? selected.line : "Two layers, whichever size you pick.";
@@ -3647,11 +3784,18 @@
       btn.addEventListener("click", () => {
         const name = btn.dataset.design;
         const cake = cakeData.cakes.find((c) => c.name === name);
-        if (cake) {
+    if (cake) {
           selectCakeDesign(cake);
         } else {
           cakeState.design = name;
           cakeState.mode = "gallery";
+          cakeState.activeCake = null;
+          cakeState.file = null;
+          cakeState.fileName = "";
+          const input = document.getElementById("ref-photo");
+          const label = document.getElementById("file-label");
+          if (input) input.value = "";
+          if (label) label.textContent = "Tap to attach a photo";
           renderMode();
           renderDesignGrid();
           renderGallery();
@@ -3665,7 +3809,10 @@
     document.querySelectorAll("#mode-options [data-mode]").forEach((btn) => {
       btn.addEventListener("click", () => {
         cakeState.mode = btn.dataset.mode;
-        if (cakeState.mode === "own") cakeState.design = "";
+        if (cakeState.mode === "own") {
+          cakeState.design = "";
+          cakeState.activeCake = null;
+        }
         renderMode();
         renderDesignGrid();
         renderSummary();
