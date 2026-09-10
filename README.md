@@ -27,7 +27,35 @@ From the repository root:
 python -m http.server 8777
 ```
 
-Then open `http://127.0.0.1:8777/birthdays/`
+Then open:
+
+- http://127.0.0.1:8777/birthdays/
+- http://127.0.0.1:8777/birthdays/builder/
+- http://127.0.0.1:8777/cakes/
+- http://127.0.0.1:8777/staff/ (staff inbox — login required)
+
+## Request inbox (Supabase)
+
+Party builder and cake forms save full requests (details, quote PDF, custom backdrop, cake photo) to Supabase project `wvfwnnujxvaukwrtydac`, then open WhatsApp.
+
+Secrets live in `.env.local` (gitignored). Deploy / re-sync with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/deploy-supabase.ps1
+```
+
+### First-time staff login
+
+1. [Auth → Users](https://supabase.com/dashboard/project/wvfwnnujxvaukwrtydac/auth/users) → **Add user** (email + password).
+2. [Auth → Providers](https://supabase.com/dashboard/project/wvfwnnujxvaukwrtydac/auth/providers): turn **off** “Allow new users to sign up”.
+3. In **SQL Editor**, run (paste the new user’s UUID from Auth):
+
+```sql
+insert into public.staff_users (user_id, display_name)
+values ('USER_UUID_HERE', 'Tiny bookings');
+```
+
+4. Open `/staff/` and sign in.
 
 ## Structure
 
@@ -36,4 +64,6 @@ Then open `http://127.0.0.1:8777/birthdays/`
 | `birthdays/` | Landing page |
 | `birthdays/builder/` | All-in-one party builder |
 | `cakes/` | Standalone cake builder & gallery |
-| `shared/` | Shared site header and footer |
+| `staff/` | Private request inbox (Supabase Auth) |
+| `shared/` | Chrome, analytics, Supabase client helpers |
+| `supabase/` | Migrations + Edge Function `submit-request` |

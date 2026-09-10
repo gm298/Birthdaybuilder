@@ -18,9 +18,9 @@
 
   const DEFAULT_DATA = {
     sizes: [
-      { label: "15 cm", note: "Small family table — about 8–10 slices", line: "15 cm — small family table, about 8–10 slices." },
-      { label: "18 cm", note: "The usual birthday size — about 12–16 slices", line: "18 cm — the usual birthday size, about 12–16 slices." },
-      { label: "22 cm", note: "Bigger parties — about 20–25 slices", line: "22 cm — bigger parties, about 20–25 slices." },
+      { label: "15 cm", note: "Small family table — about 8–10 slices", line: "15 cm — IDR 1M · small family table, about 8–10 slices.", price: "IDR 1M" },
+      { label: "18 cm", note: "The usual birthday size — about 12–16 slices", line: "18 cm — IDR 1.5M · the usual birthday size, about 12–16 slices.", price: "IDR 1.5M" },
+      { label: "22 cm", note: "Bigger parties — about 20–25 slices", line: "22 cm — IDR 1.8M · bigger parties, about 20–25 slices.", price: "IDR 1.8M" },
     ],
     sponges: SPONGES_ALL.slice(),
     sugarSponges: SUGAR_SPONGES.slice(),
@@ -60,6 +60,7 @@
     theme: "",
     addons: [],
     fileName: "",
+    file: null,
     activeCake: null,
     galleryExpanded: false,
   };
@@ -353,15 +354,17 @@
     const note = document.getElementById("size-note");
     if (!el) return;
     el.innerHTML = data.sizes
-      .map(
-        (s) => `
+      .map((s) => {
+        const price = s.price ? `<span class="option-btn__price">${escapeHtml(s.price)}</span>` : "";
+        const tip = s.price ? `${s.label} · ${s.price}. ${s.note}` : s.note;
+        return `
       <div class="size-wrap">
         <button type="button" class="option-btn option-btn--center${
           state.size === s.label ? " is-active" : ""
-        }" data-size="${escapeHtml(s.label)}">${escapeHtml(s.label)}</button>
-        <div class="size-tip">${escapeHtml(s.note)}</div>
-      </div>`
-      )
+        }" data-size="${escapeHtml(s.label)}">${escapeHtml(s.label)}${price}</button>
+        <div class="size-tip">${escapeHtml(tip)}</div>
+      </div>`;
+      })
       .join("");
 
     el.querySelectorAll("[data-size]").forEach((btn) => {
@@ -530,7 +533,8 @@
     const label = document.getElementById("file-label");
     if (!input || !label) return;
     input.addEventListener("change", () => {
-      state.fileName = input.files && input.files[0] ? input.files[0].name : "";
+      state.file = input.files && input.files[0] ? input.files[0] : null;
+      state.fileName = state.file ? state.file.name : "";
       label.textContent = state.fileName || "Tap to attach a photo";
     });
   }
@@ -542,13 +546,28 @@
       : `Sponge: ${state.sponges.join(" + ")}`;
   }
 
-  function composeWhatsAppMessage() {
+  function selectedSize() {
+    return data.sizes.find((s) => s.label === state.size);
+  }
+
+  function composeWhatsAppMessage(publicCode) {
     const date = document.getElementById("cake-date")?.value || "";
     const theme = document.getElementById("cake-theme")?.value.trim() || "";
+    const size = selectedSize();
+    const contact = window.TinyContact?.readContact?.() || {};
+    const sizeLine = size
+      ? size.price
+        ? `Size: ${size.label} (${size.price})`
+        : `Size: ${size.label}`
+      : "";
     const lines = [
+      publicCode ? `Request code: ${publicCode}` : "",
+      contact.email ? `Email: ${contact.email}` : "",
+      contact.phone ? `WhatsApp: ${contact.phone}` : "",
+      publicCode || contact.email || contact.phone ? "" : "",
       "Hi Tiny! I'd like to order a cake.",
       date ? `Date: ${date}` : "",
-      state.size ? `Size: ${state.size}` : "",
+      sizeLine,
       spongeLine(),
       state.sugarSponge ? `Sugar added sponge: ${state.sugarSponge}` : "",
       state.mode === "gallery" && state.design
@@ -557,9 +576,36 @@
       state.mode === "own" ? "Design: my own idea" : "",
       theme ? `Theme: ${theme}` : "",
       state.addons.length ? `Diet: ${state.addons.join(", ")}` : "Diet: No special requirements",
-      state.fileName ? `I have a reference photo to send: ${state.fileName}` : "",
-    ].filter(Boolean);
+      state.fileName
+        ? publicCode
+          ? `Cake reference photo uploaded: ${state.fileName}`
+          : `I have a reference photo to send: ${state.fileName}`
+        : "",
+    ].filter((line, i, arr) => {
+      if (line === "" && (i === 0 || arr[i - 1] === "")) return false;
+      return true;
+    });
     return lines.join("\n");
+  }
+
+  function buildCakePayload() {
+    const date = document.getElementById("cake-date")?.value || "";
+    const theme = document.getElementById("cake-theme")?.value.trim() || "";
+    const size = selectedSize();
+    return {
+      party: { date },
+      cake: {
+        size: state.size || "",
+        priceLabel: size?.price || "",
+        sponges: state.sponges.slice(),
+        sugarSponge: state.sugarSponge || "",
+        mode: state.mode,
+        design: state.design || "",
+        theme,
+        diet: state.addons.length ? state.addons.slice() : [DIET_NONE],
+        referenceOriginalName: state.fileName || "",
+      },
+    };
   }
 
   function initForm() {
@@ -571,56 +617,94 @@
     }
     if (!form) return;
 
-    form.addEventListener("submit", (e) => {
+    const setStatus = (text, kind) => {
+      if (!status) return;
+      status.textContent = text || "";
+      status.className = kind ? `form-status ${kind}` : "form-status";
+    };
+
+    form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (status) {
-        status.textContent = "";
-        status.className = "form-status";
-      }
+      setStatus("");
 
       const date = dateInput ? dateInput.value : "";
       if (!date) {
-        if (status) {
-          status.textContent = "Please choose the date you need the cake.";
-          status.classList.add("is-error");
-        }
+        setStatus("Please choose the date you need the cake.", "is-error");
         dateInput?.focus();
         return;
       }
 
       if (dateInput && date < dateInput.min) {
-        if (status) {
-          status.textContent = "Please order at least 2 days ahead.";
-          status.classList.add("is-error");
-        }
+        setStatus("Please order at least 2 days ahead.", "is-error");
         return;
       }
 
       if (!state.size) {
-        if (status) {
-          status.textContent = "Please choose a size.";
-          status.classList.add("is-error");
-        }
+        setStatus("Please choose a size.", "is-error");
         return;
       }
 
-      const message = composeWhatsAppMessage();
-      track("cake_form_submit", {
-        size: state.size,
-        mode: state.mode,
-        design: state.design || "",
-      });
-
-      if (status) {
-        status.textContent = "Opening WhatsApp…";
-        status.classList.add("is-success");
+      const contact = window.TinyContact?.validateContact?.();
+      if (!contact?.ok) {
+        setStatus(contact?.message || "Please add an email or WhatsApp number.", "is-error");
+        window.TinyContact?.markContactValidity?.(false);
+        document.getElementById("contact-email")?.focus();
+        return;
       }
+      window.TinyContact?.markContactValidity?.(true);
 
-      window.open(
-        `${WA_BASE}?text=${encodeURIComponent(message)}`,
-        "_blank",
-        "noopener,noreferrer"
-      );
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+
+      try {
+        if (!window.TinySubmit?.submitRequest) {
+          throw new Error("Saving is not configured yet.");
+        }
+        setStatus("Saving your cake request…");
+        const files = {};
+        const cakeFile = state.file || document.getElementById("ref-photo")?.files?.[0];
+        if (cakeFile) {
+          files.cakePhoto = window.TinySubmit.compressImage
+            ? await window.TinySubmit.compressImage(cakeFile)
+            : cakeFile;
+        }
+        const result = await window.TinySubmit.submitRequest({
+          source: "cake",
+          payload: buildCakePayload(),
+          files,
+          onProgress: setStatus,
+        });
+        const code = result.publicCode || "";
+        track("cake_form_submit", {
+          size: state.size,
+          mode: state.mode,
+          design: state.design || "",
+          publicCode: code,
+          saved: true,
+        });
+        setStatus(code ? `Saved as ${code}. Opening WhatsApp…` : "Saved. Opening WhatsApp…", "is-success");
+        window.open(
+          `${WA_BASE}?text=${encodeURIComponent(composeWhatsAppMessage(code))}`,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      } catch (err) {
+        console.error(err);
+        setStatus(err?.message || "Could not save. Opening WhatsApp…", "is-error");
+        track("cake_form_submit", {
+          size: state.size,
+          mode: state.mode,
+          design: state.design || "",
+          saved: false,
+        });
+        window.open(
+          `${WA_BASE}?text=${encodeURIComponent(composeWhatsAppMessage())}`,
+          "_blank",
+          "noopener,noreferrer"
+        );
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+      }
     });
   }
 

@@ -1,8 +1,8 @@
 {
   "sizes": [
-    { "label": "15 cm", "note": "Small family table — about 8–10 slices", "line": "15 cm — small family table, about 8–10 slices.", "price": "Price on request" },
-    { "label": "18 cm", "note": "The usual birthday size — about 12–16 slices", "line": "18 cm — the usual birthday size, about 12–16 slices.", "price": "Price on request" },
-    { "label": "22 cm", "note": "Bigger parties — about 20–25 slices", "line": "22 cm — bigger parties, about 20–25 slices.", "price": "Price on request" }
+    { "label": "15 cm", "note": "Small family table — about 8–10 slices", "line": "15 cm — IDR 1M · small family table, about 8–10 slices.", "price": "IDR 1M" },
+    { "label": "18 cm", "note": "The usual birthday size — about 12–16 slices", "line": "18 cm — IDR 1.5M · the usual birthday size, about 12–16 slices.", "price": "IDR 1.5M" },
+    { "label": "22 cm", "note": "Bigger parties — about 20–25 slices", "line": "22 cm — IDR 1.8M · bigger parties, about 20–25 slices.", "price": "IDR 1.8M" }
   ],
   "sponges": [
     "Wholewheat kale & apple",

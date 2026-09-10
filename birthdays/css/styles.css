@@ -292,16 +292,18 @@ h3 {
 .hero {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(280px, 420px);
-  gap: 48px 56px;
-  align-items: center;
+  grid-template-columns: minmax(0, 1.05fr) minmax(220px, 380px);
+  grid-template-rows: minmax(0, 1fr);
+  gap: 20px 48px;
+  align-items: stretch;
   max-width: 1180px;
   margin: 0 auto;
-  padding: 72px var(--pad-x) 64px;
-  min-height: 0;
+  padding: 20px var(--pad-x);
+  height: calc(100dvh - var(--site-header-h, var(--header-h)));
+  max-height: calc(100dvh - var(--site-header-h, var(--header-h)));
   background: var(--cream);
   overflow: hidden;
-  box-sizing: content-box;
+  box-sizing: border-box;
 }
 
 .hero::before {
@@ -323,13 +325,15 @@ h3 {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 22px;
+  gap: 10px;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .hero__copy h1 {
   margin: 0;
-  font-size: clamp(40px, 4.8vw, 68px);
+  font-size: clamp(28px, 3.8vw, 52px);
   line-height: 1.02;
   color: var(--deep);
   text-wrap: pretty;
@@ -338,8 +342,8 @@ h3 {
 
 .hero__sub {
   margin: 0;
-  font-size: 20px;
-  line-height: 1.55;
+  font-size: 18px;
+  line-height: 1.45;
   color: var(--body);
   max-width: 460px;
 }
@@ -350,7 +354,7 @@ h3 {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   max-width: 460px;
 }
 
@@ -406,18 +410,21 @@ h3 {
   position: relative;
   z-index: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: stretch;
+  justify-content: flex-end;
   padding: 0;
   min-height: 0;
+  height: 100%;
   background: transparent;
-  overflow: visible;
+  overflow: hidden;
 }
 
 .hero__video-card {
   position: relative;
-  width: 100%;
-  max-width: 400px;
+  width: auto;
+  height: 100%;
+  max-height: 100%;
+  max-width: 100%;
   aspect-ratio: 9 / 14;
   border-radius: 24px;
   overflow: hidden;
@@ -558,24 +565,29 @@ h3 {
   padding: 32px 28px;
   display: flex;
   flex-direction: column;
+  align-items: stretch;
   gap: 18px;
   width: 100%;
   max-width: 300px;
   box-shadow: var(--shadow-deep);
-  text-align: center;
+  text-align: left;
 }
 
 .included__card h3 {
   margin: 0;
   font-size: 24px;
   color: var(--deep);
+  text-align: center;
+  width: 100%;
 }
 
 .step {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  justify-content: center;
+  justify-content: flex-start;
+  width: 100%;
+  align-self: stretch;
   text-align: left;
 }
 
@@ -606,6 +618,7 @@ h3 {
   border-top: 1px solid rgba(100, 124, 110, 0.2);
   font-size: 15px;
   color: var(--sage);
+  text-align: center;
 }
 
 .included__list-mobile {
@@ -1357,22 +1370,30 @@ h3 {
   }
 
   .hero {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    height: calc(100dvh - var(--site-header-h, var(--header-h)));
+    max-height: calc(100dvh - var(--site-header-h, var(--header-h)));
     min-height: 0;
     max-width: none;
-    padding: 34px var(--pad-x) 0;
-    gap: 0;
+    padding: 16px var(--pad-x) 12px;
+    gap: 10px;
   }
 
   .hero__copy {
-    padding: 0 0 30px;
-    gap: 16px;
+    flex: 0 1 auto;
+    padding: 0;
+    gap: 8px;
   }
 
   .hero__copy h1 {
-    font-size: 37px;
+    font-size: clamp(26px, 8vw, 34px);
     line-height: 1.05;
     max-width: none;
+  }
+
+  .hero__checks {
+    display: none;
   }
 
   .eyebrow {
@@ -1381,21 +1402,30 @@ h3 {
   }
 
   .hero__sub {
-    font-size: 15px;
+    font-size: 14px;
+    line-height: 1.4;
     color: rgba(51, 65, 58, 0.72);
+  }
+
+  .hero__checks {
+    gap: 4px;
+  }
+
+  .hero__checks li {
+    font-size: 13px;
   }
 
   .hero__actions {
     flex-direction: column;
     align-items: stretch;
-    gap: 12px;
+    gap: 8px;
   }
 
   .hero__actions .btn {
     width: 100%;
     text-align: center;
-    padding: 16px;
-    font-size: 15px;
+    padding: 12px;
+    font-size: 14px;
   }
 
   .hero__note {
@@ -1411,12 +1441,18 @@ h3 {
   }
 
   .hero__video-mobile-wrap {
-    display: block;
-    padding: 0 0 28px;
+    display: flex;
+    flex: 1 1 0;
+    min-height: 180px;
+    padding: 0;
   }
 
   .hero__video-mobile {
     display: block;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    object-fit: cover;
   }
 
   .included {
@@ -1497,6 +1533,7 @@ h3 {
 
   .included__card h3 {
     font-size: 21px;
+    text-align: center;
   }
 
   .step__title {
@@ -1830,6 +1867,18 @@ h3 {
     font-size: 13px;
     color: rgba(255, 255, 255, 0.65);
     margin-left: 4px;
+  }
+}
+
+@media (max-height: 740px) {
+  .hero__checks,
+  .hero__note,
+  .hero__rating {
+    display: none;
+  }
+
+  .hero__copy {
+    gap: 8px;
   }
 }
 

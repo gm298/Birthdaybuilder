@@ -1911,8 +1911,48 @@ body.steps-pinned .site-header {
   margin-top: 0;
 }
 
-.details-row--top .field__label--soft {
-  margin-bottom: 0;
+.details-row--contact {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  align-items: end;
+}
+
+.phone-split {
+  display: grid;
+  grid-template-columns: 118px 1fr;
+  gap: 8px;
+}
+
+.field select {
+  width: 100%;
+  padding: 14px 12px;
+  border: 1px solid rgba(100, 124, 110, 0.3);
+  border-radius: 6px;
+  background: var(--white);
+  color: var(--deep);
+  font-family: inherit;
+  font-size: 15px;
+}
+
+.field__hint {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--sage);
+}
+
+.field.is-invalid input,
+.field.is-invalid textarea,
+.field.is-invalid select,
+.field.is-invalid .phone-split {
+  border-color: #c45c4a;
+  box-shadow: 0 0 0 2px rgba(196, 92, 74, 0.15);
+}
+
+.field.is-invalid .phone-split {
+  border-radius: 6px;
 }
 
 .field {
@@ -2233,6 +2273,7 @@ body.steps-pinned .site-header {
   .extras-grid,
   .details-grid,
   .details-row--top,
+  .details-row--contact,
   .summary-panel,
   .photo-grid--3,
   .photo-grid--themes,

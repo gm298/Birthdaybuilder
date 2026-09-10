@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   "use strict";
 
   const BUILDER_VERSION = "20260905a";
@@ -29,7 +29,7 @@
       {
         id: "simple",
         name: "Simple",
-        guests: "5 people included · add up to 9",
+        guests: "5 people included Â· add up to 9",
         guestsIncluded: 5,
         guestsMax: 9,
         priceWeekday: "IDR 2.3M",
@@ -39,7 +39,7 @@
         featured: false,
         image: "img/packages/simple.jpg",
         includes: [
-          "Birthday cake · 15cm, 2 layers",
+          "Birthday cake Â· 15cm, 2 layers",
           "Requested themed party",
           "Table decor (no flowers)",
           "Simple balloon decor",
@@ -51,7 +51,7 @@
       {
         id: "signature",
         name: "Optimal",
-        guests: "10 people included · add up to 20",
+        guests: "10 people included Â· add up to 20",
         guestsIncluded: 10,
         guestsMax: 20,
         priceWeekday: "IDR 5.3M",
@@ -62,7 +62,7 @@
         badge: "Most popular",
         image: "img/packages/signature.jpg",
         includes: [
-          "Birthday cake · 18cm, 2 layers",
+          "Birthday cake Â· 18cm, 2 layers",
           "Requested themed party",
           "Medium balloon decor",
           "Photozone",
@@ -74,7 +74,7 @@
       {
         id: "terrace",
         name: "Whole Terrace",
-        guests: "20 people included · max 35 total",
+        guests: "20 people included Â· max 35 total",
         guestsIncluded: 20,
         guestsMax: 35,
         priceWeekday: "IDR 12.7M",
@@ -86,7 +86,7 @@
         includes: [
           "Whole private terrace",
           "Full terrace balloon decor",
-          "Photozone & piñata",
+          "Photozone & piÃ±ata",
           "Dessert station",
           "Masterclass for 10 kids",
         ],
@@ -111,7 +111,7 @@
           "1 rounded garland",
           "1 head character",
           "1 standing number",
-          "1 set balloon (1 star · 1 glitter · 5 pcs)",
+          "1 set balloon (1 star Â· 1 glitter Â· 5 pcs)",
           "Tiny rounded table",
           "1 cloud garland (1.5m)",
         ],
@@ -122,7 +122,7 @@
         image: "img/decor/terrace.jpg",
         note: "Included with Whole Terrace",
         items: [
-          "1½ backdrop with balloon & name (2m)",
+          "1Â½ backdrop with balloon & name (2m)",
           "1 character balloon",
           "8 flying balloons",
           "1 standing number",
@@ -142,14 +142,14 @@
       { id: "custom", name: "Build your own", image: "", custom: true },
     ],
     masterclasses: [
-      { id: "bunny-mask", name: "Bunny mask", note: "+200k / kid · min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/bunny-mask.jpg" },
-      { id: "lava-lab", name: "Lava lab", note: "+200k / kid · min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/lava-lab.jpg" },
-      { id: "clay-painting", name: "Clay painting", note: "+200k / kid · min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/clay-painting.jpg" },
-      { id: "cooking-class", name: "Cooking class", note: "+200k / kid · min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/cooking-class.jpg" },
+      { id: "bunny-mask", name: "Bunny mask", note: "+200k / kid Â· min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/bunny-mask.jpg" },
+      { id: "lava-lab", name: "Lava lab", note: "+200k / kid Â· min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/lava-lab.jpg" },
+      { id: "clay-painting", name: "Clay painting", note: "+200k / kid Â· min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/clay-painting.jpg" },
+      { id: "cooking-class", name: "Cooking class", note: "+200k / kid Â· min. 4 kids", pricePerKid: 200000, minKids: 4, image: "img/masterclass/cooking-class.jpg" },
     ],
     extras: {
       entertainment: [
-        { id: "pinata", name: "Piñata", price: "1.4M", priceValue: 1400000, image: "img/extras/pinata.jpg" },
+        { id: "pinata", name: "PiÃ±ata", price: "1.4M", priceValue: 1400000, image: "img/extras/pinata.jpg" },
         {
           id: "magic",
           name: "Magic show",
@@ -177,7 +177,7 @@
     extraGuest: { weekday: 150000, weekend: 300000 },
     food: {
       image: "img/food.jpg",
-      lede: "Food and drink sit in the package as a play-area deposit. Tell us allergies and we’ll set the table from Tiny’s kitchen.",
+      lede: "Food and drink sit in the package as a play-area deposit. Tell us allergies and weâ€™ll set the table from Tinyâ€™s kitchen.",
       menuUrl: "https://drive.google.com/drive/folders/1-Ubm3u3EvXdcDY-TdVo_sA4bPH5s5ARI?usp=drive_link",
       depositByPackage: {
         simple: {
@@ -219,9 +219,9 @@
 
   const DEFAULT_CAKES = {
     sizes: [
-      { label: "15 cm", note: "Small family table — about 8–10 slices", line: "15 cm — small family table, about 8–10 slices." },
-      { label: "18 cm", note: "The usual birthday size — about 12–16 slices", line: "18 cm — the usual birthday size, about 12–16 slices." },
-      { label: "22 cm", note: "Bigger parties — about 20–25 slices", line: "22 cm — bigger parties, about 20–25 slices." },
+      { label: "15 cm", note: "Small family table â€” about 8â€“10 slices", line: "15 cm â€” small family table, about 8â€“10 slices." },
+      { label: "18 cm", note: "The usual birthday size â€” about 12â€“16 slices", line: "18 cm â€” the usual birthday size, about 12â€“16 slices." },
+      { label: "22 cm", note: "Bigger parties â€” about 20â€“25 slices", line: "22 cm â€” bigger parties, about 20â€“25 slices." },
     ],
     sponges: SPONGES_ALL.slice(),
     sugarSponges: SUGAR_SPONGES.slice(),
@@ -230,16 +230,16 @@
     cakes: [
       { id: "safari-chocolate", src: "img/cakes/safari-chocolate.jpg", name: "Chocolate safari", theme: "Animals" },
       { id: "dino-meadow", src: "img/cakes/dino-meadow.jpg", name: "Dino meadow", theme: "Dinosaurs" },
-      { id: "dino-sand-first", src: "img/cakes/dino-sand-first.jpg", name: "Dino sands, first birthday", theme: "Dinosaurs · first birthday" },
+      { id: "dino-sand-first", src: "img/cakes/dino-sand-first.jpg", name: "Dino sands, first birthday", theme: "Dinosaurs Â· first birthday" },
       { id: "digger-berries", src: "img/cakes/digger-berries.jpg", name: "Digger and berries", theme: "Vehicles" },
-      { id: "construction-crane", src: "img/cakes/construction-crane.jpg", name: "Construction site", theme: "Vehicles · named" },
+      { id: "construction-crane", src: "img/cakes/construction-crane.jpg", name: "Construction site", theme: "Vehicles Â· named" },
       { id: "race-cars", src: "img/cakes/race-cars.jpg", name: "Race day", theme: "Vehicles" },
-      { id: "car-clouds", src: "img/cakes/car-clouds.jpg", name: "Little blue car", theme: "Vehicles · first birthdays" },
+      { id: "car-clouds", src: "img/cakes/car-clouds.jpg", name: "Little blue car", theme: "Vehicles Â· first birthdays" },
       { id: "ocean-tiers", src: "img/cakes/ocean-tiers.jpg", name: "Ocean two-tier", theme: "Ocean" },
-      { id: "undersea-heroes", src: "img/cakes/undersea-heroes.jpg", name: "Undersea friends", theme: "Ocean · characters" },
+      { id: "undersea-heroes", src: "img/cakes/undersea-heroes.jpg", name: "Undersea friends", theme: "Ocean Â· characters" },
       { id: "superhero-city", src: "img/cakes/superhero-city.jpg", name: "Superhero city", theme: "Characters" },
-      { id: "rescue-heroes", src: "img/cakes/rescue-heroes.jpg", name: "Rescue crew", theme: "Characters · named" },
-      { id: "blue-characters", src: "img/cakes/blue-characters.jpg", name: "Blue friends", theme: "Characters · named" },
+      { id: "rescue-heroes", src: "img/cakes/rescue-heroes.jpg", name: "Rescue crew", theme: "Characters Â· named" },
+      { id: "blue-characters", src: "img/cakes/blue-characters.jpg", name: "Blue friends", theme: "Characters Â· named" },
       { id: "rainbow-neon", src: "img/cakes/rainbow-neon.jpg", name: "Rainbow party", theme: "Bright and bold" },
       { id: "pastel-sleepy", src: "img/cakes/pastel-sleepy.jpg", name: "Sleepy pastel", theme: "Bright and bold" },
       { id: "sky-clouds-first", src: "img/cakes/sky-clouds-first.jpg", name: "Clouds and sky, first birthday", theme: "First birthday" },
@@ -277,6 +277,7 @@
     theme: "",
     addons: [],
     fileName: "",
+    file: null,
     activeCake: null,
     galleryExpanded: false,
   };
@@ -391,12 +392,17 @@
     return `${fmt(eh)}:${fmt(em)}`;
   }
 
+  function contactIsComplete() {
+    const result = window.TinyContact?.validateContact?.();
+    return Boolean(result && result.ok);
+  }
+
   function detailsAreComplete() {
     const date = document.getElementById("party-date")?.value || "";
     const time = partyTimeValue();
     const child = document.getElementById("child-name")?.value.trim() || "";
     const age = parseChildAge();
-    return Boolean(date && time && child && age && totalGuests() > 0);
+    return Boolean(date && time && child && age && totalGuests() > 0 && contactIsComplete());
   }
 
   function validateDetailsSection(showErrors) {
@@ -407,7 +413,9 @@
       { id: "child-age", test: () => parseChildAge() != null },
       { id: "guest-kids", test: () => totalGuests() > 0 },
     ];
-    let ok = true;
+    const contactOk = contactIsComplete();
+    window.TinyContact?.markContactValidity?.(contactOk);
+    let ok = contactOk;
     fields.forEach(({ id, test }) => {
       const input = document.getElementById(id);
       const wrap = input?.closest(".field");
@@ -467,9 +475,9 @@
       return "Enter the turning age in Details to preview the standing number balloon.";
     }
     if (age < SIMPLE_BUILDER_AGE_MIN || age > SIMPLE_BUILDER_AGE_MAX) {
-      return `No preview for age ${age} yet — we have sample looks for ages ${SIMPLE_BUILDER_AGE_MIN}–${SIMPLE_BUILDER_AGE_MAX}. Tell us the age in your design request.`;
+      return `No preview for age ${age} yet â€” we have sample looks for ages ${SIMPLE_BUILDER_AGE_MIN}â€“${SIMPLE_BUILDER_AGE_MAX}. Tell us the age in your design request.`;
     }
-    return `Preview for age ${age} — Tiny will match the look, not every pixel.`;
+    return `Preview for age ${age} â€” Tiny will match the look, not every pixel.`;
   }
 
   function getBackdropConfig() {
@@ -610,7 +618,7 @@
     const el = document.getElementById("backdrop-name");
     if (!el || backdropState.nameTouched || el.value.trim()) return;
     const child = document.getElementById("child-name")?.value.trim() || "";
-    if (child) el.value = `${child}’s Birthday`;
+    if (child) el.value = `${child}â€™s Birthday`;
   }
 
   async function ensureBackdropAssets() {
@@ -909,7 +917,7 @@
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      backdropState.panels[id] = { name: file.name, url, img };
+      backdropState.panels[id] = { name: file.name, url, img, file };
       renderBackdropUploads();
       scheduleBackdropRender();
       renderSummary();
@@ -1030,7 +1038,7 @@
       hint.textContent =
         cfg.id === "simple"
           ? simpleBuilderHint()
-          : "A briefing mockup — Tiny will match the look, not every pixel.";
+          : "A briefing mockup â€” Tiny will match the look, not every pixel.";
     }
     renderBackdropUploads();
     renderBackdropColours();
@@ -1123,7 +1131,7 @@
         if (!backdropState.nameTouched) {
           const el = document.getElementById("backdrop-name");
           const value = child.value.trim();
-          if (el) el.value = value ? `${value}’s Birthday` : "";
+          if (el) el.value = value ? `${value}â€™s Birthday` : "";
         }
         if (partyState.decorThemeId === "custom") scheduleBackdropRender();
       });
@@ -1211,7 +1219,7 @@
     renderSummary();
     const status = document.getElementById("form-status");
     if (status) {
-      status.textContent = `Selected “${cake.name}” from the gallery.`;
+      status.textContent = `Selected â€œ${cake.name}â€ from the gallery.`;
       status.className = "form-status is-success";
     }
   }
@@ -1290,7 +1298,7 @@
         const mCost = (m.pricePerKid || 200000) * billKids;
         subtotal += mCost;
         lines.push({
-          label: `Masterclass · ${m.name} (${billKids} kids)`,
+          label: `Masterclass Â· ${m.name} (${billKids} kids)`,
           value: mCost,
         });
       }
@@ -1333,13 +1341,13 @@
     panel.innerHTML = `
       <h3>Quotation</h3>
       <ul>
-        ${rows || "<li><span>Select a package to start</span><span>—</span></li>"}
+        ${rows || "<li><span>Select a package to start</span><span>â€”</span></li>"}
         <li><span>Subtotal</span><span>${escapeHtml(formatIdr(q.subtotal))}</span></li>
         <li><span>Service 5%</span><span>${escapeHtml(formatIdr(q.service))}</span></li>
         <li><span>Tax 10%</span><span>${escapeHtml(formatIdr(q.tax))}</span></li>
         <li class="is-total"><span>Estimated total</span><span>${escapeHtml(formatIdr(q.total))}</span></li>
       </ul>
-      <p class="quote-note">Estimate only — final quote confirmed on WhatsApp. Items marked TBC are priced on request.</p>`;
+      <p class="quote-note">Estimate only â€” final quote confirmed on WhatsApp. Items marked TBC are priced on request.</p>`;
   }
 
   function syncStepsBarH() {
@@ -1372,7 +1380,7 @@
     if (!label) return;
     const dateStr = document.getElementById("party-date")?.value;
     const dayLabel = partyState.day === "weekend" ? "Weekend pricing" : "Weekday pricing";
-    label.textContent = dateStr ? dayLabel : `${dayLabel} · pick a date in step 01`;
+    label.textContent = dateStr ? dayLabel : `${dayLabel} Â· pick a date in step 01`;
   }
 
   function syncDayFromDate() {
@@ -1512,20 +1520,20 @@
 
   function guestLabel() {
     const { kids, adults } = guestCounts();
-    if (!kids && !adults) return "—";
+    if (!kids && !adults) return "â€”";
     const parts = [];
     if (kids) parts.push(`${kids} kids`);
     if (adults) parts.push(`${adults} adults`);
-    return parts.join(" · ");
+    return parts.join(" Â· ");
   }
 
   function formatIdr(n) {
-    if (!n && n !== 0) return "—";
+    if (!n && n !== 0) return "â€”";
     return `IDR ${Math.round(n).toLocaleString("en-US")}`;
   }
 
   function formatIdrInvoice(n) {
-    if (!n && n !== 0) return "—";
+    if (!n && n !== 0) return "â€”";
     return `IDR ${Math.round(n).toLocaleString("id-ID")}`;
   }
 
@@ -1544,7 +1552,7 @@
   function quotationThemeLabel() {
     const cakeTheme = document.getElementById("cake-theme")?.value.trim() || "";
     const decor = decorThemeLabel();
-    if (cakeTheme && decor && decor !== "Not chosen yet") return `${decor} · ${cakeTheme}`;
+    if (cakeTheme && decor && decor !== "Not chosen yet") return `${decor} Â· ${cakeTheme}`;
     if (cakeTheme) return cakeTheme;
     if (decor && decor !== "Not chosen yet") return decor;
     return "";
@@ -1789,13 +1797,15 @@
       )
       .join("");
 
+    const contact = window.TinyContact?.readContact?.() || {};
     const metaBlock = `
       <div class="qp-meta">
         <div class="qp-meta-left">
           <div><strong>Name</strong> : ${escapeHtml(child)}</div>
-          <div><strong>Phone</strong> :</div>
-          <div><strong>Time</strong> :</div>
-          <div><strong>Total Pax</strong> : ${escapeHtml(guests === "—" ? "" : guests)}</div>
+          <div><strong>Phone</strong> : ${escapeHtml(contact.phone || "")}</div>
+          <div><strong>Email</strong> : ${escapeHtml(contact.email || "")}</div>
+          <div><strong>Time</strong> : ${escapeHtml(partyTimeValue() || "")}</div>
+          <div><strong>Total Pax</strong> : ${escapeHtml(guests === "â€”" ? "" : guests)}</div>
           <div><strong>Theme</strong> : ${escapeHtml(theme)}</div>
         </div>
         <div class="qp-meta-right">
@@ -1827,7 +1837,7 @@
     <tbody>
       ${
         rows ||
-        `<tr><td class="qp-details">No package selected</td><td class="qp-num">—</td><td class="qp-qty">—</td><td class="qp-num">—</td></tr>`
+        `<tr><td class="qp-details">No package selected</td><td class="qp-num">â€”</td><td class="qp-qty">â€”</td><td class="qp-num">â€”</td></tr>`
       }
       ${tbcRows}
     </tbody>
@@ -1841,7 +1851,7 @@
       <div class="qp-totals-row is-dp"><span>DP 30% :</span><span>${escapeHtml(formatIdrInvoice(dp))}</span></div>
     </div>
   </div>
-  <p class="qp-estimate">Estimate only — final quotation confirmed by Tiny. Items marked TBC are priced on request.</p>
+  <p class="qp-estimate">Estimate only â€” final quotation confirmed by Tiny. Items marked TBC are priced on request.</p>
   <img class="qp-flowers" src="${flowers1}" alt="" crossorigin="anonymous">
 </div>
 <div class="qp-page">
@@ -1903,33 +1913,7 @@
     );
   }
 
-  async function exportQuotationPdf() {
-    const status = document.getElementById("send-status");
-    if (!partyState.packageId) {
-      if (status) {
-        status.textContent = "Please choose a package first.";
-        status.className = "form-status is-error";
-      }
-      goToStep("package");
-      showStepGate("Please choose a package first.");
-      return;
-    }
-    const incomplete = firstIncompleteRequiredStep();
-    if (incomplete !== "send") {
-      if (status) {
-        status.textContent = stepIncompleteMessage(incomplete);
-        status.className = "form-status is-error";
-      }
-      goToStep(incomplete);
-      showStepGate(stepIncompleteMessage(incomplete));
-      return;
-    }
-
-    if (status) {
-      status.textContent = "Preparing PDF…";
-      status.className = "form-status";
-    }
-
+  async function buildQuotationPdfBlob() {
     if (partyState.decorThemeId === "custom") {
       await renderBackdropPreview();
     }
@@ -1991,8 +1975,50 @@
         pdf.addImage(img, "JPEG", 0, 0, pageW, pageH, undefined, "FAST");
       }
 
+      return pdf.output("blob");
+    } finally {
+      host.remove();
+    }
+  }
+
+  async function exportQuotationPdf() {
+    const status = document.getElementById("send-status");
+    if (!partyState.packageId) {
+      if (status) {
+        status.textContent = "Please choose a package first.";
+        status.className = "form-status is-error";
+      }
+      goToStep("package");
+      showStepGate("Please choose a package first.");
+      return;
+    }
+    const incomplete = firstIncompleteRequiredStep();
+    if (incomplete !== "send") {
+      if (status) {
+        status.textContent = stepIncompleteMessage(incomplete);
+        status.className = "form-status is-error";
+      }
+      goToStep(incomplete);
+      showStepGate(stepIncompleteMessage(incomplete));
+      return;
+    }
+
+    if (status) {
+      status.textContent = "Preparing PDFâ€¦";
+      status.className = "form-status";
+    }
+
+    try {
+      const blob = await buildQuotationPdfBlob();
       const partyDate = document.getElementById("party-date")?.value || "estimate";
-      pdf.save(`Tiny-Birthday-Quotation-${partyDate}.pdf`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Tiny-Birthday-Quotation-${partyDate}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
 
       track("builder_export_pdf", { package: partyState.packageId });
       if (status) {
@@ -2005,9 +2031,147 @@
         status.textContent = "Could not export PDF. Please try again.";
         status.className = "form-status is-error";
       }
-    } finally {
-      host.remove();
     }
+  }
+
+  function buildRequestPayload() {
+    const pkg = selectedPackage();
+    const q = buildQuotation();
+    const { kids, adults } = guestCounts();
+    const cfg = getBackdropConfig();
+    const cakeTheme = document.getElementById("cake-theme")?.value.trim() || "";
+    return {
+      builderVersion: BUILDER_VERSION,
+      party: {
+        date: document.getElementById("party-date")?.value || "",
+        time: partyTimeValue(),
+        endTime: partyEndTimeLabel(),
+        durationHours: PARTY_DURATION_HOURS,
+        day: partyState.day,
+        childName: document.getElementById("child-name")?.value.trim() || "",
+        childAge: document.getElementById("child-age")?.value.trim() || "",
+        guestKids: kids,
+        guestAdults: adults,
+        foodNotes: document.getElementById("food-notes")?.value.trim() || "",
+        notes: document.getElementById("party-notes")?.value.trim() || "",
+      },
+      package: pkg
+        ? {
+            id: pkg.id,
+            name: pkg.name,
+            priceLabel: packagePrice(pkg),
+            priceValue: packagePriceValue(pkg),
+          }
+        : {},
+      decor: {
+        packageId: partyState.decorPackageId || "",
+        packageLabel: decorPackageLabel(),
+        themeId: partyState.decorThemeId || "",
+        themeLabel: decorThemeLabel(),
+        designRequest: designRequestValue(),
+        backdropMode: cfg.mode || "",
+        backdropName: backdropNameValue(),
+        balloonColours: activeBackdropColours().map((c) => ({
+          id: c.id,
+          label: c.label,
+          hex: backdropState.colours[c.id],
+          original: c.original,
+        })),
+        prints: activeBackdropPanels()
+          .filter((p) => backdropState.panels[p.id])
+          .map((p) => ({
+            panelId: p.id,
+            originalName: backdropState.panels[p.id]?.name || "",
+          })),
+      },
+      cake: {
+        size: cakeState.size || "",
+        sponges: cakeState.sponges.slice(),
+        sugarSponge: cakeState.sugarSponge || "",
+        mode: cakeState.mode,
+        design: cakeState.design || "",
+        theme: cakeTheme,
+        diet: cakeState.addons.length ? cakeState.addons.slice() : [DIET_NONE],
+        referenceOriginalName: cakeState.fileName || "",
+      },
+      addons: {
+        masterclassId: partyState.masterclassId || "",
+        masterclassLabel: masterclassLabel(),
+        extras: partyState.extras.map((id) => {
+          const found = flatExtraItems().find((x) => x.id === id);
+          return found
+            ? { id, name: found.name, priceValue: found.priceValue || 0 }
+            : { id, name: id, priceValue: 0 };
+        }),
+      },
+      quote: {
+        currency: "IDR",
+        lines: (q.lines || []).map((line) => ({
+          label: line.label,
+          value: line.value || 0,
+          note: Boolean(line.note),
+          detail: line.detail || null,
+        })),
+        subtotal: q.subtotal,
+        service: q.service,
+        tax: q.tax,
+        total: q.total,
+        dp30: Math.round(q.total * 0.3),
+      },
+    };
+  }
+
+  async function collectSubmitFiles() {
+    const files = {};
+    const compress = window.TinySubmit?.compressImage;
+    const toBlob = window.TinySubmit?.canvasToBlob;
+
+    if (statusPreparing) statusPreparing("Preparing quotation PDFâ€¦");
+    const pdfBlob = await buildQuotationPdfBlob();
+    files.quotePdf = new File([pdfBlob], "quotation.pdf", { type: "application/pdf" });
+
+    const cfg = getBackdropConfig();
+    const canvas = document.getElementById("backdrop-canvas");
+    if (partyState.decorThemeId === "custom" && cfg.mode === "full" && canvas && !canvas.hidden) {
+      await renderBackdropPreview();
+      const backdropBlob = toBlob
+        ? await toBlob(canvas, "image/jpeg", 0.85)
+        : null;
+      if (backdropBlob) {
+        files.backdrop = new File([backdropBlob], "backdrop.jpg", { type: "image/jpeg" });
+      }
+    }
+
+    for (const panel of activeBackdropPanels()) {
+      const slot = backdropState.panels[panel.id];
+      if (!slot?.file) continue;
+      const compressed = compress ? await compress(slot.file) : slot.file;
+      files[`print_${panel.id}`] = compressed;
+    }
+
+    const cakeFile = cakeState.file || document.getElementById("ref-photo")?.files?.[0];
+    if (cakeFile) {
+      files.cakePhoto = compress ? await compress(cakeFile) : cakeFile;
+    }
+
+    return files;
+  }
+
+  let statusPreparing = null;
+
+  function openWhatsAppWithMessage(message) {
+    window.open(`${WA_BASE}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+  }
+
+  function composeWhatsAppMessage(publicCode) {
+    const contact = window.TinyContact?.readContact?.() || {};
+    const base = composeWhatsAppMessageBody();
+    const head = [
+      publicCode ? `Request code: ${publicCode}` : "",
+      contact.email ? `Email: ${contact.email}` : "",
+      contact.phone ? `WhatsApp: ${contact.phone}` : "",
+    ].filter(Boolean);
+    return head.length ? `${head.join("\n")}\n\n${base}` : base;
   }
 
   function flatExtraItems() {
@@ -2114,7 +2278,7 @@
     if (d.id === included) return "Included with your package";
     if (decorRank(d.id) < decorRank(included)) return "Below your package";
     const price = DECOR_UPGRADE_PRICE[d.id];
-    return price ? `Upgrade · ${formatIdr(price)}` : "Upgrade available";
+    return price ? `Upgrade Â· ${formatIdr(price)}` : "Upgrade available";
   }
 
   function renderDecorPackages() {
@@ -2193,7 +2357,7 @@
 
   function decorPackageLabel() {
     const d = (partyData.decorPackages || []).find((x) => x.id === partyState.decorPackageId);
-    return d ? d.name : "—";
+    return d ? d.name : "â€”";
   }
 
   function decorThemeLabel() {
@@ -2208,8 +2372,8 @@
       if (prints) bits.push(`${prints} print${prints === 1 ? "" : "s"}`);
       if (backdropColoursChanged()) bits.push("custom balloon colours");
       const name = backdropNameValue();
-      if (name) bits.push(`name “${name}”`);
-      return bits.length ? `Custom · ${bits.join(" · ")}` : "Build your own";
+      if (name) bits.push(`name â€œ${name}â€`);
+      return bits.length ? `Custom Â· ${bits.join(" Â· ")}` : "Build your own";
     }
     return t.name;
   }
@@ -2249,7 +2413,7 @@
               : escapeHtml(d.weekendLabel);
           return `<li class="food-deposit${active ? " is-active" : ""}"><strong>${escapeHtml(
             name
-          )}</strong> · ${weekdayRate} weekday / ${weekendRate} weekend</li>`;
+          )}</strong> Â· ${weekdayRate} weekday / ${weekendRate} weekend</li>`;
         })
         .join("");
     }
@@ -2487,27 +2651,29 @@
     const list = document.getElementById("summary-list");
     if (!list) return;
     const pkg = selectedPackage();
-    const partyDate = document.getElementById("party-date")?.value || "—";
+    const partyDate = document.getElementById("party-date")?.value || "â€”";
     const guests = guestLabel();
-    const child = document.getElementById("child-name")?.value.trim() || "—";
+    const child = document.getElementById("child-name")?.value.trim() || "â€”";
     const age = document.getElementById("child-age")?.value.trim() || "";
-    const notes = document.getElementById("party-notes")?.value.trim() || "—";
-    const foodNotes = document.getElementById("food-notes")?.value.trim() || "—";
+    const notes = document.getElementById("party-notes")?.value.trim() || "â€”";
+    const foodNotes = document.getElementById("food-notes")?.value.trim() || "â€”";
     const extras =
       partyState.extras.length > 0
         ? partyState.extras.map(extraLabel).join(", ")
         : "None";
     const cakeBits = cakeSummaryLines();
-    const cakeText = cakeBits.length ? cakeBits.join(" · ") : "Not chosen yet";
+    const cakeText = cakeBits.length ? cakeBits.join(" Â· ") : "Not chosen yet";
 
+    const contact = window.TinyContact?.readContact?.() || {};
     const rows = [
-      ["Package", pkg ? `${pkg.name} · ${packagePrice(pkg)}` : "—"],
+      ["Contact", [contact.email, contact.phone].filter(Boolean).join(" Â· ") || "â€”"],
+      ["Package", pkg ? `${pkg.name} Â· ${packagePrice(pkg)}` : "â€”"],
       ["Day", partyState.day === "weekend" ? "Weekend" : "Weekday"],
       ["Decoration package", decorPackageLabel()],
       ["Decoration look", decorThemeLabel()],
       ...(partyState.decorThemeId === "custom"
         ? [
-            ["Design request", designRequestValue() || "—"],
+            ["Design request", designRequestValue() || "â€”"],
             ["Backdrop prints", backdropPrintsLabel()],
             ["Balloon colours", backdropPaletteLabel()],
           ]
@@ -2516,11 +2682,11 @@
       [
         "Party time",
         partyTimeValue()
-          ? `${partyTimeValue()} – ${partyEndTimeLabel() || "—"} (${PARTY_DURATION_HOURS} hours)`
-          : "—",
+          ? `${partyTimeValue()} â€“ ${partyEndTimeLabel() || "â€”"} (${PARTY_DURATION_HOURS} hours)`
+          : "â€”",
       ],
       ["Guests", guests],
-      ["Birthday child", age ? `${child} · turning ${age}` : child],
+      ["Birthday child", age ? `${child} Â· turning ${age}` : child],
       ["Cake", cakeText],
       ["Masterclass", masterclassLabel()],
       ["Extras", extras],
@@ -2537,7 +2703,7 @@
     renderQuote();
   }
 
-  function composeWhatsAppMessage() {
+  function composeWhatsAppMessageBody() {
     const pkg = selectedPackage();
     const partyDate = document.getElementById("party-date")?.value || "";
     const guests = guestLabel();
@@ -2565,20 +2731,20 @@
             activeBackdropColours().length ? `Balloon colours: ${backdropPaletteLabel()}` : "",
             backdropNameValue() ? `Name on backdrop: ${backdropNameValue()}` : "",
             getBackdropConfig().mode === "full"
-              ? "I will send the backdrop mockup in this chat."
+              ? "Custom backdrop mockup was saved with this request."
               : "",
           ].filter(Boolean)
         : []),
       partyDate ? `Party date: ${partyDate}` : "",
       partyTimeValue()
-        ? `Start time: ${partyTimeValue()} (${PARTY_DURATION_HOURS} hours, until ${partyEndTimeLabel() || "—"})`
+        ? `Start time: ${partyTimeValue()} (${PARTY_DURATION_HOURS} hours, until ${partyEndTimeLabel() || "â€”"})`
         : "",
-      guests !== "—" ? `Guests: ${guests}` : "",
+      guests !== "â€”" ? `Guests: ${guests}` : "",
       child ? `Birthday child: ${child}${age ? ` (turning ${age})` : ""}` : "",
       foodNotes ? `Food / allergies: ${foodNotes}` : "",
       notes ? `Notes: ${notes}` : "",
       "",
-      "— Cake —",
+      "â€” Cake â€”",
       cakeState.size ? `Size: ${cakeState.size}` : "",
       cakeState.sponges.length ? `Sponge: ${cakeState.sponges.join(" + ")}` : "",
       cakeState.sugarSponge ? `Sugar added sponge: ${cakeState.sugarSponge}` : "",
@@ -2588,14 +2754,14 @@
       cakeState.mode === "own" ? "Design: my own idea" : "",
       cakeTheme ? `Theme on cake: ${cakeTheme}` : "",
       cakeState.addons.length ? `Diet: ${cakeState.addons.join(", ")}` : "Diet: No special requirements",
-      cakeState.fileName ? `I have a reference photo to send: ${cakeState.fileName}` : "",
+      cakeState.fileName ? `Cake reference photo uploaded: ${cakeState.fileName}` : "",
       "",
       `Masterclass: ${masterclassLabel()}`,
       partyState.extras.length
         ? `Extras: ${partyState.extras.map(extraLabel).join(", ")}`
         : "Extras: none",
       "",
-      "— Quotation estimate —",
+      "â€” Quotation estimate â€”",
       ...q.lines.map((line) =>
         line.note ? `${line.label}: TBC` : `${line.label}: ${formatIdr(line.value)}`
       ),
@@ -2621,45 +2787,114 @@
       });
     }
     if (!btn) return;
-    btn.addEventListener("click", () => {
-      if (status) {
-        status.textContent = "";
-        status.className = "form-status";
-      }
+
+    const setStatus = (text, kind) => {
+      if (!status) return;
+      status.textContent = text || "";
+      status.className = kind ? `form-status ${kind}` : "form-status";
+    };
+
+    const runSaveAndSend = async () => {
+      setStatus("");
       if (!partyState.packageChosen || !partyState.packageId) {
-        if (status) {
-          status.textContent = "Please choose a package first.";
-          status.classList.add("is-error");
-        }
+        setStatus("Please choose a package first.", "is-error");
         goToStep("package");
         showStepGate("Please choose a package first.");
         return;
       }
       const incomplete = firstIncompleteRequiredStep();
       if (incomplete !== "send") {
-        if (status) {
-          status.textContent = stepIncompleteMessage(incomplete);
-          status.classList.add("is-error");
-        }
+        setStatus(stepIncompleteMessage(incomplete), "is-error");
         goToStep(incomplete);
         showStepGate(stepIncompleteMessage(incomplete));
         return;
       }
-      const message = composeWhatsAppMessage();
-      track("builder_send", {
-        package: partyState.packageId,
-        masterclass: partyState.masterclassId || "none",
-        extras: partyState.extras.join(","),
-      });
-      if (status) {
-        status.textContent = "Opening WhatsApp…";
-        status.classList.add("is-success");
+      const contact = window.TinyContact?.validateContact?.();
+      if (!contact?.ok) {
+        setStatus(contact?.message || "Please add an email or WhatsApp number.", "is-error");
+        window.TinyContact?.markContactValidity?.(false);
+        goToStep("details");
+        showStepGate(contact?.message || "Please add an email or WhatsApp number.");
+        return;
       }
-      window.open(
-        `${WA_BASE}?text=${encodeURIComponent(message)}`,
-        "_blank",
-        "noopener,noreferrer"
-      );
+      window.TinyContact?.markContactValidity?.(true);
+
+      if (!window.TinySubmit?.submitRequest) {
+        setStatus("Saving is not configured yet.", "is-error");
+        return;
+      }
+
+      btn.disabled = true;
+      if (exportBtn) exportBtn.disabled = true;
+      statusPreparing = (msg) => setStatus(msg || "Saving your requestâ€¦");
+
+      try {
+        statusPreparing("Preparing quotation PDFâ€¦");
+        const files = await collectSubmitFiles();
+        const payload = buildRequestPayload();
+        const result = await window.TinySubmit.submitRequest({
+          source: "party_builder",
+          payload,
+          files,
+          onProgress: statusPreparing,
+          extraClient: { builderVersion: BUILDER_VERSION },
+        });
+        const code = result.publicCode || "";
+        track("builder_save_success", {
+          package: partyState.packageId,
+          publicCode: code,
+        });
+        track("builder_send", {
+          package: partyState.packageId,
+          masterclass: partyState.masterclassId || "none",
+          extras: partyState.extras.join(","),
+          publicCode: code,
+          saved: true,
+        });
+        setStatus(
+          code ? `Saved as ${code}. Opening WhatsAppâ€¦` : "Saved. Opening WhatsAppâ€¦",
+          "is-success"
+        );
+        openWhatsAppWithMessage(composeWhatsAppMessage(code));
+      } catch (err) {
+        console.error(err);
+        track("builder_send_failed", { message: String(err?.message || err) });
+        setStatus(err?.message || "Could not save the request.", "is-error");
+        const retry = document.createElement("button");
+        retry.type = "button";
+        retry.className = "btn btn--outline-light";
+        retry.textContent = "Retry save";
+        retry.style.marginTop = "8px";
+        const waAnyway = document.createElement("button");
+        waAnyway.type = "button";
+        waAnyway.className = "btn btn--outline-light";
+        waAnyway.textContent = "Open WhatsApp anyway";
+        waAnyway.style.marginTop = "8px";
+        const actions = document.querySelector(".summary-actions");
+        document.getElementById("send-retry-row")?.remove();
+        const row = document.createElement("div");
+        row.id = "send-retry-row";
+        row.style.display = "flex";
+        row.style.flexDirection = "column";
+        row.style.gap = "8px";
+        row.append(retry, waAnyway);
+        actions?.appendChild(row);
+        retry.addEventListener("click", () => {
+          row.remove();
+          runSaveAndSend();
+        });
+        waAnyway.addEventListener("click", () => {
+          openWhatsAppWithMessage(composeWhatsAppMessage());
+        });
+      } finally {
+        statusPreparing = null;
+        btn.disabled = false;
+        if (exportBtn) exportBtn.disabled = false;
+      }
+    };
+
+    btn.addEventListener("click", () => {
+      runSaveAndSend();
     });
 
     [
@@ -2669,6 +2904,9 @@
       "guest-adults",
       "child-name",
       "child-age",
+      "contact-email",
+      "contact-phone",
+      "contact-dial",
       "party-notes",
       "food-notes",
       "cake-theme",
@@ -2904,7 +3142,7 @@
     });
     if (note) {
       if (cakeState.size && cakeState.size === includedSize) {
-        note.textContent = `${cakeState.size} — included in selected package.`;
+        note.textContent = `${cakeState.size} â€” included in selected package.`;
       } else {
         const selected = cakeData.sizes.find((s) => s.label === cakeState.size);
         note.textContent = selected ? selected.line : "Two layers, whichever size you pick.";
@@ -2938,7 +3176,7 @@
   function stepIncompleteMessage(stepId) {
     switch (stepId) {
       case "details":
-        return "Please fill out the required details.";
+        return "Please fill out the required details, including email or WhatsApp.";
       case "package":
         return "Please choose a package.";
       case "decor":
@@ -3267,7 +3505,7 @@
         n === 0
           ? "Select one or two flavours for your cake layers."
           : n === 1
-            ? "1 flavour selected — you can add one more."
+            ? "1 flavour selected â€” you can add one more."
             : "2 flavours selected.";
     }
   }
@@ -3396,7 +3634,8 @@
     const label = document.getElementById("file-label");
     if (!input || !label) return;
     input.addEventListener("change", () => {
-      cakeState.fileName = input.files && input.files[0] ? input.files[0].name : "";
+      cakeState.file = input.files && input.files[0] ? input.files[0] : null;
+      cakeState.fileName = cakeState.file ? cakeState.file.name : "";
       label.textContent = cakeState.fileName || "Tap to attach a photo";
       renderSummary();
     });

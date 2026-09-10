@@ -18,6 +18,13 @@ Thumbs.db
 .vscode/
 .cursor/
 
-# Secrets
+# Local preview secrets / deploy credentials
 .env
 .env.*
+!.env.example
+
+# Anon key is written here by scripts/deploy-supabase.ps1 — keep out of git if present
+shared/supabase-config.local.js
+
+# Supabase CLI local cache (may include connection strings)
+supabase/.temp/

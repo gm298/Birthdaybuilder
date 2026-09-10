@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tiny request inbox</title>
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/staff.css?v=20260910a">
+</head>
+<body>
+  <div class="staff-shell">
+    <header class="staff-top">
+      <div>
+        <p class="staff-brand">Tiny</p>
+        <h1>Request inbox</h1>
+      </div>
+      <button class="btn btn--ghost" type="button" id="sign-out" hidden>Sign out</button>
+    </header>
+
+    <section class="card" id="login-card">
+      <h2>Staff login</h2>
+      <p class="lede">Only Tiny staff accounts can open saved party and cake requests.</p>
+      <form id="login-form">
+        <label class="field">
+          <span>Email</span>
+          <input type="email" id="login-email" autocomplete="username" required>
+        </label>
+        <label class="field">
+          <span>Password</span>
+          <input type="password" id="login-password" autocomplete="current-password" required>
+        </label>
+        <button class="btn" type="submit">Sign in</button>
+        <p class="status" id="login-status" role="status"></p>
+      </form>
+    </section>
+
+    <section id="app" hidden>
+      <div class="toolbar">
+        <input type="search" id="search" placeholder="Search code, child, email, phone">
+        <select id="filter-status" aria-label="Status">
+          <option value="">All statuses</option>
+          <option value="new">New</option>
+          <option value="contacted">Contacted</option>
+          <option value="quoted">Quoted</option>
+          <option value="booked">Booked</option>
+          <option value="closed">Closed</option>
+        </select>
+        <select id="filter-source" aria-label="Source">
+          <option value="">All sources</option>
+          <option value="party_builder">Party builder</option>
+          <option value="cake">Cake</option>
+          <option value="pdf_quote">PDF request</option>
+        </select>
+      </div>
+      <div id="list-view">
+        <div class="table-wrap">
+          <table class="inbox">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Submitted</th>
+                <th>Party / cake date</th>
+                <th>Who</th>
+                <th>Package</th>
+                <th>Total</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="inbox-body"></tbody>
+          </table>
+        </div>
+        <p class="status" id="list-status" role="status"></p>
+      </div>
+      <div id="detail-view" hidden></div>
+    </section>
+  </div>
+  <script src="../shared/supabase-config.js?v=20260910a"></script>
+  <script type="module" src="js/app.js?v=20260910a"></script>
+</body>
+</html>

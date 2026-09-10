@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../cakes/css/styles.css?v=20260831f">
-  <link rel="stylesheet" href="css/styles.css?v=20260905d">
+  <link rel="stylesheet" href="css/styles.css?v=20260910a">
   <link rel="stylesheet" href="../../shared/chrome.css?v=20260826f">
   <script src="../../shared/analytics.js?v=20260905a"></script>
 </head>
@@ -97,6 +97,36 @@
           <label class="field__label" for="child-age">Turning <span class="field__req">*</span></label>
           <input type="text" id="child-age" name="child-age" placeholder="e.g. 5" required>
         </div>
+        <div class="details-row details-row--contact field--full" id="contact-fields">
+          <div class="field">
+            <label class="field__label" for="contact-email">Email</label>
+            <input type="email" id="contact-email" name="contact-email" autocomplete="email" placeholder="you@email.com">
+          </div>
+          <div class="field">
+            <label class="field__label" for="contact-phone">WhatsApp number</label>
+            <div class="phone-split">
+              <select id="contact-dial" name="contact-dial" aria-label="Country code">
+                <option value="62" selected>+62 ID</option>
+                <option value="61">+61 AU</option>
+                <option value="65">+65 SG</option>
+                <option value="60">+60 MY</option>
+                <option value="1">+1 US/CA</option>
+                <option value="44">+44 UK</option>
+                <option value="64">+64 NZ</option>
+                <option value="81">+81 JP</option>
+                <option value="82">+82 KR</option>
+                <option value="86">+86 CN</option>
+                <option value="852">+852 HK</option>
+                <option value="33">+33 FR</option>
+                <option value="49">+49 DE</option>
+                <option value="31">+31 NL</option>
+                <option value="971">+971 AE</option>
+              </select>
+              <input type="tel" id="contact-phone" name="contact-phone" inputmode="tel" autocomplete="tel" placeholder="81234567890">
+            </div>
+          </div>
+        </div>
+        <p class="field__hint field--full" id="contact-hint">We need email or WhatsApp so we can send the quotation. At least one is required. We’ll store this plan, photos and contact details so Tiny can quote you.</p>
         <div class="field field--full">
           <label class="field__label" for="food-notes">Allergies or food notes</label>
           <textarea id="food-notes" name="food-notes" placeholder="No nuts, vegetarian adults, kids eat first…"></textarea>
@@ -310,8 +340,8 @@
         <ul class="summary-list" id="summary-list"></ul>
         <div class="quote-panel" id="quote-panel" aria-label="Price quotation"></div>
         <div class="summary-actions">
-          <p>Send your plan on WhatsApp, or download a Tiny-styled PDF quotation (no bank details).</p>
-          <button class="btn btn--white btn--lg" type="button" id="send-whatsapp">Send party plan to WhatsApp</button>
+          <p>We’ll save the full plan, custom design and cake photo for Tiny, then open WhatsApp. You can also download a PDF quotation (no bank details).</p>
+          <button class="btn btn--white btn--lg" type="button" id="send-whatsapp">Save &amp; send to WhatsApp</button>
           <button class="btn btn--outline-light btn--lg" type="button" id="export-quote-pdf">Export PDF quotation</button>
           <p class="form-status" id="send-status" role="status" aria-live="polite"></p>
         </div>
@@ -398,6 +428,8 @@
   </div>
 
   <script src="../../shared/chrome.js?v=20260826d" defer></script>
-  <script src="js/main.js?v=20260905a" defer></script>
+  <script src="../../shared/supabase-config.js?v=20260910a" defer></script>
+  <script src="../../shared/submit-request.js?v=20260910a" defer></script>
+  <script src="js/main.js?v=20260910c" defer></script
 </body>
 </html>

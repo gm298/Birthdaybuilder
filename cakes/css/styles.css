@@ -656,7 +656,10 @@ h3 {
 }
 
 .field input[type="date"],
-.field input[type="text"] {
+.field input[type="text"],
+.field input[type="email"],
+.field input[type="tel"],
+.field select {
   width: 100%;
   padding: 14px 16px;
   border: 1px solid rgba(255, 255, 255, 0.35);
@@ -665,6 +668,17 @@ h3 {
   color: var(--deep);
   font-family: var(--font-body);
   font-size: 15px;
+}
+
+.phone-split {
+  display: grid;
+  grid-template-columns: 118px 1fr;
+  gap: 8px;
+}
+
+.field.is-invalid input,
+.field.is-invalid select {
+  box-shadow: 0 0 0 2px rgba(255, 180, 160, 0.7);
 }
 
 .option-row {
@@ -702,8 +716,26 @@ h3 {
 
 .option-btn--center {
   text-align: center;
-  padding: 14px 0;
+  padding: 12px 8px;
   font-size: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.option-btn__price {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.2px;
+  opacity: 0.8;
+  line-height: 1.2;
+}
+
+.option-btn.is-active .option-btn__price {
+  opacity: 0.7;
 }
 
 .option-btn--sm {
@@ -714,6 +746,12 @@ h3 {
 .size-wrap {
   flex: 1;
   position: relative;
+  display: flex;
+}
+
+.size-wrap .option-btn {
+  width: 100%;
+  min-height: 58px;
 }
 
 .size-tip {

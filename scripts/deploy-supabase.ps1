@@ -1,0 +1,68 @@
+# Syncs anon key into shared/supabase-config.js and deploys schema + function.
+# Usage: powershell -File scripts/deploy-supabase.ps1
+# Reads .env.local — never prints secret values.
+
+$ErrorActionPreference = "Stop"
+$root = Split-Path -Parent $PSScriptRoot
+if (-not (Test-Path (Join-Path $root ".env.local"))) {
+  $root = Get-Location
+}
+Set-Location $root
+
+function Load-DotEnv($path) {
+  Get-Content $path | ForEach-Object {
+    if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
+    if ($_ -match '^([^=]+)=(.*)$') {
+      $name = $matches[1].Trim()
+      $value = $matches[2].Trim().Trim('"').Trim("'")
+      Set-Item -Path "Env:$name" -Value $value
+    }
+  }
+}
+
+Load-DotEnv (Join-Path $root ".env.local")
+
+$required = @(
+  "SUPABASE_ACCESS_TOKEN",
+  "SUPABASE_PROJECT_REF",
+  "SUPABASE_ANON_KEY",
+  "SUPABASE_SERVICE_ROLE_KEY",
+  "SUPABASE_URL"
+)
+foreach ($key in $required) {
+  if (-not [string]::IsNullOrWhiteSpace((Get-Item "Env:$key").Value)) { continue }
+  throw "Missing $key in .env.local"
+}
+
+$configPath = Join-Path $root "shared\supabase-config.js"
+$config = @"
+(() => {
+  "use strict";
+
+  window.TINY_SUPABASE = {
+    url: "$($env:SUPABASE_URL)",
+    anonKey: "$($env:SUPABASE_ANON_KEY)",
+    submitUrl: "$($env:SUPABASE_URL)/functions/v1/submit-request",
+  };
+})();
+"@
+Set-Content -Path $configPath -Value $config -Encoding utf8
+Write-Host "Updated shared/supabase-config.js (anon key only)."
+
+if (-not $env:RATE_LIMIT_SALT) {
+  $env:RATE_LIMIT_SALT = "tiny-birthday-" + $env:SUPABASE_PROJECT_REF
+}
+
+Write-Host "Linking project $($env:SUPABASE_PROJECT_REF)…"
+npx supabase link --project-ref $env:SUPABASE_PROJECT_REF -p $env:SUPABASE_DB_PASSWORD
+
+Write-Host "Pushing database migration…"
+npx supabase db push -p $env:SUPABASE_DB_PASSWORD
+
+Write-Host "Setting function secrets…"
+npx supabase secrets set RATE_LIMIT_SALT=$env:RATE_LIMIT_SALT --project-ref $env:SUPABASE_PROJECT_REF
+
+Write-Host "Deploying submit-request function…"
+npx supabase functions deploy submit-request --project-ref $env:SUPABASE_PROJECT_REF --no-verify-jwt
+
+Write-Host "Done. Staff site: /staff/ - create a user in Auth, then insert into staff_users."
