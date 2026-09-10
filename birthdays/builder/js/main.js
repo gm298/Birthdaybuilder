@@ -271,7 +271,7 @@
     filter: "All",
     size: "18 cm",
     sponges: [],
-    sugarSponge: "",
+    sugarSponge: [],
     mode: "gallery",
     design: "",
     theme: "",
@@ -1196,10 +1196,62 @@
       cakeState.addons.includes("No added sugar") ||
       cakeState.addons.includes("Gluten-free");
     if (hide) {
-      cakeState.sugarSponge = "";
+      cakeState.sugarSponge = [];
       if (field) field.hidden = true;
     } else if (field) {
       field.hidden = false;
+    }
+  }
+
+  function selectedSugarSponges() {
+    if (Array.isArray(cakeState.sugarSponge)) return cakeState.sugarSponge;
+    return cakeState.sugarSponge ? [cakeState.sugarSponge] : [];
+  }
+
+  function flavourItems() {
+    return [
+      ...cakeState.sponges.map((label) => ({ kind: "plain", label })),
+      ...selectedSugarSponges().map((label) => ({ kind: "sugar", label })),
+    ];
+  }
+
+  function applyFlavourItems(items) {
+    cakeState.sponges = items.filter((item) => item.kind === "plain").map((item) => item.label);
+    cakeState.sugarSponge = items.filter((item) => item.kind === "sugar").map((item) => item.label);
+  }
+
+  function flavourCount() {
+    return flavourItems().length;
+  }
+
+  function toggleFlavour(kind, label) {
+    let items = flavourItems();
+    const index = items.findIndex((item) => item.kind === kind && item.label === label);
+    if (index >= 0) items.splice(index, 1);
+    else {
+      items.push({ kind, label });
+      if (items.length > 2) items = items.slice(-2);
+    }
+    applyFlavourItems(items);
+  }
+
+  function flavourHintText() {
+    const n = flavourCount();
+    if (n === 0) return "Select one or two flavours — mix a no-sugar sponge with a sugar-added one if you like.";
+    if (n === 1) return "1 flavour selected — you can add one more from either list.";
+    return "2 flavours selected.";
+  }
+
+  function afterFlavourChange() {
+    renderSpongeOptions();
+    renderSugarSpongeOptions();
+    renderSummary();
+    updateStepProgress();
+    const spongeField = document.getElementById("sponge-options")?.closest(".field");
+    const sugarField = document.getElementById("sugar-sponge-options")?.closest(".field");
+    if (flavourCount()) {
+      spongeField?.classList.remove("is-invalid");
+      sugarField?.classList.remove("is-invalid");
     }
   }
 
@@ -2087,7 +2139,7 @@
       cake: {
         size: cakeState.size || "",
         sponges: cakeState.sponges.slice(),
-        sugarSponge: cakeState.sugarSponge || "",
+        sugarSponge: selectedSugarSponges().join(" + "),
         mode: cakeState.mode,
         design: cakeState.design || "",
         theme: cakeTheme,
@@ -2323,13 +2375,15 @@
       btn.addEventListener("click", () => {
         const id = btn.dataset.decorPkg;
         if (!canSelectDecor(id)) return;
+        const changed = partyState.decorPackageId !== id;
         partyState.decorPackageId = id;
         partyState.decorReviewed = true;
-        resetBackdropForPackage();
+        if (changed) resetBackdropForPackage();
         renderDecorPackages();
         updateBackdropBuilderUI();
         renderSummary();
         updateStepProgress();
+        openCustomBuilderModal();
       });
     });
   }
@@ -2634,7 +2688,9 @@
     return [
       cakeState.size ? `Cake size: ${cakeState.size}` : "",
       cakeState.sponges.length ? `Sponge: ${cakeState.sponges.join(" + ")}` : "",
-      cakeState.sugarSponge ? `Sugar added sponge: ${cakeState.sugarSponge}` : "",
+      selectedSugarSponges().length
+        ? `Sugar added sponge: ${selectedSugarSponges().join(" + ")}`
+        : "",
       cakeState.mode === "gallery" && cakeState.design
         ? `Cake design: ${cakeState.design}`
         : "",
@@ -2747,7 +2803,9 @@
       "â€” Cake â€”",
       cakeState.size ? `Size: ${cakeState.size}` : "",
       cakeState.sponges.length ? `Sponge: ${cakeState.sponges.join(" + ")}` : "",
-      cakeState.sugarSponge ? `Sugar added sponge: ${cakeState.sugarSponge}` : "",
+      selectedSugarSponges().length
+        ? `Sugar added sponge: ${selectedSugarSponges().join(" + ")}`
+        : "",
       cakeState.mode === "gallery" && cakeState.design
         ? `Design from your gallery: ${cakeState.design}`
         : "",
@@ -2907,6 +2965,7 @@
       "contact-email",
       "contact-phone",
       "contact-dial",
+      "contact-dial-search",
       "party-notes",
       "food-notes",
       "cake-theme",
@@ -3161,7 +3220,7 @@
       case "decor":
         return partyState.decorReviewed || partyState.decorThemeId === "custom";
       case "cakes":
-        return cakeState.sponges.length > 0 && Boolean(cakeState.size);
+        return flavourCount() > 0 && Boolean(cakeState.size);
       case "addons":
         return partyState.masterclassReviewed && partyState.entertainmentReviewed;
       case "food":
@@ -3280,7 +3339,12 @@
     if (current.id === "cakes") {
       const ok = isStepComplete("cakes");
       const spongeField = document.getElementById("sponge-options")?.closest(".field");
-      if (showErrors && spongeField) spongeField.classList.toggle("is-invalid", !ok);
+      const sugarField = document.getElementById("sugar-sponge-options")?.closest(".field");
+      if (showErrors) {
+        const missingFlavour = flavourCount() === 0;
+        spongeField?.classList.toggle("is-invalid", missingFlavour);
+        sugarField?.classList.toggle("is-invalid", missingFlavour);
+      }
       return ok;
     }
     if (current.id === "decor") {
@@ -3484,51 +3548,31 @@
       .join("");
     el.querySelectorAll("[data-sponge]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const label = btn.dataset.sponge;
-        if (cakeState.sponges.includes(label)) {
-          cakeState.sponges = cakeState.sponges.filter((s) => s !== label);
-        } else if (cakeState.sponges.length < 2) {
-          cakeState.sponges = cakeState.sponges.concat(label);
-        } else {
-          cakeState.sponges = [cakeState.sponges[1], label];
-        }
-        renderSpongeOptions();
-        renderSummary();
-        updateStepProgress();
-        const spongeField = document.getElementById("sponge-options")?.closest(".field");
-        if (spongeField && cakeState.sponges.length) spongeField.classList.remove("is-invalid");
+        toggleFlavour("plain", btn.dataset.sponge);
+        afterFlavourChange();
       });
     });
-    if (hint) {
-      const n = cakeState.sponges.length;
-      hint.textContent =
-        n === 0
-          ? "Select one or two flavours for your cake layers."
-          : n === 1
-            ? "1 flavour selected â€” you can add one more."
-            : "2 flavours selected.";
-    }
+    if (hint) hint.textContent = flavourHintText();
   }
 
   function renderSugarSpongeOptions() {
     const el = document.getElementById("sugar-sponge-options");
     if (!el) return;
     syncSugarSpongeVisibility();
+    const picks = selectedSugarSponges();
     const options = cakeData.sugarSponges || SUGAR_SPONGES;
     el.innerHTML = options
       .map(
         (label) =>
           `<button type="button" class="option-btn${
-            cakeState.sugarSponge === label ? " is-active" : ""
+            picks.includes(label) ? " is-active" : ""
           }" data-sugar-sponge="${escapeHtml(label)}">${escapeHtml(label)}</button>`
       )
       .join("");
     el.querySelectorAll("[data-sugar-sponge]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const value = btn.dataset.sugarSponge || "";
-        cakeState.sugarSponge = cakeState.sugarSponge === value ? "" : value;
-        renderSugarSpongeOptions();
-        renderSummary();
+        toggleFlavour("sugar", btn.dataset.sugarSponge || "");
+        afterFlavourChange();
       });
     });
   }

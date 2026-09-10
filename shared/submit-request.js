@@ -190,12 +190,230 @@
     return body;
   }
 
+  const DIAL_CODES = [
+    ["62", "ID", "Indonesia"],
+    ["61", "AU", "Australia"],
+    ["64", "NZ", "New Zealand"],
+    ["65", "SG", "Singapore"],
+    ["60", "MY", "Malaysia"],
+    ["1", "US", "United States"],
+    ["1", "CA", "Canada"],
+    ["44", "GB", "United Kingdom"],
+    ["353", "IE", "Ireland"],
+    ["33", "FR", "France"],
+    ["49", "DE", "Germany"],
+    ["31", "NL", "Netherlands"],
+    ["32", "BE", "Belgium"],
+    ["41", "CH", "Switzerland"],
+    ["43", "AT", "Austria"],
+    ["39", "IT", "Italy"],
+    ["34", "ES", "Spain"],
+    ["351", "PT", "Portugal"],
+    ["46", "SE", "Sweden"],
+    ["47", "NO", "Norway"],
+    ["45", "DK", "Denmark"],
+    ["358", "FI", "Finland"],
+    ["48", "PL", "Poland"],
+    ["420", "CZ", "Czechia"],
+    ["36", "HU", "Hungary"],
+    ["40", "RO", "Romania"],
+    ["30", "GR", "Greece"],
+    ["90", "TR", "Turkey"],
+    ["7", "RU", "Russia"],
+    ["380", "UA", "Ukraine"],
+    ["81", "JP", "Japan"],
+    ["82", "KR", "South Korea"],
+    ["86", "CN", "China"],
+    ["852", "HK", "Hong Kong"],
+    ["853", "MO", "Macau"],
+    ["886", "TW", "Taiwan"],
+    ["66", "TH", "Thailand"],
+    ["84", "VN", "Vietnam"],
+    ["63", "PH", "Philippines"],
+    ["91", "IN", "India"],
+    ["94", "LK", "Sri Lanka"],
+    ["977", "NP", "Nepal"],
+    ["855", "KH", "Cambodia"],
+    ["856", "LA", "Laos"],
+    ["95", "MM", "Myanmar"],
+    ["673", "BN", "Brunei"],
+    ["971", "AE", "United Arab Emirates"],
+    ["966", "SA", "Saudi Arabia"],
+    ["974", "QA", "Qatar"],
+    ["965", "KW", "Kuwait"],
+    ["972", "IL", "Israel"],
+    ["27", "ZA", "South Africa"],
+    ["20", "EG", "Egypt"],
+    ["55", "BR", "Brazil"],
+    ["52", "MX", "Mexico"],
+    ["54", "AR", "Argentina"],
+    ["56", "CL", "Chile"],
+  ].map(([code, iso, name]) => ({ code, iso, name }));
+
+  function dialLabel(entry) {
+    return `+${entry.code} ${entry.iso}`;
+  }
+
+  function parseTypedDial(value) {
+    const raw = String(value || "").trim();
+    const digits = raw.replace(/[^\d]/g, "");
+    const query = raw.toLowerCase().replace(/^\+/, "");
+    if (!raw) return null;
+    const matches = DIAL_CODES.filter((entry) => {
+      const hay = `${entry.code} ${entry.iso} ${entry.name} +${entry.code}`.toLowerCase();
+      return hay.includes(query) || entry.code.startsWith(digits);
+    });
+    if (matches.length === 1) return matches[0];
+    const exact = DIAL_CODES.find(
+      (entry) =>
+        entry.code === digits ||
+        entry.iso.toLowerCase() === query ||
+        entry.name.toLowerCase() === query
+    );
+    if (exact) return exact;
+    if (/^\+?\d{1,4}$/.test(raw.replace(/\s/g, "")) && digits) {
+      return { code: digits, iso: "", name: "Custom" };
+    }
+    return matches[0] || null;
+  }
+
+  function initDialCombobox() {
+    const hidden = document.getElementById("contact-dial");
+    const input = document.getElementById("contact-dial-search");
+    const list = document.getElementById("contact-dial-list");
+    if (!hidden || !input || !list || input.dataset.bound) return;
+    input.dataset.bound = "1";
+
+    let highlight = 0;
+    let open = false;
+    let results = DIAL_CODES.slice();
+
+    const currentEntry = () =>
+      DIAL_CODES.find((entry) => entry.code === hidden.value) || {
+        code: hidden.value || "62",
+        iso: "",
+        name: "Custom",
+      };
+
+    function setDial(entry, closeList) {
+      if (!entry || !entry.code) return;
+      hidden.value = entry.code;
+      input.value = entry.iso ? dialLabel(entry) : `+${entry.code}`;
+      hidden.dispatchEvent(new Event("change", { bubbles: true }));
+      if (closeList) hideList();
+    }
+
+    function filtered() {
+      const q = input.value.trim().toLowerCase().replace(/^\+/, "");
+      const digits = q.replace(/[^\d]/g, "");
+      if (!q) return DIAL_CODES.slice();
+      return DIAL_CODES.filter((entry) => {
+        const hay = `${entry.code} ${entry.iso} ${entry.name} +${entry.code}`.toLowerCase();
+        return hay.includes(q) || (digits && entry.code.startsWith(digits));
+      });
+    }
+
+    function renderList() {
+      results = filtered();
+      const typed = input.value.trim();
+      const typedDigits = typed.replace(/[^\d]/g, "");
+      const custom =
+        typedDigits &&
+        !results.some((entry) => entry.code === typedDigits)
+          ? [{ code: typedDigits, iso: "", name: `Use +${typedDigits}` }]
+          : [];
+      const rows = results.concat(custom);
+      highlight = Math.min(highlight, Math.max(0, rows.length - 1));
+      list.innerHTML = rows
+        .map(
+          (entry, i) =>
+            `<li role="option" data-code="${entry.code}" data-iso="${entry.iso}" class="${
+              i === highlight ? "is-active" : ""
+            }">${entry.iso ? dialLabel(entry) + " · " + entry.name : entry.name}</li>`
+        )
+        .join("");
+      list.querySelectorAll("li").forEach((li, i) => {
+        li.addEventListener("mousedown", (e) => {
+          e.preventDefault();
+          setDial({ code: li.dataset.code, iso: li.dataset.iso, name: "" }, true);
+        });
+        li.addEventListener("mouseenter", () => {
+          highlight = i;
+          list.querySelectorAll("li").forEach((item, idx) => {
+            item.classList.toggle("is-active", idx === highlight);
+          });
+        });
+      });
+    }
+
+    function showList() {
+      open = true;
+      list.hidden = false;
+      input.setAttribute("aria-expanded", "true");
+      renderList();
+    }
+
+    function hideList() {
+      open = false;
+      list.hidden = true;
+      input.setAttribute("aria-expanded", "false");
+    }
+
+    input.value = dialLabel(currentEntry());
+    input.addEventListener("focus", showList);
+    input.addEventListener("click", showList);
+    input.addEventListener("input", () => {
+      highlight = 0;
+      showList();
+    });
+    input.addEventListener("blur", () => {
+      window.setTimeout(() => {
+        const picked = parseTypedDial(input.value) || currentEntry();
+        setDial(picked, true);
+      }, 120);
+    });
+    input.addEventListener("keydown", (e) => {
+      const items = list.querySelectorAll("li");
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (!open) showList();
+        highlight = Math.min(highlight + 1, items.length - 1);
+        renderList();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        highlight = Math.max(highlight - 1, 0);
+        renderList();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const li = items[highlight];
+        if (li) setDial({ code: li.dataset.code, iso: li.dataset.iso, name: "" }, true);
+        else setDial(parseTypedDial(input.value) || currentEntry(), true);
+      } else if (e.key === "Escape") {
+        hideList();
+        input.blur();
+      }
+    });
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".dial-combobox")) hideList();
+    });
+  }
+
   window.TinyContact = {
     readContact,
     validateContact,
     markContactValidity,
     normalizePhone,
+    initDialCombobox,
   };
+
+  function bootDial() {
+    initDialCombobox();
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", bootDial);
+  } else {
+    bootDial();
+  }
   window.TinySubmit = {
     submitRequest,
     compressImage,

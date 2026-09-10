@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../cakes/css/styles.css?v=20260831f">
-  <link rel="stylesheet" href="css/styles.css?v=20260910a">
+  <link rel="stylesheet" href="css/styles.css?v=20260910b">
   <link rel="stylesheet" href="../../shared/chrome.css?v=20260826f">
   <script src="../../shared/analytics.js?v=20260905a"></script>
 </head>
@@ -105,23 +105,11 @@
           <div class="field">
             <label class="field__label" for="contact-phone">WhatsApp number</label>
             <div class="phone-split">
-              <select id="contact-dial" name="contact-dial" aria-label="Country code">
-                <option value="62" selected>+62 ID</option>
-                <option value="61">+61 AU</option>
-                <option value="65">+65 SG</option>
-                <option value="60">+60 MY</option>
-                <option value="1">+1 US/CA</option>
-                <option value="44">+44 UK</option>
-                <option value="64">+64 NZ</option>
-                <option value="81">+81 JP</option>
-                <option value="82">+82 KR</option>
-                <option value="86">+86 CN</option>
-                <option value="852">+852 HK</option>
-                <option value="33">+33 FR</option>
-                <option value="49">+49 DE</option>
-                <option value="31">+31 NL</option>
-                <option value="971">+971 AE</option>
-              </select>
+              <div class="dial-combobox">
+                <input type="hidden" id="contact-dial" name="contact-dial" value="62">
+                <input type="text" id="contact-dial-search" class="dial-combobox__input" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="contact-dial-list" aria-label="Country code" autocomplete="off" spellcheck="false" placeholder="+62 ID">
+                <ul class="dial-combobox__list" id="contact-dial-list" role="listbox" hidden></ul>
+              </div>
               <input type="tel" id="contact-phone" name="contact-phone" inputmode="tel" autocomplete="tel" placeholder="81234567890">
             </div>
           </div>
@@ -227,14 +215,14 @@
 
           <div class="form-row">
             <div class="field">
-              <span class="field__label" id="sponge-label">Sponge <span class="field__label-note">(choose up to 2)</span></span>
+              <span class="field__label" id="sponge-label">Sponge <span class="field__label-note">(up to 2 flavours total)</span></span>
               <div class="option-col" id="sponge-options" role="group" aria-labelledby="sponge-label"></div>
               <span class="field__hint" id="sponge-hint">Select one or two flavours for your cake layers.</span>
             </div>
             <div class="field" id="sugar-sponge-field">
-              <span class="field__label" id="sugar-sponge-label">Sugar added sponge</span>
+              <span class="field__label" id="sugar-sponge-label">Sugar added sponge <span class="field__label-note">(counts toward 2)</span></span>
               <div class="option-col" id="sugar-sponge-options" role="group" aria-labelledby="sugar-sponge-label"></div>
-              <span class="field__hint field__hint--soft">Optional — if you’d like a sugar-added layer.</span>
+              <span class="field__hint field__hint--soft">Mix with a no-sugar sponge, or pick two sugar-added flavours.</span>
             </div>
           </div>
 
@@ -429,7 +417,7 @@
 
   <script src="../../shared/chrome.js?v=20260826d" defer></script>
   <script src="../../shared/supabase-config.js?v=20260910a" defer></script>
-  <script src="../../shared/submit-request.js?v=20260910a" defer></script>
-  <script src="js/main.js?v=20260910c" defer></script
+  <script src="../../shared/submit-request.js?v=20260910b" defer></script>
+  <script src="js/main.js?v=20260910d" defer></script>
 </body>
 </html>

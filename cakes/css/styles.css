@@ -672,8 +672,45 @@ h3 {
 
 .phone-split {
   display: grid;
-  grid-template-columns: 118px 1fr;
+  grid-template-columns: minmax(132px, 168px) 1fr;
   gap: 8px;
+}
+
+.dial-combobox {
+  position: relative;
+}
+
+.dial-combobox__input {
+  width: 100%;
+}
+
+.dial-combobox__list {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  width: min(280px, 70vw);
+  max-height: 240px;
+  overflow: auto;
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+  background: var(--white);
+  color: var(--deep);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 6px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+}
+
+.dial-combobox__list li {
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.dial-combobox__list li.is-active,
+.dial-combobox__list li:hover {
+  background: rgba(61, 79, 69, 0.1);
 }
 
 .field.is-invalid input,
