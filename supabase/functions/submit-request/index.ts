@@ -10,7 +10,7 @@ const ALLOWED_ORIGINS = [
   "http://localhost:8765",
 ];
 
-const ALLOWED_SOURCES = new Set(["party_builder", "cake", "pdf_quote"]);
+const ALLOWED_SOURCES = new Set(["party_builder", "cake", "pdf_quote", "reservation"]);
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+[1-9][0-9]{7,14}$/;
 const MAX_FILE = 8 * 1024 * 1024;
@@ -175,6 +175,34 @@ Deno.serve(async (req) => {
       return json({ ok: false, error: "Please choose a cake size and date." }, 400, origin);
     }
   }
+  if (source === "reservation") {
+    const reservation = (payload as { reservation?: Record<string, unknown> }).reservation || {};
+    const party = (payload as { party?: Record<string, unknown> }).party || {};
+    const tableIds = Array.isArray(reservation.tableIds) ? reservation.tableIds : [];
+    if (!asString(party.date) || !asString(party.time) || !asString(reservation.name) || !tableIds.length) {
+      return json({ ok: false, error: "Please complete the reservation details." }, 400, origin);
+    }
+    const { data: clashes } = await supabase
+      .from("requests")
+      .select("id, payload")
+      .eq("source", "reservation")
+      .eq("party_date", asString(party.date))
+      .eq("party_time", asString(party.time))
+      .not("status", "in", "(cancelled,rejected,closed)");
+    const wanted = new Set(tableIds.map((id) => String(id)));
+    const taken = (clashes || []).some((row) => {
+      const held =
+        ((row.payload as { reservation?: { tableIds?: unknown[] } })?.reservation?.tableIds) || [];
+      return held.some((id) => wanted.has(String(id)));
+    });
+    if (taken) {
+      return json(
+        { ok: false, error: "That table is already held at this time. Please pick another." },
+        409,
+        origin
+      );
+    }
+  }
 
   const fileParts: { key: string; file: File }[] = [];
   for (const key of ["quotePdf", "backdrop", "cakePhoto", "print_left", "print_center", "print_right"]) {
@@ -209,8 +237,11 @@ Deno.serve(async (req) => {
   const quote = (payload as { quote?: Record<string, number> }).quote || {};
   const party = (payload as { party?: Record<string, unknown> }).party || {};
   const pkg = (payload as { package?: Record<string, unknown> }).package || {};
+  const reservation = (payload as { reservation?: Record<string, unknown> }).reservation || {};
   const id = crypto.randomUUID();
-  const publicCode = publicCodeFromId(id);
+  const publicCode = source === "reservation"
+    ? `THFC-${id.replace(/-/g, "").slice(0, 4).toUpperCase()}`
+    : publicCodeFromId(id);
   const total = Number(quote.total || 0);
   const row = {
     id,
@@ -219,15 +250,18 @@ Deno.serve(async (req) => {
     idempotency_key: idempotencyKey,
     email,
     phone,
+    contact_name: emptyToNull(asString(reservation.name) || asString(party.childName)),
     party_date: emptyToNull(asString(party.date)),
     party_time: emptyToNull(asString(party.time)),
     child_name: emptyToNull(asString(party.childName)),
     child_age: emptyToNull(asString(party.childAge)),
-    package_id: emptyToNull(asString(pkg.id)),
-    package_name: emptyToNull(asString(pkg.name)),
+    package_id: emptyToNull(asString(pkg.id) || asString(reservation.area)),
+    package_name: emptyToNull(asString(pkg.name) || asString(reservation.tableLabel)),
     day_type: emptyToNull(asString(party.day)),
     guest_kids: Number.isFinite(Number(party.guestKids)) ? Number(party.guestKids) : null,
-    guest_adults: Number.isFinite(Number(party.guestAdults)) ? Number(party.guestAdults) : null,
+    guest_adults: Number.isFinite(Number(party.guestAdults || reservation.guests))
+      ? Number(party.guestAdults || reservation.guests)
+      : null,
     quote_subtotal_idr: Number(quote.subtotal || 0),
     quote_service_idr: Number(quote.service || 0),
     quote_tax_idr: Number(quote.tax || 0),

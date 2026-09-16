@@ -11,6 +11,7 @@ After Pages is enabled (see below):
 - [Birthday landing](https://gm298.github.io/Birthdaybuilder/birthdays/)
 - [Party builder](https://gm298.github.io/Birthdaybuilder/birthdays/builder/)
 - [Build a cake](https://gm298.github.io/Birthdaybuilder/cakes/)
+- [Reserve a table](https://gm298.github.io/Birthdaybuilder/reserve/)
 
 ### Enable GitHub Pages (one-time)
 
@@ -32,6 +33,7 @@ Then open:
 - http://127.0.0.1:8777/birthdays/
 - http://127.0.0.1:8777/birthdays/builder/
 - http://127.0.0.1:8777/cakes/
+- http://127.0.0.1:8777/reserve/
 - http://127.0.0.1:8777/staff/ (staff inbox — login required)
 
 ## Request inbox (Supabase)
@@ -57,6 +59,12 @@ values ('USER_UUID_HERE', 'Tiny bookings');
 
 4. Open `/staff/` and sign in.
 
+## WordPress (Hostinger)
+
+A plugin in [`wordpress/tiny-birthdays/`](wordpress/tiny-birthdays/) lets you edit the landing (and cake hero copy) in the WordPress block editor without changing the cafe theme or the Supabase backend. Install notes: [`wordpress/tiny-birthdays/INSTALL.md`](wordpress/tiny-birthdays/INSTALL.md).
+
+Static GitHub Pages preview above is unchanged.
+
 ## Structure
 
 | Path | Purpose |
@@ -64,6 +72,8 @@ values ('USER_UUID_HERE', 'Tiny bookings');
 | `birthdays/` | Landing page |
 | `birthdays/builder/` | All-in-one party builder |
 | `cakes/` | Standalone cake builder & gallery |
+| `reserve/` | Table reservation wizard (saves to Supabase + WhatsApp) |
 | `staff/` | Private request inbox (Supabase Auth) |
 | `shared/` | Chrome, analytics, Supabase client helpers |
 | `supabase/` | Migrations + Edge Function `submit-request` |
+| `wordpress/tiny-birthdays/` | WordPress plugin (block editor + same builders) |

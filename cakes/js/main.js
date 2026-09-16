@@ -87,9 +87,18 @@
       .replace(/"/g, "&quot;");
   }
 
+  function cakeSrc(src) {
+    if (!src) return "";
+    if (/^https?:\/\//i.test(src) || src.startsWith("data:")) return src;
+    const base = window.TINY_WP && window.TINY_WP.cakesAssetBase;
+    if (base) return base.replace(/\/?$/, "/") + String(src).replace(/^\.\//, "");
+    return src;
+  }
+
   function normalizeData(raw) {
     return {
       ...raw,
+      cakes: (raw.cakes || []).map((c) => ({ ...c, src: cakeSrc(c.src) })),
       sponges: SPONGES_ALL.slice(),
       sugarSponges: (raw.sugarSponges || SUGAR_SPONGES).slice(),
       addons: raw.addons || ["Gluten-free", "No added sugar"],
@@ -777,7 +786,8 @@
   async function loadData() {
     if (location.protocol === "file:") return normalizeData(DEFAULT_DATA);
     try {
-      const res = await fetch("data/cakes.json");
+      const url = (window.TINY_WP && window.TINY_WP.cakesJson) || "data/cakes.json";
+      const res = await fetch(url);
       if (res.ok) return normalizeData(await res.json());
     } catch (_) {
       /* fallback */

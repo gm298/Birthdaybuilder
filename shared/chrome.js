@@ -4,12 +4,20 @@
   const WA_TASTING =
     "https://wa.me/6282147830142?text=" +
     encodeURIComponent("Hi Tiny! I'd like to book a free cake tasting.");
+  const WA_CONTACT = "https://wa.me/6282266484226";
+  const CAFE = {
+    home: "https://tinyhealthycafe.com/",
+    about: "https://tinyhealthycafe.com/about-us/",
+    shop: "https://esborder.qs.esb.co.id/TYKB/THFC/mode",
+    events: "https://tinyhealthycafe.com/events/",
+  };
 
   const PATHS = {
     landing: {
       birthdays: "./",
       cakes: "../cakes/",
       builder: "./builder/",
+      reserve: "../reserve/",
       logoDark: "img/logo-dark.png",
       logoLight: "img/logo-light.png",
     },
@@ -17,6 +25,7 @@
       birthdays: "../",
       cakes: "../../cakes/",
       builder: "./",
+      reserve: "../../reserve/",
       logoDark: "../img/logo-dark.png",
       logoLight: "../img/logo-light.png",
     },
@@ -24,10 +33,34 @@
       birthdays: "../birthdays/",
       cakes: "./",
       builder: "../birthdays/builder/",
+      reserve: "../reserve/",
+      logoDark: "img/logo-dark.png",
+      logoLight: "img/logo-light.png",
+    },
+    reserve: {
+      birthdays: "../birthdays/",
+      cakes: "../cakes/",
+      builder: "../birthdays/builder/",
+      reserve: "./",
       logoDark: "img/logo-dark.png",
       logoLight: "img/logo-light.png",
     },
   };
+
+  if (window.TINY_WP && window.TINY_WP.birthdaysUrl) {
+    const sharedPaths = {
+      birthdays: window.TINY_WP.birthdaysUrl,
+      cakes: window.TINY_WP.cakesUrl,
+      builder: window.TINY_WP.builderUrl,
+      reserve: window.TINY_WP.reserveUrl || "/reserve/",
+      logoDark: window.TINY_WP.logoDark,
+      logoLight: window.TINY_WP.logoLight,
+    };
+    PATHS.landing = sharedPaths;
+    PATHS.builder = sharedPaths;
+    PATHS.cakes = sharedPaths;
+    PATHS.reserve = sharedPaths;
+  }
 
   const ICON_WA =
     '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.435 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>';
@@ -40,20 +73,45 @@
     return page === key ? " is-current" : "";
   }
 
+  function birthdayOpen(page) {
+    return page === "landing" || page === "builder" || page === "cakes";
+  }
+
+  function ctaHtml(page, p) {
+    if (page === "reserve") {
+      return `
+      <span class="site-header__caption">Tables · 8:30–18:00</span>
+      <a class="btn" href="#book">Reserve</a>`;
+    }
+    return `
+      <span class="site-header__caption">Free tasting · no deposit</span>
+      <a class="btn" href="${WA_TASTING}" target="_blank" rel="noopener noreferrer" data-wa="header_tasting">Book a free cake tasting</a>`;
+  }
+
   function headerHtml(page, p) {
+    const birthdayClass = birthdayOpen(page) ? " is-current" : "";
     return `
     <header class="site-header" id="top">
-      <a class="site-header__logo" href="https://tinyhealthycafe.com/" aria-label="Tiny Healthy Cafe home">
+      <a class="site-header__logo" href="${CAFE.home}" aria-label="Tiny Healthy Cafe home">
         <img src="${p.logoDark}" alt="Tiny" height="48">
       </a>
-      <nav class="site-nav" aria-label="Site">
-        <a class="${current(page, "landing").trim()}" href="${p.birthdays}">About Birthdays</a>
-        <a class="${current(page, "cakes").trim()}" href="${p.cakes}">Build a Cake</a>
-        <a class="${current(page, "builder").trim()}" href="${p.builder}">Build your party</a>
+      <nav class="site-nav" aria-label="Header menu">
+        <a href="${CAFE.home}">Home</a>
+        <a href="${CAFE.about}">About Us</a>
+        <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
+        <a href="${CAFE.shop}">Shop Online</a>
+        <a href="${CAFE.events}">Event Calendar</a>
+        <div class="nav-drop">
+          <a class="nav-drop__toggle${birthdayClass}" href="${p.birthdays}" aria-haspopup="true" aria-expanded="false">Birthdays</a>
+          <div class="nav-drop__menu" role="menu">
+            <a role="menuitem" class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
+            <a role="menuitem" class="${current(page, "cakes").trim()}" href="${p.cakes}">Cake Builder</a>
+          </div>
+        </div>
+        <a href="${WA_CONTACT}">Contact us!</a>
       </nav>
       <div class="site-header__cta">
-        <span class="site-header__caption">Free tasting · no deposit</span>
-        <a class="btn" href="${WA_TASTING}" target="_blank" rel="noopener noreferrer" data-wa="header_tasting">Book a free cake tasting</a>
+        ${ctaHtml(page, p)}
       </div>
       <button class="menu-toggle" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="nav-drawer">
         <span class="menu-toggle__bars" aria-hidden="true"></span>
@@ -62,10 +120,20 @@
     <div class="nav-drawer" id="nav-drawer" aria-hidden="true">
       <div class="nav-drawer__panel" role="dialog" aria-label="Navigation">
         <button class="nav-drawer__close" type="button" aria-label="Close menu">&times;</button>
-        <a class="${current(page, "landing").trim()}" href="${p.birthdays}">About Birthdays</a>
-        <a class="${current(page, "cakes").trim()}" href="${p.cakes}">Build a Cake</a>
-        <a class="${current(page, "builder").trim()}" href="${p.builder}">Build your party</a>
-        <a href="${WA_TASTING}" target="_blank" rel="noopener noreferrer" data-wa="drawer_tasting">Book a free cake tasting</a>
+        <a href="${CAFE.home}">Home</a>
+        <a href="${CAFE.about}">About Us</a>
+        <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
+        <a href="${CAFE.shop}">Shop Online</a>
+        <a href="${CAFE.events}">Event Calendar</a>
+        <a class="${current(page, "landing").trim()}" href="${p.birthdays}">Birthdays</a>
+        <a class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
+        <a class="${current(page, "cakes").trim()}" href="${p.cakes}">Cake Builder</a>
+        <a href="${WA_CONTACT}">Contact us!</a>
+        ${
+          page === "reserve"
+            ? `<a href="#book">Reserve a table</a>`
+            : `<a href="${WA_TASTING}" target="_blank" rel="noopener noreferrer" data-wa="drawer_tasting">Book a free cake tasting</a>`
+        }
       </div>
     </div>`;
   }
@@ -77,15 +145,18 @@
         <img src="${p.logoLight}" alt="Tiny" height="48">
         <span>Tiny Healthy Cafe · Berawa, Bali, Indonesia</span>
       </div>
-      <nav class="site-footer__pages" aria-label="Site pages">
-        <a class="${current(page, "landing").trim()}" href="${p.birthdays}">About Birthdays</a>
-        <a class="${current(page, "cakes").trim()}" href="${p.cakes}">Build a Cake</a>
-        <a class="${current(page, "builder").trim()}" href="${p.builder}">Build your party</a>
+      <nav class="site-footer__pages" aria-label="Footer menu">
+        <a href="${CAFE.home}">Home</a>
+        <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
+        <a class="${current(page, "landing").trim()}" href="${p.birthdays}">Birthdays</a>
+        <a class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
+        <a class="${current(page, "cakes").trim()}" href="${p.cakes}">Cake Builder</a>
+        <a href="${CAFE.events}">Events</a>
       </nav>
       <div class="site-footer__links">
-        <a class="footer-link" href="https://wa.me/6282147830142" target="_blank" rel="noopener noreferrer" data-wa="footer_whatsapp" aria-label="WhatsApp +62 821 4783 0142">
+        <a class="footer-link" href="${WA_CONTACT}" target="_blank" rel="noopener noreferrer" data-wa="footer_whatsapp" aria-label="WhatsApp +62 822 6648 4226">
           <span class="footer-link__icon">${ICON_WA}</span>
-          <span class="footer-link__label">+62 821 4783 0142</span>
+          <span class="footer-link__label">+62 822 6648 4226</span>
         </a>
         <a class="footer-link" href="https://www.instagram.com/tiny.cafe.bali/" target="_blank" rel="noopener noreferrer" aria-label="Instagram @tiny.cafe.bali">
           <span class="footer-link__icon">${ICON_IG}</span>
@@ -95,7 +166,6 @@
           <span class="footer-link__icon">${ICON_MAP}</span>
           <span class="footer-link__label">Berawa, Bali</span>
         </a>
-        <span class="footer-phone">+62 821 4783 0142</span>
       </div>
     </footer>`;
   }
@@ -120,6 +190,27 @@
     if (!document.querySelector(".lightbox.is-open")) {
       document.body.style.overflow = "";
     }
+  }
+
+  function initDropdown() {
+    document.querySelectorAll(".nav-drop").forEach((drop) => {
+      const toggle = drop.querySelector(".nav-drop__toggle");
+      if (!toggle) return;
+      const setOpen = (open) => {
+        drop.classList.toggle("is-open", open);
+        toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      };
+      drop.addEventListener("mouseenter", () => setOpen(true));
+      drop.addEventListener("mouseleave", () => setOpen(false));
+      toggle.addEventListener("click", (event) => {
+        if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+        event.preventDefault();
+        setOpen(!drop.classList.contains("is-open"));
+      });
+      document.addEventListener("click", (event) => {
+        if (!drop.contains(event.target)) setOpen(false);
+      });
+    });
   }
 
   function initDrawer() {
@@ -166,5 +257,6 @@
       if (header) new ResizeObserver(syncHeaderH).observe(header);
     }
     initDrawer();
+    initDropdown();
   });
 })();

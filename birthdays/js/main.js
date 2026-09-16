@@ -128,6 +128,9 @@
   };
 
   function packageBuilderUrl(pkg) {
+    if (window.TINY_WP && window.TINY_WP.builderUrl) {
+      return `${String(window.TINY_WP.builderUrl).replace(/\/?$/, "/")}?package=${encodeURIComponent(pkg.id)}`;
+    }
     return `builder/?package=${encodeURIComponent(pkg.id)}`;
   }
 
@@ -137,10 +140,23 @@
     const legal = document.getElementById("packages-legal");
     if (!grid || !compact) return;
 
+    if (grid.hasAttribute("data-wp-managed")) {
+      if (legal && legal.dataset.legalMobile) {
+        const isMobile = window.matchMedia("(max-width: 900px)").matches;
+        legal.textContent = isMobile && legal.dataset.legalMobile
+          ? legal.dataset.legalMobile
+          : legal.dataset.legal || legal.textContent;
+      }
+      initPackageAccordion(compact);
+      return;
+    }
+
     let data = DEFAULT_PACKAGES;
     if (location.protocol !== "file:") {
       try {
-        const res = await fetch("data/packages.json");
+        const packagesUrl =
+          (window.TINY_WP && window.TINY_WP.packagesJson) || "data/packages.json";
+        const res = await fetch(packagesUrl);
         if (res.ok) data = await res.json();
       } catch (_) {
         data = DEFAULT_PACKAGES;

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reserve a Table | Tiny Healthy Cafe</title>
+  <meta name="description" content="Book a table at Tiny Healthy Cafe in Berawa, Bali. Pick date, time and a table, then send the request on WhatsApp.">
+  <link rel="canonical" href="https://tinyhealthycafe.com/reserve/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css?v=20260916e">
+  <link rel="stylesheet" href="../shared/chrome.css?v=20260916a">
+</head>
+<body data-page="reserve">
+  <div id="site-chrome-header"></div>
+
+  <main>
+    <section class="hero" aria-label="Reserve a table">
+      <div class="hero__copy">
+        <div class="eyebrow">Tiny Healthy Cafe · Berawa, Bali</div>
+        <h1>Reserve a table</h1>
+        <p class="hero__sub">Choose a time, add your details, pick a table, then we’ll save it for Tiny and open WhatsApp to confirm.</p>
+      </div>
+    </section>
+
+    <section class="wizard" id="book">
+      <div class="wizard__top">
+        <h2>Reservation</h2>
+        <button class="wizard__cancel" type="button" id="wizard-cancel">Cancel</button>
+      </div>
+      <ol class="steps" aria-label="Reservation steps">
+        <li class="steps__item is-active" data-step-label="1">Schedule</li>
+        <li class="steps__item" data-step-label="2">Details</li>
+        <li class="steps__item" data-step-label="3">Table</li>
+        <li class="steps__item" data-step-label="4">Confirm</li>
+      </ol>
+
+      <form id="reserve-form" novalidate>
+        <div class="wizard-panel is-active" data-panel="1">
+          <div class="field">
+            <span class="field__label" id="guests-label">Select the number of guests</span>
+            <div class="stepper">
+              <button type="button" class="stepper__btn" id="guests-minus" aria-label="Fewer guests">−</button>
+              <input type="number" id="reserve-guests" name="guests" min="1" max="16" value="2" inputmode="numeric" aria-labelledby="guests-label">
+              <button type="button" class="stepper__btn" id="guests-plus" aria-label="More guests">+</button>
+            </div>
+          </div>
+          <div class="field">
+            <span class="field__label">Select reservation date</span>
+            <div class="date-chips" id="date-chips"></div>
+            <input type="date" id="reserve-date" name="date" required class="sr-date">
+          </div>
+          <div class="field">
+            <span class="field__label" id="time-label">Select reservation time</span>
+            <div class="time-grid" id="time-grid" role="group" aria-labelledby="time-label"></div>
+            <span class="field__hint">Open 8:30 to 18:00, every 30 minutes.</span>
+          </div>
+        </div>
+
+        <div class="wizard-panel" data-panel="2" hidden>
+          <h3 class="panel-title">Reservation details</h3>
+          <p class="field__hint">We’ll send the reservation to Tiny and to your WhatsApp.</p>
+          <div class="form-row form-row--name">
+            <div class="field">
+              <label class="field__label" for="reserve-salutation">Title</label>
+              <select id="reserve-salutation" name="salutation">
+                <option>Mr.</option>
+                <option>Mrs.</option>
+                <option>Ms.</option>
+                <option>Mx.</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field__label" for="reserve-name">Name</label>
+              <input type="text" id="reserve-name" name="name" autocomplete="name" required placeholder="Full name">
+            </div>
+          </div>
+          <div id="contact-fields">
+            <div class="field">
+              <label class="field__label" for="contact-email">Email</label>
+              <input type="email" id="contact-email" name="email" autocomplete="email" placeholder="Enter your email">
+            </div>
+            <div class="field">
+              <label class="field__label" for="contact-phone">WhatsApp number</label>
+              <input type="hidden" id="contact-dial" name="contact-dial" value="62">
+              <input type="tel" id="contact-phone" name="phone" inputmode="tel" autocomplete="tel" placeholder="812 3456 7890">
+            </div>
+          </div>
+          <div class="field">
+            <label class="field__label" for="reserve-purpose">Reservation purpose</label>
+            <select id="reserve-purpose" name="purpose">
+              <option value="">Select reservation purpose</option>
+              <option>Family meal</option>
+              <option>Friends</option>
+              <option>Reunion</option>
+              <option>Birthday</option>
+              <option>Business</option>
+              <option>Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label class="field__label" for="reserve-notes">Notes <span class="field__label-note">(optional)</span></label>
+            <textarea id="reserve-notes" name="notes" rows="3" maxlength="120" placeholder="High chair, pram, cake…"></textarea>
+            <span class="field__hint" id="notes-count">0 / 120</span>
+          </div>
+        </div>
+
+        <div class="wizard-panel" data-panel="3" hidden>
+          <div class="plan__head">
+            <div>
+              <h3 class="panel-title">Pick a table</h3>
+              <p class="field__hint">Tap a table. Grey tables are too small or already held at this time.</p>
+            </div>
+            <div class="plan__tabs" role="tablist" aria-label="Cafe area">
+              <button type="button" class="plan-tab is-active" role="tab" aria-selected="true" data-area="indoor">Indoor</button>
+              <button type="button" class="plan-tab" role="tab" aria-selected="false" data-area="terrace">Terrace</button>
+            </div>
+          </div>
+          <div class="plan__stage">
+            <div class="plan__canvas" id="floorplan" role="application" aria-label="Clickable table layout"></div>
+            <aside class="plan__side" aria-live="polite">
+              <div class="picked" id="picked">
+                <h3>No table yet</h3>
+                <p>Tap a table on the map.</p>
+              </div>
+              <dl class="picked__meta" id="picked-meta" hidden></dl>
+            </aside>
+          </div>
+        </div>
+
+        <div class="wizard-panel" data-panel="4" hidden>
+          <div class="summary-card" id="summary-card"></div>
+          <div class="notice">
+            <p>Make sure your reservation details are correct.</p>
+            <p>Please arrive as scheduled or no later than 15 minutes after the reservation time.</p>
+          </div>
+        </div>
+
+        <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+        <div class="wizard__nav">
+          <button class="btn btn--outline" type="button" id="wizard-back" hidden>Back</button>
+          <button class="btn" type="button" id="wizard-next">Continue</button>
+          <button class="btn" type="submit" id="wizard-submit" hidden>Confirm reservation</button>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <div id="site-chrome-footer"></div>
+
+  <script src="../shared/supabase-config.js?v=20260910a"></script>
+  <script src="../shared/submit-request.js?v=20260910b"></script>
+  <script src="../shared/chrome.js?v=20260916a" defer></script>
+  <script src="js/main.js?v=20260916e" defer></script>
+</body>
+</html>

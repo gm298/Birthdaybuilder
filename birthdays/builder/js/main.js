@@ -3,7 +3,8 @@
 
   const BUILDER_VERSION = "20260905a";
   const WA_BASE = "https://wa.me/6282147830142";
-  const CAKES_ASSET_BASE = "../../cakes/";
+  const CAKES_ASSET_BASE =
+    (window.TINY_WP && window.TINY_WP.cakesAssetBase) || "../../cakes/";
   const TERRACE_GUEST_MAX = 35;
   const BUILDER_FLOW = [
     { id: "intro", href: "#intro", nextLabel: "Continue", required: false },
@@ -23,6 +24,43 @@
   const SIMPLE_BUILDER_AGE_MAX = 7;
   const SIMPLE_BUILDER_PHOTO_FALLBACK = "img/decor/simple.jpg";
   const SIMPLE_BUILDER_PHOTO_VERSION = "20260831b";
+
+  function wpConfig() {
+    return window.TINY_WP || {};
+  }
+
+  function resolveBuilderAsset(path) {
+    if (!path) return path;
+    if (/^https?:\/\//i.test(path) || path.startsWith("data:") || path.startsWith("blob:")) {
+      return path;
+    }
+    const base = wpConfig().builderAssetBase;
+    if (!base) return path;
+    try {
+      return new URL(path, base).href;
+    } catch (_) {
+      return String(base).replace(/\/?$/, "/") + String(path).replace(/^\.\//, "");
+    }
+  }
+
+  function prefixImgStrings(node) {
+    if (!wpConfig().builderAssetBase || node == null) return node;
+    if (typeof node === "string") {
+      return /^(img\/|\.\/img\/)/.test(node) ? resolveBuilderAsset(node) : node;
+    }
+    if (Array.isArray(node)) {
+      node.forEach((item, i) => {
+        node[i] = prefixImgStrings(item);
+      });
+      return node;
+    }
+    if (typeof node === "object") {
+      Object.keys(node).forEach((key) => {
+        node[key] = prefixImgStrings(node[key]);
+      });
+    }
+    return node;
+  }
 
   const DEFAULT_PARTY = {
     packages: [
@@ -457,11 +495,13 @@
   }
 
   function simpleBuilderPhoto(age) {
-    if (age == null) return SIMPLE_BUILDER_PHOTO_FALLBACK;
+    if (age == null) return resolveBuilderAsset(SIMPLE_BUILDER_PHOTO_FALLBACK);
     if (age >= SIMPLE_BUILDER_AGE_MIN && age <= SIMPLE_BUILDER_AGE_MAX) {
-      return `img/backdrop/simple/simple-${age}.jpg?v=${SIMPLE_BUILDER_PHOTO_VERSION}`;
+      return resolveBuilderAsset(
+        `img/backdrop/simple/simple-${age}.jpg?v=${SIMPLE_BUILDER_PHOTO_VERSION}`
+      );
     }
-    return SIMPLE_BUILDER_PHOTO_FALLBACK;
+    return resolveBuilderAsset(SIMPLE_BUILDER_PHOTO_FALLBACK);
   }
 
   function backdropPhotoForConfig(cfg) {
@@ -1916,9 +1956,9 @@
     const guests = guestLabel();
     const theme = quotationThemeLabel();
     const dp = Math.round(q.total * 0.3);
-    const logoSrc = new URL("img/quote/logo-tiny.png?v=20260827logo", window.location.href).href;
-    const flowers1 = new URL("img/quote/flowers-page1.png", window.location.href).href;
-    const flowers2 = new URL("img/quote/flowers-page2.png", window.location.href).href;
+    const logoSrc = resolveBuilderAsset("img/quote/logo-tiny.png?v=20260827logo");
+    const flowers1 = resolveBuilderAsset("img/quote/flowers-page1.png");
+    const flowers2 = resolveBuilderAsset("img/quote/flowers-page2.png");
     const cakeTheme = document.getElementById("cake-theme")?.value.trim() || "";
     const cakeCaption =
       cakeImage?.source === "upload"
@@ -3860,9 +3900,15 @@
   }
 
   document.addEventListener("DOMContentLoaded", async () => {
-    partyData = await loadJson("data/party.json", DEFAULT_PARTY);
+    prefixImgStrings(DEFAULT_PARTY);
+    prefixImgStrings(TERRACE_BACKDROP);
+    prefixImgStrings(OPTIMAL_BACKDROP);
+    prefixImgStrings(BACKDROP_BY_PKG);
+    partyData = prefixImgStrings(
+      await loadJson(wpConfig().partyJson || "data/party.json", DEFAULT_PARTY)
+    );
     cakeData = normalizeCakes(
-      await loadJson("../../cakes/data/cakes.json", DEFAULT_CAKES)
+      await loadJson(wpConfig().cakesJson || "../../cakes/data/cakes.json", DEFAULT_CAKES)
     );
 
     const params = new URLSearchParams(window.location.search);
