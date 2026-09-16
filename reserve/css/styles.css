@@ -473,23 +473,58 @@ h3 {
   background: var(--white);
   border: 1px solid rgba(100, 124, 110, 0.18);
   border-radius: 10px;
-  overflow: auto;
-  min-height: 420px;
+  overflow: hidden;
+  min-height: 0;
 }
 
-.plan__canvas svg {
+.plan-map {
+  position: relative;
+  width: 100%;
+  background: var(--white);
+}
+
+.plan-map img {
   width: 100%;
   height: auto;
   display: block;
-  min-width: 720px;
+  object-fit: contain;
 }
 
 .table-hit {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: transparent;
   cursor: pointer;
+}
+
+.table-hit__note {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  font-family: var(--font-display), sans-serif;
+  font-size: clamp(9px, 1.3vw, 12px);
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #fff;
+  text-align: center;
+  line-height: 1.15;
+  pointer-events: none;
 }
 
 .table-hit:focus {
   outline: none;
+}
+
+.table-hit:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 2px;
 }
 
 .table-hit:focus-visible .table-glow,
@@ -1195,8 +1230,36 @@ h3 {
 }
 
 .table-hit.is-held {
-  opacity: 0.32;
-  pointer-events: none;
+  background: rgba(61, 79, 69, 0.55);
+  border-color: rgba(61, 79, 69, 0.8);
+  cursor: not-allowed;
+  opacity: 1;
+}
+
+.table-hit.is-selected {
+  background: rgba(100, 124, 110, 0.32);
+  border-color: var(--sage);
+}
+
+.table-hit:hover:not(:disabled):not(.is-held) {
+  background: rgba(100, 124, 110, 0.18);
+}
+
+.table-hit.is-small {
+  opacity: 0.22;
+  cursor: not-allowed;
+}
+
+.wizard .time-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+}
+
+.wizard .time-chip span {
+  font-size: 11px;
+  opacity: 0.7;
 }
 
 @media (max-width: 1100px) {
@@ -1260,8 +1323,8 @@ h3 {
     grid-template-columns: 1fr;
   }
 
-  .plan__canvas svg {
-    min-width: 640px;
+  .plan-map img {
+    min-width: 0;
   }
 
   .builder {

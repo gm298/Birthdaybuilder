@@ -11,6 +11,31 @@ const ALLOWED_ORIGINS = [
 ];
 
 const ALLOWED_SOURCES = new Set(["party_builder", "cake", "pdf_quote", "reservation"]);
+const SLOT_MINUTES = 120;
+const GRACE_MINUTES = 15;
+const BALI_OFFSET = "+08:00";
+
+function timeToMinutes(value: string) {
+  const slot = String(value || "").slice(0, 5);
+  const [hour, minute] = slot.split(":").map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  return hour * 60 + minute;
+}
+
+function slotsOverlap(a: string, b: string) {
+  const left = timeToMinutes(a);
+  const right = timeToMinutes(b);
+  if (left == null || right == null) return false;
+  return Math.abs(left - right) < SLOT_MINUTES;
+}
+
+function isReleasedNoShow(status: string | null | undefined, date: string, time: string) {
+  const kind = status || "new";
+  if (!["new", "contacted", "quoted"].includes(kind)) return false;
+  const start = new Date(`${date}T${String(time).slice(0, 5)}:00${BALI_OFFSET}`);
+  if (Number.isNaN(start.getTime())) return false;
+  return Date.now() > start.getTime() + GRACE_MINUTES * 60 * 1000;
+}
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_RE = /^\+[1-9][0-9]{7,14}$/;
 const MAX_FILE = 8 * 1024 * 1024;
@@ -182,22 +207,26 @@ Deno.serve(async (req) => {
     if (!asString(party.date) || !asString(party.time) || !asString(reservation.name) || !tableIds.length) {
       return json({ ok: false, error: "Please complete the reservation details." }, 400, origin);
     }
+    const wantedTime = asString(party.time);
+    const wantedDate = asString(party.date);
     const { data: clashes } = await supabase
       .from("requests")
-      .select("id, payload")
+      .select("id, status, party_time, payload")
       .eq("source", "reservation")
-      .eq("party_date", asString(party.date))
-      .eq("party_time", asString(party.time))
+      .eq("party_date", wantedDate)
       .not("status", "in", "(cancelled,rejected,closed)");
     const wanted = new Set(tableIds.map((id) => String(id)));
     const taken = (clashes || []).some((row) => {
+      const rowTime = asString(row.party_time);
+      if (!slotsOverlap(rowTime, wantedTime)) return false;
+      if (isReleasedNoShow(row.status as string, wantedDate, rowTime)) return false;
       const held =
         ((row.payload as { reservation?: { tableIds?: unknown[] } })?.reservation?.tableIds) || [];
       return held.some((id) => wanted.has(String(id)));
     });
     if (taken) {
       return json(
-        { ok: false, error: "That table is already held at this time. Please pick another." },
+        { ok: false, error: "That table is already reserved for this 2-hour slot. Please pick another." },
         409,
         origin
       );

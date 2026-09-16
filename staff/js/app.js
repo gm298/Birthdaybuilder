@@ -6,23 +6,22 @@ const TZ = "Asia/Makassar";
 const BIRTHDAY_SOURCES = ["party_builder", "cake", "pdf_quote"];
 const RES_STATUSES = ["new", "contacted", "quoted", "booked", "cancelled", "rejected", "closed"];
 const BIRTHDAY_STATUSES = ["new", "contacted", "quoted", "booked", "closed"];
+const REQUEST_SELECT =
+  "id, created_at, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload";
 
 const loginCard = document.getElementById("login-card");
 const app = document.getElementById("app");
 const signOutBtn = document.getElementById("sign-out");
-const inboxBody = document.getElementById("inbox-body");
-const listView = document.getElementById("list-view");
 const detailView = document.getElementById("detail-view");
-const listStatus = document.getElementById("list-status");
+const inboxViews = document.getElementById("inbox-views");
 const loginStatus = document.getElementById("login-status");
-const reservationsView = document.getElementById("reservations-view");
-const birthdaysView = document.getElementById("birthdays-view");
-const resNav = document.getElementById("res-nav");
+const viewNav = document.getElementById("view-nav");
 const pageTitle = document.getElementById("page-title");
 
 const state = {
   reservations: [],
   birthdays: [],
+  section: "reservations",
   selectedDate: todayIso(),
   calendarMonth: todayIso().slice(0, 7),
 };
@@ -87,13 +86,48 @@ function sourceLabel(source) {
   return source || "—";
 }
 
-function reservationName(row) {
-  return (
-    row.contact_name ||
-    row.payload?.reservation?.name ||
-    row.child_name ||
-    "Guest"
-  );
+function isBirthdaySection() {
+  return state.section === "birthdays";
+}
+
+function currentRows() {
+  return isBirthdaySection() ? state.birthdays : state.reservations;
+}
+
+function rowsOnDate(iso) {
+  return currentRows().filter((row) => row.party_date === iso);
+}
+
+function undatedRows() {
+  if (!isBirthdaySection()) return [];
+  return state.birthdays.filter((row) => !row.party_date);
+}
+
+function displayName(row) {
+  if (isBirthdaySection() || BIRTHDAY_SOURCES.includes(row.source)) {
+    return row.child_name || row.contact_name || "Guest";
+  }
+  return row.contact_name || row.payload?.reservation?.name || row.child_name || "Guest";
+}
+
+function displayGuests(row) {
+  if (isBirthdaySection() || BIRTHDAY_SOURCES.includes(row.source)) {
+    return (
+      [row.guest_kids ? `${row.guest_kids} kids` : "", row.guest_adults ? `${row.guest_adults} adults` : ""]
+        .filter(Boolean)
+        .join(" · ") || "—"
+    );
+  }
+  return `${row.guest_adults || row.payload?.reservation?.guests || "—"} pax`;
+}
+
+function displaySubtitle(row) {
+  if (isBirthdaySection() || BIRTHDAY_SOURCES.includes(row.source)) {
+    const pkg = row.package_name || (row.source === "cake" ? "Cake only" : "Package TBC");
+    const total = row.quote_total_idr ? ` · ${formatIdr(row.quote_total_idr)}` : "";
+    return `${sourceLabel(row.source)} · ${pkg}${total}`;
+  }
+  return tableText(row);
 }
 
 function reservationStatusLabel(status) {
@@ -105,11 +139,136 @@ function reservationStatusLabel(status) {
   return status || "—";
 }
 
-function statusClass(status) {
+function baliNowParts() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const grab = (type) => parts.find((part) => part.type === type).value;
+  return {
+    date: `${grab("year")}-${grab("month")}-${grab("day")}`,
+    minutes: Number(grab("hour")) * 60 + Number(grab("minute")),
+  };
+}
+
+function slotRange(row) {
+  const time = timeLabel(row.party_time);
+  return window.TinyReserveMap?.timeRangeLabel?.(time) || time;
+}
+
+function arriveBy(row) {
+  const time = timeLabel(row.party_time);
+  return window.TinyReserveMap?.graceLabel?.(time) || time;
+}
+
+function tableText(row) {
+  return row.payload?.reservation?.tableLabel || row.package_name || "Table TBC";
+}
+
+function isNoShowExpired(row) {
+  if (!["new", "contacted", "quoted"].includes(row.status)) return false;
+  if (!row.party_date || !row.party_time) return false;
+  const now = baliNowParts();
+  const start = window.TinyReserveMap?.timeToMinutes?.(row.party_time);
+  const grace = window.TinyReserveMap?.GRACE_MINUTES || 15;
+  if (start == null) return false;
+  if (row.party_date < now.date) return true;
+  if (row.party_date > now.date) return false;
+  return now.minutes >= start + grace;
+}
+
+async function expireNoShows() {
+  const expired = state.reservations.filter(isNoShowExpired);
+  if (!expired.length) return;
+  const { data: sessionData } = await supabase.auth.getSession();
+  const uid = sessionData.session?.user?.id || null;
+  const nowIso = new Date().toISOString();
+  await Promise.all(
+    expired.map((row) =>
+      supabase
+        .from("requests")
+        .update({
+          status: "cancelled",
+          status_changed_at: nowIso,
+          status_changed_by: uid,
+        })
+        .eq("id", row.id)
+        .in("status", ["new", "contacted", "quoted"])
+    )
+  );
+  expired.forEach((row) => {
+    row.status = "cancelled";
+  });
+}
+
+function dayTableIds(rows) {
+  const ids = new Set();
+  rows.forEach((row) => {
+    if (["cancelled", "rejected", "closed"].includes(row.status)) return;
+    (row.payload?.reservation?.tableIds || []).forEach((id) => ids.add(String(id)));
+  });
+  return [...ids];
+}
+
+function renderDayPlans(rows) {
+  const host = document.getElementById("staff-day-plans");
+  if (!host || !window.TinyReserveMap) return;
+  const selected = dayTableIds(rows);
+  host.innerHTML = `
+    <div>
+      <h3>Indoor</h3>
+      <div class="staff-plan" id="staff-plan-indoor"></div>
+    </div>
+    <div>
+      <h3>Terrace</h3>
+      <div class="staff-plan" id="staff-plan-terrace"></div>
+    </div>
+  `;
+  window.TinyReserveMap.renderMap(document.getElementById("staff-plan-indoor"), {
+    area: "indoor",
+    selected,
+    held: [],
+    guests: 1,
+    interactive: false,
+    base: "../reserve/img/",
+  });
+  window.TinyReserveMap.renderMap(document.getElementById("staff-plan-terrace"), {
+    area: "terrace",
+    selected,
+    held: [],
+    guests: 1,
+    interactive: false,
+    base: "../reserve/img/",
+  });
+}
+
+function birthdayStatusLabel(status) {
+  if (status === "booked") return "Confirmed";
+  if (status === "new") return "New booking";
+  if (status === "contacted") return "Contacted";
+  if (status === "quoted") return "Quoted";
+  if (status === "closed") return "Finished";
+  return status || "—";
+}
+
+function statusLabel(status, section = state.section) {
+  return section === "birthdays" ? birthdayStatusLabel(status) : reservationStatusLabel(status);
+}
+
+function statusClass(status, section = state.section) {
   if (status === "booked") return "booked";
   if (status === "cancelled") return "cancelled";
   if (status === "rejected") return "rejected";
   if (status === "closed") return "closed";
+  if (section === "birthdays") {
+    if (status === "contacted") return "contacted";
+    if (status === "quoted") return "quoted";
+  }
   return "new";
 }
 
@@ -117,10 +276,10 @@ function parseHash() {
   const hash = (location.hash || "").replace(/^#/, "");
   const request = hash.match(/request\/([0-9a-f-]{36})/i);
   if (request) return { section: "detail", id: request[1] };
-  if (hash.startsWith("/birthdays")) return { section: "birthdays" };
-  if (hash.includes("calendar")) return { section: "reservations", view: "calendar" };
-  if (hash.includes("timeline")) return { section: "reservations", view: "timeline" };
-  return { section: "reservations", view: "overview" };
+  const parts = hash.split("/").filter(Boolean);
+  const section = parts[0] === "birthdays" ? "birthdays" : "reservations";
+  const view = parts[1] === "calendar" || parts[1] === "timeline" ? parts[1] : "overview";
+  return { section, view };
 }
 
 async function requireStaff() {
@@ -151,10 +310,6 @@ function showApp(show) {
   signOutBtn.hidden = !show;
 }
 
-function reservationsOnDate(iso) {
-  return state.reservations.filter((row) => row.party_date === iso);
-}
-
 function countBy(rows, pred) {
   return rows.filter(pred).length;
 }
@@ -162,25 +317,22 @@ function countBy(rows, pred) {
 async function loadReservations() {
   const { data, error } = await supabase
     .from("requests")
-    .select(
-      "id, created_at, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, payload"
-    )
+    .select(REQUEST_SELECT)
     .eq("source", "reservation")
     .order("party_date", { ascending: true })
     .limit(500);
   if (error) throw error;
   state.reservations = data || [];
+  await expireNoShows();
 }
 
 async function loadBirthdays() {
   const { data, error } = await supabase
     .from("requests")
-    .select(
-      "id, created_at, source, status, public_code, email, phone, child_name, party_date, package_name, quote_total_idr"
-    )
+    .select(REQUEST_SELECT)
     .in("source", BIRTHDAY_SOURCES)
-    .order("created_at", { ascending: false })
-    .limit(100);
+    .order("party_date", { ascending: true })
+    .limit(500);
   if (error) throw error;
   state.birthdays = data || [];
 }
@@ -189,23 +341,31 @@ function renderNav(section, view) {
   document.querySelectorAll(".app-switch a").forEach((link) => {
     link.classList.toggle("is-active", link.dataset.section === section);
   });
-  if (resNav) resNav.hidden = section !== "reservations";
-  resNav?.querySelectorAll("a").forEach((link) => {
-    link.classList.toggle("is-active", link.dataset.view === view);
-  });
-  if (pageTitle) {
-    pageTitle.textContent =
-      section === "birthdays" ? "Birthday inbox" : "Reservations";
+  if (viewNav) {
+    viewNav.hidden = section === "detail";
+    viewNav.querySelectorAll("a").forEach((link) => {
+      const target = section === "detail" ? state.section : section;
+      link.href = `#/${target}/${link.dataset.view}`;
+      link.classList.toggle("is-active", link.dataset.view === view);
+    });
+  }
+  if (pageTitle && section !== "detail") {
+    pageTitle.textContent = section === "birthdays" ? "Birthdays" : "Reservations";
   }
 }
 
-function renderOverview() {
-  const dateInput = document.getElementById("res-date");
-  const label = document.getElementById("selected-date-label");
-  if (dateInput) dateInput.value = state.selectedDate;
-  if (label) label.textContent = formatLongDate(state.selectedDate);
-  const rows = reservationsOnDate(state.selectedDate);
-  const stats = [
+function overviewStats(rows) {
+  if (isBirthdaySection()) {
+    return [
+      ["booked", "Confirmed", countBy(rows, (r) => r.status === "booked")],
+      ["new", "New booking", countBy(rows, (r) => r.status === "new")],
+      ["contacted", "Contacted", countBy(rows, (r) => r.status === "contacted")],
+      ["quoted", "Quoted", countBy(rows, (r) => r.status === "quoted")],
+      ["closed", "Finished", countBy(rows, (r) => r.status === "closed")],
+      ["total", "Total booking", rows.length],
+    ];
+  }
+  return [
     ["booked", "Confirmed", countBy(rows, (r) => r.status === "booked")],
     ["new", "New booking", countBy(rows, (r) => ["new", "contacted", "quoted"].includes(r.status))],
     ["cancelled", "Cancelled", countBy(rows, (r) => r.status === "cancelled")],
@@ -213,38 +373,63 @@ function renderOverview() {
     ["closed", "Finished", countBy(rows, (r) => r.status === "closed")],
     ["total", "Total booking", rows.length],
   ];
+}
+
+function bookingCard(row) {
+  return `<button class="booking-card" type="button" data-id="${escapeHtml(row.id)}">
+    <div>
+      <div class="code">${escapeHtml(row.public_code)}</div>
+      <h3>${escapeHtml(displayName(row))}</h3>
+      <div class="muted">${escapeHtml(row.phone || row.email || "")}</div>
+    </div>
+    <div>
+      <span class="badge badge--${statusClass(row.status)}">${escapeHtml(statusLabel(row.status))}</span>
+      <div class="muted">${escapeHtml(displaySubtitle(row))}</div>
+    </div>
+    <div class="time">${escapeHtml(isBirthdaySection() || BIRTHDAY_SOURCES.includes(row.source) ? timeLabel(row.party_time) : slotRange(row))}
+      <div class="muted">${escapeHtml(displayGuests(row))}</div>
+    </div>
+  </button>`;
+}
+
+function renderOverview() {
+  const dateInput = document.getElementById("inbox-date");
+  const label = document.getElementById("selected-date-label");
+  if (dateInput) dateInput.value = state.selectedDate;
+  if (label) label.textContent = formatLongDate(state.selectedDate);
+  const rows = rowsOnDate(state.selectedDate);
+  const stats = overviewStats(rows);
   document.getElementById("stat-grid").innerHTML = stats
     .map(
       ([key, labelText, count]) =>
         `<article class="stat-card is-${key}"><strong>${count}</strong><span>${labelText}</span></article>`
     )
     .join("");
+  const undated = undatedRows();
+  const empty = isBirthdaySection()
+    ? "No birthday bookings on this date."
+    : "No reservations on this date.";
   const list = document.getElementById("booking-list");
-  list.innerHTML = rows.length
-    ? rows
-        .slice()
-        .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)))
-        .map(
-          (row) => `<button class="booking-card" type="button" data-id="${escapeHtml(row.id)}">
-            <div>
-              <div class="code">${escapeHtml(row.public_code)}</div>
-              <h3>${escapeHtml(reservationName(row))}</h3>
-              <div class="muted">${escapeHtml(row.phone || row.email || "")}</div>
-            </div>
-            <div>
-              <span class="badge">${escapeHtml(reservationStatusLabel(row.status))}</span>
-              <div class="muted">${escapeHtml(row.package_name || "Table TBC")}</div>
-            </div>
-            <div class="time">${escapeHtml(timeLabel(row.party_time))}
-              <div class="muted">${escapeHtml(String(row.guest_adults || row.payload?.reservation?.guests || "—"))} pax</div>
-            </div>
-          </button>`
-        )
-        .join("")
-    : `<p class="muted">No reservations on this date.</p>`;
+  list.innerHTML = [
+    rows.length
+      ? rows
+          .slice()
+          .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)))
+          .map(bookingCard)
+          .join("")
+      : `<p class="muted">${empty}</p>`,
+    undated.length
+      ? `<p class="date-label undated-label">No date yet</p>${undated.map(bookingCard).join("")}`
+      : "",
+  ].join("");
   document.getElementById("overview-status").textContent = `${rows.length} booking${
     rows.length === 1 ? "" : "s"
   }`;
+  const policy = document.getElementById("res-policy");
+  const plans = document.getElementById("staff-day-plans");
+  if (policy) policy.hidden = isBirthdaySection();
+  if (plans) plans.hidden = isBirthdaySection();
+  if (!isBirthdaySection()) renderDayPlans(rows);
 }
 
 function monthCells(yearMonth) {
@@ -277,6 +462,25 @@ function shiftMonth(yearMonth, delta) {
   return next.toISOString().slice(0, 7);
 }
 
+function legendItems() {
+  if (isBirthdaySection()) {
+    return [
+      ["new", "New booking"],
+      ["contacted", "Contacted"],
+      ["quoted", "Quoted"],
+      ["booked", "Confirmed"],
+      ["closed", "Finished"],
+    ];
+  }
+  return [
+    ["new", "New booking"],
+    ["booked", "Confirmed"],
+    ["cancelled", "Cancelled"],
+    ["rejected", "Rejected"],
+    ["closed", "Finished"],
+  ];
+}
+
 function renderCalendar() {
   const title = document.getElementById("cal-title");
   const [year, month] = state.calendarMonth.split("-").map(Number);
@@ -285,12 +489,15 @@ function renderCalendar() {
     year: "numeric",
     timeZone: "UTC",
   });
+  document.getElementById("cal-legend").innerHTML = legendItems()
+    .map(([kind, text]) => `<span><span class="dot dot--${kind}"></span> ${escapeHtml(text)}</span>`)
+    .join("");
   const heads = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     .map((name) => `<div class="cal-cell is-head">${name}</div>`)
     .join("");
   const cells = monthCells(state.calendarMonth)
     .map((cell) => {
-      const rows = reservationsOnDate(cell.iso);
+      const rows = rowsOnDate(cell.iso);
       const classes = [
         "cal-cell",
         cell.muted ? "is-muted" : "",
@@ -313,16 +520,19 @@ function renderCalendar() {
 }
 
 function renderTimeline() {
-  const rows = reservationsOnDate(state.selectedDate);
-  document.getElementById("timeline-count").textContent = `${rows.length} table${
-    rows.length === 1 ? "" : "s"
-  } booked`;
+  const rows = rowsOnDate(state.selectedDate);
+  document.getElementById("timeline-count").textContent = isBirthdaySection()
+    ? `${rows.length} ${rows.length === 1 ? "party" : "parties"} booked`
+    : `${rows.length} table${rows.length === 1 ? "" : "s"} booked`;
   const slots = [];
   for (let minutes = 8 * 60 + 30; minutes <= 18 * 60; minutes += 30) {
     const hour = Math.floor(minutes / 60);
     const min = minutes % 60;
     slots.push(`${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
   }
+  const empty = isBirthdaySection()
+    ? "No parties booked on this date."
+    : "No tables booked on this date.";
   document.getElementById("timeline").innerHTML = `
     <div class="timeline__track">
       <div class="timeline__hours">
@@ -336,53 +546,18 @@ function renderTimeline() {
                 .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)))
                 .map(
                   (row) => `<button class="timeline__item" type="button" data-id="${escapeHtml(row.id)}">
-                    <strong>${escapeHtml(timeLabel(row.party_time))}</strong>
-                    ${escapeHtml(reservationName(row))} · ${escapeHtml(row.package_name || "Table")}
-                    · ${escapeHtml(String(row.guest_adults || "—"))} pax
+                    <strong>${escapeHtml(isBirthdaySection() ? timeLabel(row.party_time) : slotRange(row))}</strong>
+                    ${escapeHtml(displayName(row))} · ${escapeHtml(displaySubtitle(row))}
+                    · ${escapeHtml(displayGuests(row))}
+                    ${isBirthdaySection() ? "" : `<span class="muted">Arrive by ${escapeHtml(arriveBy(row))}</span>`}
                   </button>`
                 )
                 .join("")
-            : `<p class="muted">No tables booked on this date.</p>`
+            : `<p class="muted">${empty}</p>`
         }
       </div>
     </div>
   `;
-}
-
-function renderBirthdays() {
-  const search = (document.getElementById("search")?.value || "").trim().toLowerCase();
-  const status = document.getElementById("filter-status")?.value || "";
-  const source = document.getElementById("filter-source")?.value || "";
-  const rows = state.birthdays.filter((row) => {
-    if (status && row.status !== status) return false;
-    if (source && row.source !== source) return false;
-    if (!search) return true;
-    const blob = [row.public_code, row.child_name, row.email, row.phone, row.package_name]
-      .join(" ")
-      .toLowerCase();
-    return blob.includes(search);
-  });
-  inboxBody.innerHTML = rows.length
-    ? rows
-        .map(
-          (row) => `<tr data-id="${escapeHtml(row.id)}">
-            <td><strong>${escapeHtml(row.public_code)}</strong><div class="muted">${escapeHtml(
-              sourceLabel(row.source)
-            )}</div></td>
-            <td>${escapeHtml(formatWhen(row.created_at))}</td>
-            <td>${escapeHtml(row.party_date || "—")}</td>
-            <td>${escapeHtml(row.child_name || "—")}<div class="muted">${escapeHtml(
-              row.email || row.phone || ""
-            )}</div></td>
-            <td>${escapeHtml(row.package_name || "—")}</td>
-            <td>${escapeHtml(formatIdr(row.quote_total_idr))}</td>
-            <td><span class="badge">${escapeHtml(row.status)}</span></td>
-          </tr>`
-        )
-        .join("")
-    : `<tr><td colspan="7">No requests yet.</td></tr>`;
-  listStatus.textContent = `${rows.length} request${rows.length === 1 ? "" : "s"}`;
-  listStatus.className = "status";
 }
 
 async function signedUrl(path) {
@@ -394,13 +569,12 @@ async function signedUrl(path) {
 
 function backTarget(row) {
   if (row?.source === "reservation") return "#/reservations/overview";
-  return "#/birthdays";
+  return "#/birthdays/overview";
 }
 
 async function loadDetail(id) {
-  reservationsView.hidden = true;
-  birthdaysView.hidden = true;
-  if (resNav) resNav.hidden = true;
+  inboxViews.hidden = true;
+  if (viewNav) viewNav.hidden = true;
   detailView.hidden = false;
   detailView.innerHTML = `<p class="status">Loading request…</p>`;
   const { data: row, error } = await supabase.from("requests").select("*").eq("id", id).maybeSingle();
@@ -409,9 +583,23 @@ async function loadDetail(id) {
       error?.message || "Request not found."
     )}</p><button class="btn btn--outline back" type="button" id="back-list">Back</button>`;
     document.getElementById("back-list")?.addEventListener("click", () => {
-      location.hash = "#/reservations/overview";
+      location.hash = `#/${state.section}/overview`;
     });
     return;
+  }
+
+  if (row.source === "reservation" && isNoShowExpired(row)) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    await supabase
+      .from("requests")
+      .update({
+        status: "cancelled",
+        status_changed_at: new Date().toISOString(),
+        status_changed_by: sessionData.session?.user?.id || null,
+      })
+      .eq("id", row.id)
+      .in("status", ["new", "contacted", "quoted"]);
+    row.status = "cancelled";
   }
 
   const files = row.files || {};
@@ -455,7 +643,7 @@ async function loadDetail(id) {
               .map(
                 (s) =>
                   `<option value="${s}"${s === row.status ? " selected" : ""}>${
-                    isReservation ? reservationStatusLabel(s) : s
+                    isReservation ? reservationStatusLabel(s) : birthdayStatusLabel(s)
                   }</option>`
               )
               .join("")}
@@ -473,19 +661,18 @@ async function loadDetail(id) {
           <h3>${isReservation ? "Reservation" : "Booking"}</h3>
           <ul class="kv">
             <li><span>${isReservation ? "Guest" : "Child"}</span><span>${escapeHtml(
-              isReservation ? reservationName(row) : row.child_name || "—"
+              isReservation ? displayName(row) : row.child_name || "—"
             )}${!isReservation && row.child_age ? ` · turning ${escapeHtml(row.child_age)}` : ""}</span></li>
             <li><span>Date</span><span>${escapeHtml(row.party_date || "—")}</span></li>
-            <li><span>Time</span><span>${escapeHtml(timeLabel(row.party_time))}</span></li>
-            <li><span>Guests</span><span>${escapeHtml(
+            <li><span>Time</span><span>${escapeHtml(isReservation ? slotRange(row) : timeLabel(row.party_time))}</span></li>
+            ${
               isReservation
-                ? `${row.guest_adults || reservation.guests || "—"} pax`
-                : [row.guest_kids ? `${row.guest_kids} kids` : "", row.guest_adults ? `${row.guest_adults} adults` : ""]
-                    .filter(Boolean)
-                    .join(" · ") || "—"
-            )}</span></li>
+                ? `<li><span>Arrive by</span><span>${escapeHtml(arriveBy(row))} or the table is released</span></li>`
+                : ""
+            }
+            <li><span>Guests</span><span>${escapeHtml(displayGuests(row))}</span></li>
             <li><span>${isReservation ? "Table" : "Package"}</span><span>${escapeHtml(
-              row.package_name || "—"
+              isReservation ? tableText(row) : row.package_name || "—"
             )}</span></li>
             ${
               isReservation
@@ -499,7 +686,11 @@ async function loadDetail(id) {
         </section>
         ${
           isReservation
-            ? ""
+            ? `<section>
+          <h3>Table layout</h3>
+          <div class="staff-plan" id="staff-detail-plan"></div>
+          <p class="muted">2-hour slot. Held for 15 minutes after start; then cancelled if the guest has not arrived.</p>
+        </section>`
             : `<section>
           <h3>Quotation</h3>
           <ul class="quote-list">
@@ -559,6 +750,17 @@ async function loadDetail(id) {
     </article>
   `;
 
+  if (isReservation && window.TinyReserveMap) {
+    window.TinyReserveMap.renderMap(document.getElementById("staff-detail-plan"), {
+      area: reservation.area === "terrace" ? "terrace" : "indoor",
+      selected: reservation.tableIds || [],
+      held: [],
+      guests: row.guest_adults || reservation.guests || 1,
+      interactive: false,
+      base: "../reserve/img/",
+    });
+  }
+
   document.getElementById("back-list")?.addEventListener("click", () => {
     location.hash = backTarget(row);
   });
@@ -585,14 +787,14 @@ async function loadDetail(id) {
   });
 }
 
-function showReservations(view) {
+function showInbox(section, view) {
+  state.section = section;
   detailView.hidden = true;
-  birthdaysView.hidden = true;
-  reservationsView.hidden = false;
+  inboxViews.hidden = false;
   document.getElementById("overview-view").hidden = view !== "overview";
   document.getElementById("calendar-view").hidden = view !== "calendar";
   document.getElementById("timeline-view").hidden = view !== "timeline";
-  renderNav("reservations", view);
+  renderNav(section, view);
   renderOverview();
   if (view === "calendar") renderCalendar();
   if (view === "timeline") renderTimeline();
@@ -608,18 +810,12 @@ async function route() {
   try {
     if (parsed.section === "birthdays") {
       await loadBirthdays();
-      detailView.hidden = true;
-      reservationsView.hidden = true;
-      birthdaysView.hidden = false;
-      listView.hidden = false;
-      renderNav("birthdays");
-      renderBirthdays();
-      return;
+    } else {
+      await loadReservations();
     }
-    await loadReservations();
-    showReservations(parsed.view || "overview");
+    showInbox(parsed.section, parsed.view || "overview");
   } catch (err) {
-    const node = document.getElementById("overview-status") || listStatus;
+    const node = document.getElementById("overview-status");
     if (node) {
       node.textContent = err.message || "Could not load inbox.";
       node.className = "status is-error";
@@ -649,12 +845,6 @@ signOutBtn?.addEventListener("click", async () => {
   showApp(false);
 });
 
-inboxBody?.addEventListener("click", (e) => {
-  const row = e.target.closest("tr[data-id]");
-  if (!row) return;
-  location.hash = `#/request/${row.dataset.id}`;
-});
-
 document.getElementById("booking-list")?.addEventListener("click", (e) => {
   const card = e.target.closest("[data-id]");
   if (!card) return;
@@ -671,15 +861,16 @@ document.getElementById("cal-grid")?.addEventListener("click", (e) => {
   const cell = e.target.closest("[data-date]");
   if (!cell) return;
   state.selectedDate = cell.dataset.date;
-  location.hash = "#/reservations/overview";
-  renderOverview();
+  location.hash = `#/${state.section}/overview`;
 });
 
-document.getElementById("res-date")?.addEventListener("change", (e) => {
+document.getElementById("inbox-date")?.addEventListener("change", (e) => {
   state.selectedDate = e.target.value || todayIso();
   state.calendarMonth = state.selectedDate.slice(0, 7);
   const parsed = parseHash();
-  if (parsed.section === "reservations") showReservations(parsed.view || "overview");
+  if (parsed.section === "reservations" || parsed.section === "birthdays") {
+    showInbox(parsed.section, parsed.view || "overview");
+  }
 });
 
 document.getElementById("cal-prev")?.addEventListener("click", () => {
@@ -689,11 +880,6 @@ document.getElementById("cal-prev")?.addEventListener("click", () => {
 document.getElementById("cal-next")?.addEventListener("click", () => {
   state.calendarMonth = shiftMonth(state.calendarMonth, 1);
   renderCalendar();
-});
-
-["search", "filter-status", "filter-source"].forEach((id) => {
-  document.getElementById(id)?.addEventListener("input", renderBirthdays);
-  document.getElementById(id)?.addEventListener("change", renderBirthdays);
 });
 
 window.addEventListener("hashchange", () => {

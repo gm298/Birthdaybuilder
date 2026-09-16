@@ -99,7 +99,7 @@
         <a href="${CAFE.home}">Home</a>
         <a href="${CAFE.about}">About Us</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
-        <a href="${CAFE.shop}">Shop Online</a>
+        <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
         <a href="${CAFE.events}">Event Calendar</a>
         <div class="nav-drop">
           <a class="nav-drop__toggle${birthdayClass}" href="${p.birthdays}" aria-haspopup="true" aria-expanded="false">Birthdays</a>
@@ -123,7 +123,7 @@
         <a href="${CAFE.home}">Home</a>
         <a href="${CAFE.about}">About Us</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
-        <a href="${CAFE.shop}">Shop Online</a>
+        <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
         <a href="${CAFE.events}">Event Calendar</a>
         <a class="${current(page, "landing").trim()}" href="${p.birthdays}">Birthdays</a>
         <a class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
