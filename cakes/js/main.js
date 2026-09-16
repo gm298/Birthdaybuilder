@@ -54,7 +54,7 @@
     filter: "All",
     size: "18 cm",
     sponges: [],
-    sugarSponge: "",
+    sugarSponge: [],
     mode: "gallery",
     design: "",
     theme: "",
@@ -109,11 +109,57 @@
     const hide =
       state.addons.includes("No added sugar") || state.addons.includes("Gluten-free");
     if (hide) {
-      state.sugarSponge = "";
+      state.sugarSponge = [];
       if (field) field.hidden = true;
     } else if (field) {
       field.hidden = false;
     }
+  }
+
+  function selectedSugarSponges() {
+    if (Array.isArray(state.sugarSponge)) return state.sugarSponge;
+    return state.sugarSponge ? [state.sugarSponge] : [];
+  }
+
+  function flavourItems() {
+    return [
+      ...state.sponges.map((label) => ({ kind: "plain", label })),
+      ...selectedSugarSponges().map((label) => ({ kind: "sugar", label })),
+    ];
+  }
+
+  function applyFlavourItems(items) {
+    state.sponges = items.filter((item) => item.kind === "plain").map((item) => item.label);
+    state.sugarSponge = items.filter((item) => item.kind === "sugar").map((item) => item.label);
+  }
+
+  function flavourCount() {
+    return flavourItems().length;
+  }
+
+  function toggleFlavour(kind, label) {
+    let items = flavourItems();
+    const index = items.findIndex((item) => item.kind === kind && item.label === label);
+    if (index >= 0) items.splice(index, 1);
+    else {
+      items.push({ kind, label });
+      if (items.length > 2) items = items.slice(-2);
+    }
+    applyFlavourItems(items);
+  }
+
+  function flavourHintText() {
+    const n = flavourCount();
+    if (n === 0) {
+      return "Select one or two flavours — mix a no-sugar sponge with a sugar-added one if you like.";
+    }
+    if (n === 1) return "1 flavour selected — you can add one more from either list.";
+    return "2 flavours selected.";
+  }
+
+  function afterFlavourChange() {
+    renderSpongeOptions();
+    renderSugarSpongeOptions();
   }
 
   function pruneSpongesToAvailable() {
@@ -396,48 +442,35 @@
       .join("");
     el.querySelectorAll("[data-sponge]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const label = btn.dataset.sponge;
-        if (state.sponges.includes(label)) {
-          state.sponges = state.sponges.filter((s) => s !== label);
-        } else if (state.sponges.length < 2) {
-          state.sponges = state.sponges.concat(label);
-        } else {
-          state.sponges = [state.sponges[1], label];
-        }
-        renderSpongeOptions();
+        toggleFlavour("plain", btn.dataset.sponge);
+        afterFlavourChange();
       });
     });
-    if (hint) {
-      const n = state.sponges.length;
-      hint.textContent =
-        n === 0
-          ? "Select one or two flavours for your cake layers."
-          : n === 1
-            ? "1 flavour selected — you can add one more."
-            : "2 flavours selected.";
-    }
+    if (hint) hint.textContent = flavourHintText();
   }
 
   function renderSugarSpongeOptions() {
     const el = document.getElementById("sugar-sponge-options");
+    const hint = document.getElementById("sugar-sponge-hint");
     if (!el) return;
     syncSugarSpongeVisibility();
+    const picks = selectedSugarSponges();
     const options = data.sugarSponges || SUGAR_SPONGES;
     el.innerHTML = options
       .map(
         (label) =>
           `<button type="button" class="option-btn${
-            state.sugarSponge === label ? " is-active" : ""
+            picks.includes(label) ? " is-active" : ""
           }" data-sugar-sponge="${escapeHtml(label)}">${escapeHtml(label)}</button>`
       )
       .join("");
     el.querySelectorAll("[data-sugar-sponge]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const value = btn.dataset.sugarSponge || "";
-        state.sugarSponge = state.sugarSponge === value ? "" : value;
-        renderSugarSpongeOptions();
+        toggleFlavour("sugar", btn.dataset.sugarSponge || "");
+        afterFlavourChange();
       });
     });
+    if (hint) hint.textContent = flavourHintText();
   }
 
   function renderAddons() {
@@ -541,9 +574,7 @@
 
   function spongeLine() {
     if (!state.sponges.length) return "";
-    return state.sponges.length === 1
-      ? `Sponge: ${state.sponges[0]}`
-      : `Sponge: ${state.sponges.join(" + ")}`;
+    return `Sponge: ${state.sponges.join(" + ")}`;
   }
 
   function selectedSize() {
@@ -569,7 +600,9 @@
       date ? `Date: ${date}` : "",
       sizeLine,
       spongeLine(),
-      state.sugarSponge ? `Sugar added sponge: ${state.sugarSponge}` : "",
+      selectedSugarSponges().length
+        ? `Sugar added sponge: ${selectedSugarSponges().join(" + ")}`
+        : "",
       state.mode === "gallery" && state.design
         ? `Design from your gallery: ${state.design}`
         : "",
@@ -598,7 +631,7 @@
         size: state.size || "",
         priceLabel: size?.price || "",
         sponges: state.sponges.slice(),
-        sugarSponge: state.sugarSponge || "",
+        sugarSponge: selectedSugarSponges().join(" + "),
         mode: state.mode,
         design: state.design || "",
         theme,

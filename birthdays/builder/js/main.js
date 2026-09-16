@@ -1929,6 +1929,9 @@
     const cakeDetailBits = [
       cakeState.size ? `Size ${cakeState.size}` : "",
       cakeState.sponges.length ? `Sponge ${cakeState.sponges.join(" + ")}` : "",
+      selectedSugarSponges().length
+        ? `Sugar added sponge ${selectedSugarSponges().join(" + ")}`
+        : "",
       cakeTheme ? `Theme ${cakeTheme}` : "",
     ].filter(Boolean);
 
@@ -3694,6 +3697,7 @@
 
   function renderSugarSpongeOptions() {
     const el = document.getElementById("sugar-sponge-options");
+    const hint = document.getElementById("sugar-sponge-hint");
     if (!el) return;
     syncSugarSpongeVisibility();
     const picks = selectedSugarSponges();
@@ -3712,6 +3716,7 @@
         afterFlavourChange();
       });
     });
+    if (hint) hint.textContent = flavourHintText();
   }
 
   function renderAddons() {
