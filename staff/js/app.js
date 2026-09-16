@@ -4,8 +4,8 @@ const cfg = window.TINY_SUPABASE || {};
 const supabase = createClient(cfg.url || "", cfg.anonKey || "");
 const TZ = "Asia/Makassar";
 const BIRTHDAY_SOURCES = ["party_builder", "cake", "pdf_quote"];
-const RES_STATUSES = ["new", "contacted", "quoted", "booked", "cancelled", "rejected", "closed"];
-const BIRTHDAY_STATUSES = ["new", "contacted", "quoted", "booked", "closed"];
+const ALL_STATUSES = ["new", "contacted", "quoted", "booked", "cancelled", "rejected", "closed"];
+const EVENT_STATUSES = ["booked", "cancelled", "closed"];
 const REQUEST_SELECT =
   "id, created_at, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload";
 
@@ -17,13 +17,17 @@ const inboxViews = document.getElementById("inbox-views");
 const loginStatus = document.getElementById("login-status");
 const viewNav = document.getElementById("view-nav");
 const pageTitle = document.getElementById("page-title");
+const blockModal = document.getElementById("block-modal");
+
+const VIEWS = ["overview", "calendar", "day", "timeline", "tables"];
 
 const state = {
-  reservations: [],
-  birthdays: [],
-  section: "reservations",
+  rows: [],
+  view: "overview",
+  lastView: "overview",
   selectedDate: todayIso(),
   calendarMonth: todayIso().slice(0, 7),
+  filters: { type: "all", status: "all" },
 };
 
 function todayIso() {
@@ -78,69 +82,82 @@ function timeLabel(value) {
   return String(value || "").slice(0, 5) || "—";
 }
 
+function eventType(row) {
+  if (row?.synthetic || row?.source === "event") return "event";
+  if (row?.source === "reservation") return "reservation";
+  return "birthday";
+}
+
+function occupyKind(row) {
+  if (eventType(row) === "birthday") return "birthday";
+  if (eventType(row) === "event") return "event";
+  return "reservation";
+}
+
 function sourceLabel(source) {
   if (source === "party_builder") return "Party";
   if (source === "cake") return "Cake";
   if (source === "pdf_quote") return "PDF";
   if (source === "reservation") return "Reservation";
+  if (source === "event") return "Event";
   return source || "—";
 }
 
-function isBirthdaySection() {
-  return state.section === "birthdays";
-}
-
-function currentRows() {
-  return isBirthdaySection() ? state.birthdays : state.reservations;
-}
-
-function rowsOnDate(iso) {
-  return currentRows().filter((row) => row.party_date === iso);
-}
-
-function undatedRows() {
-  if (!isBirthdaySection()) return [];
-  return state.birthdays.filter((row) => !row.party_date);
+function typeLabel(type) {
+  if (type === "reservation") return "Reservation";
+  if (type === "event") return "Event";
+  return "Birthday";
 }
 
 function displayName(row) {
-  if (isBirthdaySection() || BIRTHDAY_SOURCES.includes(row.source)) {
-    return row.child_name || row.contact_name || "Guest";
-  }
-  return row.contact_name || row.payload?.reservation?.name || row.child_name || "Guest";
+  if (row?.synthetic) return row.contact_name || "Cooking class";
+  if (eventType(row) === "birthday") return row.child_name || row.contact_name || "Guest";
+  return row.contact_name || row.payload?.reservation?.name || row.payload?.event?.name || row.child_name || "Guest";
 }
 
 function displayGuests(row) {
-  if (isBirthdaySection() || BIRTHDAY_SOURCES.includes(row.source)) {
-    return (
-      [row.guest_kids ? `${row.guest_kids} kids` : "", row.guest_adults ? `${row.guest_adults} adults` : ""]
-        .filter(Boolean)
-        .join(" · ") || "—"
-    );
-  }
-  return (
-    [row.guest_kids ? `${row.guest_kids} kids` : "", row.guest_adults ? `${row.guest_adults} adults` : ""]
-      .filter(Boolean)
-      .join(" · ") || `${row.guest_adults || row.payload?.reservation?.guests || "—"} pax`
-  );
+  const kids = row.guest_kids ? `${row.guest_kids} kids` : "";
+  const adults = row.guest_adults ? `${row.guest_adults} adults` : "";
+  const joined = [kids, adults].filter(Boolean).join(" · ");
+  if (joined) return joined;
+  const pax = row.payload?.reservation?.guests;
+  return pax ? `${pax} pax` : "—";
+}
+
+function tableText(row) {
+  return row.payload?.reservation?.tableLabel || row.package_name || "Table TBC";
 }
 
 function displaySubtitle(row) {
-  if (isBirthdaySection() || BIRTHDAY_SOURCES.includes(row.source)) {
-    const pkg = row.package_name || (row.source === "cake" ? "Cake only" : "Package TBC");
-    const total = row.quote_total_idr ? ` · ${formatIdr(row.quote_total_idr)}` : "";
-    return `${sourceLabel(row.source)} · ${pkg}${total}`;
-  }
-  return tableText(row);
+  if (eventType(row) === "reservation" || eventType(row) === "event") return tableText(row);
+  const pkg = row.package_name || (row.source === "cake" ? "Cake only" : "Package TBC");
+  const total = row.quote_total_idr ? ` · ${formatIdr(row.quote_total_idr)}` : "";
+  return `${sourceLabel(row.source)} · ${pkg}${total}`;
 }
 
 function reservationStatusLabel(status) {
   if (status === "booked") return "Confirmed";
-  if (status === "new" || status === "contacted" || status === "quoted") return "New booking";
+  if (status === "new") return "New booking";
+  if (status === "contacted") return "Contacted";
+  if (status === "quoted") return "Quoted";
   if (status === "cancelled") return "Cancelled";
   if (status === "rejected") return "Rejected";
   if (status === "closed") return "Finished";
   return status || "—";
+}
+
+function statusLabel(status) {
+  return reservationStatusLabel(status);
+}
+
+function statusClass(status) {
+  if (status === "booked") return "booked";
+  if (status === "cancelled") return "cancelled";
+  if (status === "rejected") return "rejected";
+  if (status === "closed") return "closed";
+  if (status === "contacted") return "contacted";
+  if (status === "quoted") return "quoted";
+  return "new";
 }
 
 function baliNowParts() {
@@ -160,31 +177,32 @@ function baliNowParts() {
   };
 }
 
-function occupyKind(row) {
-  return BIRTHDAY_SOURCES.includes(row.source) ? "birthday" : "reservation";
-}
-
 function slotRange(row) {
+  const Map = window.TinyReserveMap;
   const time = timeLabel(row.party_time);
-  return window.TinyReserveMap?.occupyLabel?.(time, occupyKind(row)) || time;
+  const endTime = row.payload?.reservation?.endTime;
+  if (endTime) return `${time}–${timeLabel(endTime)}`;
+  return Map?.occupyLabel?.(time, occupyKind(row)) || time;
 }
 
 function dineRange(row) {
   const time = timeLabel(row.party_time);
-  if (occupyKind(row) === "birthday") return slotRange(row);
+  if (occupyKind(row) !== "reservation") return slotRange(row);
   return window.TinyReserveMap?.timeRangeLabel?.(time) || time;
 }
 
 function arriveBy(row) {
-  const time = timeLabel(row.party_time);
-  return window.TinyReserveMap?.graceLabel?.(time) || time;
+  return window.TinyReserveMap?.graceLabel?.(timeLabel(row.party_time)) || timeLabel(row.party_time);
 }
 
-function tableText(row) {
-  return row.payload?.reservation?.tableLabel || row.package_name || "Table TBC";
+function rowOccupy(row) {
+  const Map = window.TinyReserveMap;
+  const time = timeLabel(row.party_time);
+  return Map?.occupyRange?.(time, occupyKind(row), row.payload?.reservation?.endTime) || null;
 }
 
 function isNoShowExpired(row) {
+  if (row.source !== "reservation") return false;
   if (!["new", "contacted", "quoted"].includes(row.status)) return false;
   if (!row.party_date || !row.party_time) return false;
   const now = baliNowParts();
@@ -197,7 +215,7 @@ function isNoShowExpired(row) {
 }
 
 async function expireNoShows() {
-  const expired = state.reservations.filter(isNoShowExpired);
+  const expired = state.rows.filter(isNoShowExpired);
   if (!expired.length) return;
   const { data: sessionData } = await supabase.auth.getSession();
   const uid = sessionData.session?.user?.id || null;
@@ -220,80 +238,68 @@ async function expireNoShows() {
   });
 }
 
-function dayTableIds(rows) {
-  const ids = new Set();
-  rows.forEach((row) => {
-    if (["cancelled", "rejected", "closed"].includes(row.status)) return;
-    (row.payload?.reservation?.tableIds || []).forEach((id) => ids.add(String(id)));
-  });
-  return [...ids];
+function cookingRow(iso) {
+  const item = window.TinyReserveMap?.cookingClassItem?.(iso);
+  if (!item) return null;
+  return {
+    id: item.id,
+    source: "event",
+    status: "booked",
+    public_code: "CLASS",
+    contact_name: "Cooking class",
+    party_date: iso,
+    party_time: "14:00",
+    package_name: "Tables 18 & 19",
+    payload: {
+      event: { name: "Cooking class", recurring: true },
+      reservation: {
+        tableIds: item.tableIds,
+        endTime: "17:00",
+        tableLabel: "Terrace tables 18 & 19",
+        area: "terrace",
+      },
+    },
+    synthetic: true,
+  };
 }
 
-function renderDayPlans(rows) {
-  const host = document.getElementById("staff-day-plans");
-  if (!host || !window.TinyReserveMap) return;
-  const selected = dayTableIds(rows);
-  host.innerHTML = `
-    <div>
-      <h3>Indoor</h3>
-      <div class="staff-plan" id="staff-plan-indoor"></div>
-    </div>
-    <div>
-      <h3>Terrace</h3>
-      <div class="staff-plan" id="staff-plan-terrace"></div>
-    </div>
-  `;
-  window.TinyReserveMap.renderMap(document.getElementById("staff-plan-indoor"), {
-    area: "indoor",
-    selected,
-    held: [],
-    guests: 1,
-    interactive: false,
-    base: "../reserve/img/",
-  });
-  window.TinyReserveMap.renderMap(document.getElementById("staff-plan-terrace"), {
-    area: "terrace",
-    selected,
-    held: [],
-    guests: 1,
-    interactive: false,
-    base: "../reserve/img/",
-  });
+function matchesFilters(row) {
+  const type = eventType(row);
+  if (state.filters.type !== "all" && type !== state.filters.type) return false;
+  if (state.filters.status !== "all" && row.status !== state.filters.status) return false;
+  return true;
 }
 
-function birthdayStatusLabel(status) {
-  if (status === "booked") return "Confirmed";
-  if (status === "new") return "New booking";
-  if (status === "contacted") return "Contacted";
-  if (status === "quoted") return "Quoted";
-  if (status === "closed") return "Finished";
-  return status || "—";
+function filteredRows() {
+  return state.rows.filter(matchesFilters);
 }
 
-function statusLabel(status, section = state.section) {
-  return section === "birthdays" ? birthdayStatusLabel(status) : reservationStatusLabel(status);
+function rowsOnDate(iso) {
+  const rows = filteredRows().filter((row) => row.party_date === iso);
+  const cooking = cookingRow(iso);
+  if (cooking && matchesFilters(cooking) && !rows.some((row) => row.synthetic)) rows.push(cooking);
+  return rows;
 }
 
-function statusClass(status, section = state.section) {
-  if (status === "booked") return "booked";
-  if (status === "cancelled") return "cancelled";
-  if (status === "rejected") return "rejected";
-  if (status === "closed") return "closed";
-  if (section === "birthdays") {
-    if (status === "contacted") return "contacted";
-    if (status === "quoted") return "quoted";
-  }
-  return "new";
+function undatedRows() {
+  return filteredRows().filter((row) => !row.party_date);
 }
 
 function parseHash() {
-  const hash = (location.hash || "").replace(/^#/, "");
-  const request = hash.match(/request\/([0-9a-f-]{36})/i);
-  if (request) return { section: "detail", id: request[1] };
+  const hash = (location.hash || "").replace(/^#\/?/, "");
+  const request = hash.match(/^request\/([0-9a-f-]{36})/i);
+  if (request) return { view: "detail", id: request[1] };
+  const cooking = hash.match(/^cooking\/(\d{4}-\d{2}-\d{2})/);
+  if (cooking) return { view: "cooking", date: cooking[1] };
+  const day = hash.match(/^day\/(\d{4}-\d{2}-\d{2})/);
+  if (day) return { view: "day", date: day[1] };
   const parts = hash.split("/").filter(Boolean);
-  const section = parts[0] === "birthdays" ? "birthdays" : "reservations";
-  const view = parts[1] === "calendar" || parts[1] === "timeline" ? parts[1] : "overview";
-  return { section, view };
+  if (parts[0] === "reservations" || parts[0] === "birthdays") {
+    const view = VIEWS.includes(parts[1]) ? parts[1] : "overview";
+    return { view };
+  }
+  const view = VIEWS.includes(parts[0]) ? parts[0] : "overview";
+  return { view };
 }
 
 async function requireStaff() {
@@ -328,91 +334,70 @@ function countBy(rows, pred) {
   return rows.filter(pred).length;
 }
 
-async function loadReservations() {
+async function loadRows() {
   const { data, error } = await supabase
     .from("requests")
     .select(REQUEST_SELECT)
-    .eq("source", "reservation")
     .order("party_date", { ascending: true })
-    .limit(500);
+    .limit(800);
   if (error) throw error;
-  state.reservations = data || [];
+  state.rows = data || [];
   await expireNoShows();
 }
 
-async function loadBirthdays() {
-  const { data, error } = await supabase
-    .from("requests")
-    .select(REQUEST_SELECT)
-    .in("source", BIRTHDAY_SOURCES)
-    .order("party_date", { ascending: true })
-    .limit(500);
-  if (error) throw error;
-  state.birthdays = data || [];
-}
-
-function renderNav(section, view) {
-  document.querySelectorAll(".app-switch a").forEach((link) => {
-    link.classList.toggle("is-active", link.dataset.section === section);
-  });
+function renderNav(view) {
   if (viewNav) {
-    viewNav.hidden = section === "detail";
+    viewNav.hidden = view === "detail" || view === "cooking";
     viewNav.querySelectorAll("a").forEach((link) => {
-      const target = section === "detail" ? state.section : section;
-      link.href = `#/${target}/${link.dataset.view}`;
-      link.classList.toggle("is-active", link.dataset.view === view);
+      const target = link.dataset.view === "calendar" ? "calendar" : link.dataset.view;
+      link.href = `#/${target}`;
+      link.classList.toggle("is-active", link.dataset.view === (view === "day" ? "calendar" : view));
     });
   }
-  if (pageTitle && section !== "detail") {
-    pageTitle.textContent = section === "birthdays" ? "Birthdays" : "Reservations";
+  if (pageTitle && view !== "detail" && view !== "cooking") {
+    pageTitle.textContent = "Inbox";
   }
 }
 
-function overviewStats(rows) {
-  if (isBirthdaySection()) {
-    return [
-      ["booked", "Confirmed", countBy(rows, (r) => r.status === "booked")],
-      ["new", "New booking", countBy(rows, (r) => r.status === "new")],
-      ["contacted", "Contacted", countBy(rows, (r) => r.status === "contacted")],
-      ["quoted", "Quoted", countBy(rows, (r) => r.status === "quoted")],
-      ["closed", "Finished", countBy(rows, (r) => r.status === "closed")],
-      ["total", "Total booking", rows.length],
-    ];
-  }
-  return [
-    ["booked", "Confirmed", countBy(rows, (r) => r.status === "booked")],
-    ["new", "New booking", countBy(rows, (r) => ["new", "contacted", "quoted"].includes(r.status))],
-    ["cancelled", "Cancelled", countBy(rows, (r) => r.status === "cancelled")],
-    ["rejected", "Rejected", countBy(rows, (r) => r.status === "rejected")],
-    ["closed", "Finished", countBy(rows, (r) => r.status === "closed")],
-    ["total", "Total booking", rows.length],
-  ];
+function syncFilterInputs() {
+  const dateInput = document.getElementById("inbox-date");
+  const typeInput = document.getElementById("filter-type");
+  const statusInput = document.getElementById("filter-status");
+  const label = document.getElementById("selected-date-label");
+  if (dateInput) dateInput.value = state.selectedDate;
+  if (typeInput) typeInput.value = state.filters.type;
+  if (statusInput) statusInput.value = state.filters.status;
+  if (label) label.textContent = formatLongDate(state.selectedDate);
 }
 
 function bookingCard(row) {
-  return `<button class="booking-card" type="button" data-id="${escapeHtml(row.id)}">
+  return `<button class="booking-card" type="button" data-open="${escapeHtml(row.synthetic ? `cooking/${row.party_date}` : `request/${row.id}`)}">
     <div>
       <div class="code">${escapeHtml(row.public_code)}</div>
       <h3>${escapeHtml(displayName(row))}</h3>
-      <div class="muted">${escapeHtml(row.phone || row.email || "")}</div>
+      <div class="muted">${escapeHtml(row.phone || row.email || typeLabel(eventType(row)))}</div>
     </div>
     <div>
       <span class="badge badge--${statusClass(row.status)}">${escapeHtml(statusLabel(row.status))}</span>
-      <div class="muted">${escapeHtml(displaySubtitle(row))}</div>
+      <div class="muted">${escapeHtml(typeLabel(eventType(row)))} · ${escapeHtml(displaySubtitle(row))}</div>
     </div>
-    <div class="time">${escapeHtml(isBirthdaySection() || BIRTHDAY_SOURCES.includes(row.source) ? timeLabel(row.party_time) : slotRange(row))}
+    <div class="time">${escapeHtml(slotRange(row))}
       <div class="muted">${escapeHtml(displayGuests(row))}</div>
     </div>
   </button>`;
 }
 
 function renderOverview() {
-  const dateInput = document.getElementById("inbox-date");
-  const label = document.getElementById("selected-date-label");
-  if (dateInput) dateInput.value = state.selectedDate;
-  if (label) label.textContent = formatLongDate(state.selectedDate);
+  syncFilterInputs();
   const rows = rowsOnDate(state.selectedDate);
-  const stats = overviewStats(rows);
+  const stats = [
+    ["booked", "Confirmed", countBy(rows, (r) => r.status === "booked")],
+    ["new", "New booking", countBy(rows, (r) => ["new", "contacted", "quoted"].includes(r.status))],
+    ["cancelled", "Cancelled", countBy(rows, (r) => r.status === "cancelled")],
+    ["rejected", "Rejected", countBy(rows, (r) => r.status === "rejected")],
+    ["closed", "Finished", countBy(rows, (r) => r.status === "closed")],
+    ["total", "Total", rows.length],
+  ];
   document.getElementById("stat-grid").innerHTML = stats
     .map(
       ([key, labelText, count]) =>
@@ -420,9 +405,6 @@ function renderOverview() {
     )
     .join("");
   const undated = undatedRows();
-  const empty = isBirthdaySection()
-    ? "No birthday bookings on this date."
-    : "No reservations on this date.";
   const list = document.getElementById("booking-list");
   list.innerHTML = [
     rows.length
@@ -431,7 +413,7 @@ function renderOverview() {
           .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)))
           .map(bookingCard)
           .join("")
-      : `<p class="muted">${empty}</p>`,
+      : `<p class="muted">No bookings on this date.</p>`,
     undated.length
       ? `<p class="date-label undated-label">No date yet</p>${undated.map(bookingCard).join("")}`
       : "",
@@ -439,11 +421,6 @@ function renderOverview() {
   document.getElementById("overview-status").textContent = `${rows.length} booking${
     rows.length === 1 ? "" : "s"
   }`;
-  const policy = document.getElementById("res-policy");
-  const plans = document.getElementById("staff-day-plans");
-  if (policy) policy.hidden = isBirthdaySection();
-  if (plans) plans.hidden = isBirthdaySection();
-  if (!isBirthdaySection()) renderDayPlans(rows);
 }
 
 function monthCells(yearMonth) {
@@ -476,43 +453,13 @@ function shiftMonth(yearMonth, delta) {
   return next.toISOString().slice(0, 7);
 }
 
-function legendItems() {
-  if (isBirthdaySection()) {
-    return [
-      ["new", "New booking"],
-      ["contacted", "Contacted"],
-      ["quoted", "Quoted"],
-      ["booked", "Confirmed"],
-      ["closed", "Finished"],
-    ];
-  }
-  return [
-    ["new", "New booking"],
-    ["booked", "Confirmed"],
-    ["cancelled", "Cancelled"],
-    ["rejected", "Rejected"],
-    ["closed", "Finished"],
-  ];
-}
-
-function calendarRows(iso) {
-  if (isBirthdaySection()) return state.birthdays.filter((row) => row.party_date === iso);
-  return [
-    ...state.reservations.filter((row) => row.party_date === iso),
-    ...state.birthdays.filter(
-      (row) =>
-        row.party_date === iso &&
-        row.source === "party_builder" &&
-        !["cancelled", "rejected", "closed"].includes(row.status)
-    ),
-  ];
-}
-
-function timelineRows() {
-  return calendarRows(state.selectedDate).filter((row) => row.party_time);
+function openTarget(row) {
+  if (row.synthetic) return `#/cooking/${row.party_date}`;
+  return `#/request/${row.id}`;
 }
 
 function renderCalendar() {
+  syncFilterInputs();
   const title = document.getElementById("cal-title");
   const [year, month] = state.calendarMonth.split("-").map(Number);
   title.textContent = new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("en-GB", {
@@ -520,15 +467,22 @@ function renderCalendar() {
     year: "numeric",
     timeZone: "UTC",
   });
-  document.getElementById("cal-legend").innerHTML = legendItems()
-    .map(([kind, text]) => `<span><span class="dot dot--${kind}"></span> ${escapeHtml(text)}</span>`)
+  document.getElementById("cal-legend").innerHTML = [
+    ["reservation", "Reservation"],
+    ["birthday", "Birthday"],
+    ["event", "Event"],
+    ["cooking", "Cooking class"],
+  ]
+    .map(([kind, text]) => `<span><span class="dot dot--${kind === "cooking" ? "quoted" : kind === "event" ? "closed" : kind === "birthday" ? "booked" : "new"}"></span> ${text}</span>`)
     .join("");
   const heads = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     .map((name) => `<div class="cal-cell is-head">${name}</div>`)
     .join("");
   const cells = monthCells(state.calendarMonth)
     .map((cell) => {
-      const rows = calendarRows(cell.iso);
+      const rows = rowsOnDate(cell.iso)
+        .slice()
+        .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)));
       const classes = [
         "cal-cell",
         cell.muted ? "is-muted" : "",
@@ -537,47 +491,93 @@ function renderCalendar() {
       ]
         .filter(Boolean)
         .join(" ");
-      const dots = [...new Set(rows.map((row) => statusClass(row.status)))]
-        .map((kind) => `<span class="dot dot--${kind}"></span>`)
+      const shown = rows.slice(0, 3);
+      const extra = rows.length - shown.length;
+      const events = shown
+        .map((row) => {
+          const kind = row.synthetic ? "cooking" : eventType(row);
+          return `<button class="cal-event is-${kind}" type="button" data-open="${escapeHtml(openTarget(row).slice(2))}">${escapeHtml(
+            `${timeLabel(row.party_time)} ${displayName(row)}`
+          )}</button>`;
+        })
         .join("");
-      return `<button class="${classes}" type="button" data-date="${cell.iso}">
-        <strong>${cell.day}</strong>
-        ${rows.length ? `<span class="cal-count">${rows.length} book</span>` : ""}
-        <span class="cal-dots">${dots}</span>
-      </button>`;
+      return `<div class="${classes}" data-date="${cell.iso}">
+        <button class="cal-daynum" type="button" data-open="day/${cell.iso}">${cell.day}</button>
+        <div class="cal-events">${events}${
+          extra > 0 ? `<button class="cal-more" type="button" data-open="day/${cell.iso}">+${extra} more</button>` : ""
+        }</div>
+      </div>`;
     })
     .join("");
   document.getElementById("cal-grid").innerHTML = heads + cells;
 }
 
-function renderTimeline() {
-  const rows = timelineRows();
+function hourMarks() {
   const Map = window.TinyReserveMap;
   const dayStart = Map?.DAY_START ?? 7 * 60 + 30;
   const dayEnd = Map?.DAY_END ?? 19 * 60;
-  const span = dayEnd - dayStart;
-  document.getElementById("timeline-count").textContent = isBirthdaySection()
-    ? `${rows.length} ${rows.length === 1 ? "party" : "parties"} booked · 4-hour hold (1h prep + 3h party)`
-    : `${rows.length} booking${rows.length === 1 ? "" : "s"} · tables 3 hours, birthdays 4 hours`;
+  const slots = [];
+  for (let minutes = dayStart; minutes <= dayEnd; minutes += 60) {
+    const hour = Math.floor(minutes / 60);
+    const min = minutes % 60;
+    slots.push({
+      minutes,
+      label: `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`,
+    });
+  }
+  return { dayStart, dayEnd, span: dayEnd - dayStart, slots };
+}
+
+function renderDay() {
+  syncFilterInputs();
+  document.getElementById("day-title").textContent = formatLongDate(state.selectedDate);
+  const rows = rowsOnDate(state.selectedDate)
+    .slice()
+    .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)));
+  document.getElementById("day-count").textContent = `${rows.length} event${rows.length === 1 ? "" : "s"}`;
+  const { dayStart, span, slots } = hourMarks();
+  const height = Math.max(640, span * 1.2);
+  const items = rows
+    .map((row) => {
+      const range = rowOccupy(row) || { start: dayStart, end: dayStart + 60 };
+      const top = ((range.start - dayStart) / span) * 100;
+      const blockHeight = Math.max(4, ((range.end - range.start) / span) * 100);
+      const kind = row.synthetic ? "cooking" : eventType(row);
+      return `<button class="day-item is-${kind}" type="button" data-open="${escapeHtml(openTarget(row).slice(2))}" style="top:${top}%;height:${blockHeight}%">
+        <strong>${escapeHtml(slotRange(row))}</strong><br>${escapeHtml(displayName(row))} · ${escapeHtml(displaySubtitle(row))}
+      </button>`;
+    })
+    .join("");
+  document.getElementById("day-board").innerHTML = `
+    <div class="day-hours" style="height:${height}px">
+      <div>${slots
+        .map((slot) => `<div class="day-hour" style="height:${height / slots.length}px">${slot.label}</div>`)
+        .join("")}</div>
+      <div class="day-track" style="height:${height}px">${
+        items || `<p class="muted" style="padding:16px">No events on this day.</p>`
+      }</div>
+    </div>
+  `;
+}
+
+function renderTimeline() {
+  syncFilterInputs();
+  const rows = rowsOnDate(state.selectedDate).filter((row) => row.party_time);
+  const Map = window.TinyReserveMap;
+  const { dayStart, dayEnd, span } = hourMarks();
   const slots = [];
   for (let minutes = dayStart; minutes <= dayEnd; minutes += 30) {
     const hour = Math.floor(minutes / 60);
     const min = minutes % 60;
     slots.push(`${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
   }
-  const empty = isBirthdaySection()
-    ? "No parties booked on this date."
-    : "No tables or parties booked on this date.";
+  document.getElementById("timeline-count").textContent = `${rows.length} booking${
+    rows.length === 1 ? "" : "s"
+  } · reservations 3 hours, birthdays 4 hours`;
   const packed = rows
     .slice()
     .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)))
-    .map((row) => {
-      const range = Map?.occupyRange?.(row.party_time, occupyKind(row)) || {
-        start: Map?.timeToMinutes?.(row.party_time) || dayStart,
-        end: (Map?.timeToMinutes?.(row.party_time) || dayStart) + 120,
-      };
-      return { row, range };
-    });
+    .map((row) => ({ row, range: rowOccupy(row) || { start: dayStart, end: dayStart + 60 } }));
   const lanes = [];
   packed.forEach((item) => {
     let lane = lanes.findIndex((list) =>
@@ -602,20 +602,110 @@ function renderTimeline() {
                 .map((item) => {
                   const left = ((item.range.start - dayStart) / span) * 100;
                   const width = ((item.range.end - item.range.start) / span) * 100;
-                  const kind = occupyKind(item.row);
-                  return `<button class="timeline__item is-${kind}" type="button" data-id="${escapeHtml(item.row.id)}" style="left:${left}%;width:${width}%;top:calc(${item.lane} * 46px)">
+                  const kind = item.row.synthetic ? "event" : occupyKind(item.row);
+                  return `<button class="timeline__item is-${kind}" type="button" data-open="${escapeHtml(
+                    openTarget(item.row).slice(2)
+                  )}" style="left:${left}%;width:${width}%;top:calc(${item.lane} * 46px)">
                     <strong>${escapeHtml(slotRange(item.row))}</strong>
                     ${escapeHtml(displayName(item.row))} · ${escapeHtml(displaySubtitle(item.row))}
                     · ${escapeHtml(displayGuests(item.row))}
-                    ${kind === "birthday" ? `<span class="muted">Prep + party</span>` : `<span class="muted">Dine ${escapeHtml(dineRange(item.row))} · arrive by ${escapeHtml(arriveBy(item.row))}</span>`}
                   </button>`;
                 })
                 .join("")
-            : `<p class="muted">${empty}</p>`
+            : `<p class="muted">No bookings on this date.</p>`
         }
       </div>
     </div>
   `;
+}
+
+function tableRowsForDay() {
+  const Map = window.TinyReserveMap;
+  return Map?.TABLES || [];
+}
+
+function renderTables() {
+  syncFilterInputs();
+  const rows = rowsOnDate(state.selectedDate).filter(
+    (row) => (row.payload?.reservation?.tableIds || []).length || row.synthetic
+  );
+  document.getElementById("tables-count").textContent = `${rows.length} booking${
+    rows.length === 1 ? "" : "s"
+  } on the floor · click an empty slot to block a table`;
+  const { dayStart, span, slots } = hourMarks();
+  const hourLines = slots
+    .map((slot) => {
+      const left = ((slot.minutes - dayStart) / span) * 100;
+      return `<span class="pms__hourline" style="left:${left}%"></span>`;
+    })
+    .join("");
+  const head = `<div class="pms__hours">
+    <div class="pms__label">Table</div>
+    <div class="pms__track" style="min-height:36px">${slots
+      .map((slot) => {
+        const left = ((slot.minutes - dayStart) / span) * 100;
+        return `<span class="pms__hour" style="position:absolute;left:${left}%;top:8px">${slot.label}</span>`;
+      })
+      .join("")}</div>
+  </div>`;
+  const body = tableRowsForDay()
+    .map((table) => {
+      const items = rows
+        .filter((row) => (row.payload?.reservation?.tableIds || []).includes(table.id))
+        .map((row) => {
+          const range = rowOccupy(row) || { start: dayStart, end: dayStart + 60 };
+          const left = ((range.start - dayStart) / span) * 100;
+          const width = Math.max(4, ((range.end - range.start) / span) * 100);
+          const kind = row.synthetic ? "cooking" : eventType(row);
+          return `<button class="pms__item is-${kind}" type="button" data-open="${escapeHtml(
+            openTarget(row).slice(2)
+          )}" style="left:${left}%;width:${width}%" title="${escapeHtml(displayName(row))}">${escapeHtml(
+            displayName(row)
+          )}</button>`;
+        })
+        .join("");
+      return `<div class="pms__row">
+        <div class="pms__label">${table.area === "indoor" ? "In" : "Tr"} ${table.number}</div>
+        <div class="pms__track" data-table="${table.id}">${hourLines}${items}</div>
+      </div>`;
+    })
+    .join("");
+  document.getElementById("pms").innerHTML = head + body;
+}
+
+function fillBlockTableList(selected = []) {
+  const host = document.getElementById("block-table-list");
+  const Map = window.TinyReserveMap;
+  const picked = new Set(selected);
+  host.innerHTML = (Map?.TABLES || [])
+    .map(
+      (table) =>
+        `<label><input type="checkbox" name="block-table" value="${escapeHtml(table.id)}"${
+          picked.has(table.id) ? " checked" : ""
+        }> ${table.area === "indoor" ? "Indoor" : "Terrace"} ${table.number}</label>`
+    )
+    .join("");
+}
+
+function openBlockModal(opts = {}) {
+  document.getElementById("block-name").value = opts.name || "Event block";
+  document.getElementById("block-date").value = opts.date || state.selectedDate;
+  document.getElementById("block-start").value = opts.start || "14:00";
+  document.getElementById("block-end").value = opts.end || "17:00";
+  document.getElementById("block-status").textContent = "";
+  fillBlockTableList(opts.tableIds || []);
+  blockModal.hidden = false;
+}
+
+function closeBlockModal() {
+  blockModal.hidden = true;
+}
+
+function minutesToTime(minutes) {
+  const wrapped = Math.max(0, Math.round(minutes / 30) * 30);
+  const hour = Math.floor(wrapped / 60);
+  const min = wrapped % 60;
+  return `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
 async function signedUrl(path) {
@@ -625,9 +715,42 @@ async function signedUrl(path) {
   return data?.signedUrl || "";
 }
 
-function backTarget(row) {
-  if (row?.source === "reservation") return "#/reservations/overview";
-  return "#/birthdays/overview";
+function backHash() {
+  if (state.lastView === "day") return `#/day/${state.selectedDate}`;
+  return `#/${state.lastView || "overview"}`;
+}
+
+function renderCookingDetail(iso) {
+  inboxViews.hidden = true;
+  if (viewNav) viewNav.hidden = true;
+  detailView.hidden = false;
+  const row = cookingRow(iso);
+  pageTitle.textContent = "Cooking class";
+  detailView.innerHTML = `
+    <button class="btn btn--outline back" type="button" id="back-list">Back</button>
+    <article class="detail">
+      <header class="staff-top">
+        <div>
+          <p class="staff-brand">Event</p>
+          <h2>Weekly cooking class</h2>
+          <p class="muted">${escapeHtml(formatLongDate(iso))} · 14:00–17:00</p>
+        </div>
+      </header>
+      <p>Tables 18 and 19 are unavailable every Saturday from 2pm to 5pm for cooking class. This block is automatic and cannot be deleted.</p>
+      <div class="staff-plan" id="staff-detail-plan"></div>
+    </article>
+  `;
+  window.TinyReserveMap?.renderMap?.(document.getElementById("staff-detail-plan"), {
+    area: "terrace",
+    selected: ["tr-18", "tr-19"],
+    held: [],
+    guests: 1,
+    interactive: false,
+    base: "../reserve/img/",
+  });
+  document.getElementById("back-list")?.addEventListener("click", () => {
+    location.hash = backHash();
+  });
 }
 
 async function loadDetail(id) {
@@ -641,7 +764,7 @@ async function loadDetail(id) {
       error?.message || "Request not found."
     )}</p><button class="btn btn--outline back" type="button" id="back-list">Back</button>`;
     document.getElementById("back-list")?.addEventListener("click", () => {
-      location.hash = `#/${state.section}/overview`;
+      location.hash = backHash();
     });
     return;
   }
@@ -666,8 +789,10 @@ async function loadDetail(id) {
   const cake = payload.cake || {};
   const decor = payload.decor || {};
   const reservation = payload.reservation || {};
-  const isReservation = row.source === "reservation";
-  const statuses = isReservation ? RES_STATUSES : BIRTHDAY_STATUSES;
+  const type = eventType(row);
+  const isReservation = type === "reservation";
+  const isEvent = type === "event";
+  const statuses = isEvent ? EVENT_STATUSES : ALL_STATUSES;
   const [pdfUrl, backdropUrl, cakeUrl] = await Promise.all([
     signedUrl(files.quotePdf),
     signedUrl(files.backdropPng),
@@ -684,13 +809,17 @@ async function loadDetail(id) {
     )
     .join("");
   const wa = row.phone ? `https://wa.me/${String(row.phone).replace(/\D/g, "")}` : "";
+  const tableIds = reservation.tableIds || [];
+  const showLayout = tableIds.length > 0;
+  const layoutArea = reservation.area || (String(tableIds[0] || "").startsWith("tr-") ? "terrace" : "indoor");
 
+  pageTitle.textContent = displayName(row);
   detailView.innerHTML = `
     <button class="btn btn--outline back" type="button" id="back-list">Back</button>
     <article class="detail">
       <header class="staff-top">
         <div>
-          <p class="staff-brand">${escapeHtml(sourceLabel(row.source))}</p>
+          <p class="staff-brand">${escapeHtml(typeLabel(type))} · ${escapeHtml(sourceLabel(row.source))}</p>
           <h2>${escapeHtml(row.public_code)}</h2>
           <p class="muted">Submitted ${escapeHtml(formatWhen(row.created_at))}</p>
         </div>
@@ -700,9 +829,7 @@ async function loadDetail(id) {
             ${statuses
               .map(
                 (s) =>
-                  `<option value="${s}"${s === row.status ? " selected" : ""}>${
-                    isReservation ? reservationStatusLabel(s) : birthdayStatusLabel(s)
-                  }</option>`
+                  `<option value="${s}"${s === row.status ? " selected" : ""}>${statusLabel(s)}</option>`
               )
               .join("")}
           </select>
@@ -713,16 +840,17 @@ async function loadDetail(id) {
         ${row.phone ? `<a class="btn btn--outline" href="tel:${escapeHtml(row.phone)}">${escapeHtml(row.phone)}</a>` : ""}
         ${wa ? `<a class="btn" href="${escapeHtml(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
         ${pdfUrl ? `<a class="btn btn--outline" href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF quotation</a>` : ""}
+        ${isEvent ? `<button class="btn btn--outline" type="button" id="delete-event">Remove block</button>` : ""}
       </div>
       <div class="detail-grid">
         <section>
-          <h3>${isReservation ? "Reservation" : "Booking"}</h3>
+          <h3>${isEvent ? "Event" : isReservation ? "Reservation" : "Booking"}</h3>
           <ul class="kv">
-            <li><span>${isReservation ? "Guest" : "Child"}</span><span>${escapeHtml(
-              isReservation ? displayName(row) : row.child_name || "—"
-            )}${!isReservation && row.child_age ? ` · turning ${escapeHtml(row.child_age)}` : ""}</span></li>
+            <li><span>${isReservation || isEvent ? "Guest / name" : "Child"}</span><span>${escapeHtml(
+              displayName(row)
+            )}${!isReservation && !isEvent && row.child_age ? ` · turning ${escapeHtml(row.child_age)}` : ""}</span></li>
             <li><span>Date</span><span>${escapeHtml(row.party_date || "—")}</span></li>
-            <li><span>Time</span><span>${escapeHtml(isReservation ? dineRange(row) : timeLabel(row.party_time))}</span></li>
+            <li><span>Time</span><span>${escapeHtml(isReservation ? dineRange(row) : slotRange(row))}</span></li>
             ${
               isReservation
                 ? `<li><span>Held</span><span>${escapeHtml(slotRange(row))} (30 min before and after)</span></li>
@@ -732,27 +860,30 @@ async function loadDetail(id) {
                   : ""
             }
             <li><span>Guests</span><span>${escapeHtml(displayGuests(row))}</span></li>
-            <li><span>${isReservation ? "Table" : "Package"}</span><span>${escapeHtml(
-              isReservation ? tableText(row) : row.package_name || "—"
-            )}</span></li>
+            <li><span>Tables</span><span>${escapeHtml(tableText(row))}</span></li>
             ${
               isReservation
-                ? `<li><span>Purpose</span><span>${escapeHtml(reservation.purpose || "—")}</span></li>
-                   <li><span>Area</span><span>${escapeHtml(reservation.area || row.package_id || "—")}</span></li>`
-                : `<li><span>Theme / request</span><span>${escapeHtml(
-                    decor.designRequest || decor.themeLabel || "—"
-                  )}</span></li>`
+                ? `<li><span>Purpose</span><span>${escapeHtml(reservation.purpose || "—")}</span></li>`
+                : type === "birthday"
+                  ? `<li><span>Package</span><span>${escapeHtml(row.package_name || "—")}</span></li>
+                     <li><span>Theme / request</span><span>${escapeHtml(
+                       decor.designRequest || decor.themeLabel || "—"
+                     )}</span></li>`
+                  : ""
             }
           </ul>
         </section>
         ${
-          isReservation
+          showLayout
             ? `<section>
           <h3>Table layout</h3>
           <div class="staff-plan" id="staff-detail-plan"></div>
-          <p class="muted">2-hour slot. Held for 15 minutes after start; then cancelled if the guest has not arrived.</p>
         </section>`
-            : `<section>
+            : ""
+        }
+        ${
+          type === "birthday"
+            ? `<section>
           <h3>Quotation</h3>
           <ul class="quote-list">
             ${lines || "<li><span>No lines</span><span>—</span></li>"}
@@ -795,11 +926,12 @@ async function loadDetail(id) {
               .join("")}
           </div>
         </section>`
+            : ""
         }
         <section>
           <h3>Notes</h3>
-          <p>${escapeHtml(reservation.notes || (payload.party && payload.party.foodNotes) || "No food notes")}</p>
-          <p>${escapeHtml((payload.party && payload.party.notes) || (isReservation ? "" : "No extra notes"))}</p>
+          <p>${escapeHtml(reservation.notes || payload.event?.notes || (payload.party && payload.party.foodNotes) || "No food notes")}</p>
+          <p>${escapeHtml((payload.party && payload.party.notes) || "")}</p>
           <label class="field">
             <span>Staff notes</span>
             <textarea id="staff-notes" rows="4">${escapeHtml(row.staff_notes || "")}</textarea>
@@ -811,10 +943,10 @@ async function loadDetail(id) {
     </article>
   `;
 
-  if (isReservation && window.TinyReserveMap) {
+  if (showLayout && window.TinyReserveMap) {
     window.TinyReserveMap.renderMap(document.getElementById("staff-detail-plan"), {
-      area: reservation.area === "terrace" ? "terrace" : "indoor",
-      selected: reservation.tableIds || [],
+      area: layoutArea === "terrace" ? "terrace" : "indoor",
+      selected: tableIds,
       held: [],
       guests: row.guest_adults || reservation.guests || 1,
       interactive: false,
@@ -823,7 +955,7 @@ async function loadDetail(id) {
   }
 
   document.getElementById("back-list")?.addEventListener("click", () => {
-    location.hash = backTarget(row);
+    location.hash = backHash();
   });
   document.getElementById("status-select")?.addEventListener("change", async (e) => {
     const status = e.target.value;
@@ -846,35 +978,59 @@ async function loadDetail(id) {
       statusEl.className = saveError ? "status is-error" : "status is-success";
     }
   });
+  document.getElementById("delete-event")?.addEventListener("click", async () => {
+    if (!window.confirm("Remove this table block?")) return;
+    const { error: delError } = await supabase.from("requests").delete().eq("id", row.id).eq("source", "event");
+    const statusEl = document.getElementById("detail-status");
+    if (delError) {
+      if (statusEl) {
+        statusEl.textContent = delError.message;
+        statusEl.className = "status is-error";
+      }
+      return;
+    }
+    location.hash = backHash();
+  });
 }
 
-function showInbox(section, view) {
-  state.section = section;
+function showInbox(view) {
+  state.view = view;
+  if (view !== "day") state.lastView = view;
+  else state.lastView = "day";
   detailView.hidden = true;
   inboxViews.hidden = false;
   document.getElementById("overview-view").hidden = view !== "overview";
   document.getElementById("calendar-view").hidden = view !== "calendar";
+  document.getElementById("day-view").hidden = view !== "day";
   document.getElementById("timeline-view").hidden = view !== "timeline";
-  renderNav(section, view);
-  renderOverview();
+  document.getElementById("tables-view").hidden = view !== "tables";
+  renderNav(view);
+  if (view === "overview") renderOverview();
   if (view === "calendar") renderCalendar();
+  if (view === "day") renderDay();
   if (view === "timeline") renderTimeline();
+  if (view === "tables") renderTables();
 }
 
 async function route() {
   const parsed = parseHash();
-  if (parsed.section === "detail") {
-    renderNav(parsed.section, "");
+  if (parsed.date) {
+    state.selectedDate = parsed.date;
+    state.calendarMonth = parsed.date.slice(0, 7);
+  }
+  if (parsed.view === "detail") {
+    renderNav(parsed.view);
     await loadDetail(parsed.id);
     return;
   }
+  if (parsed.view === "cooking") {
+    renderNav(parsed.view);
+    renderCookingDetail(parsed.date || state.selectedDate);
+    return;
+  }
   try {
-    if (parsed.section === "birthdays") {
-      await loadBirthdays();
-    } else {
-      await Promise.all([loadReservations(), loadBirthdays()]);
-    }
-    showInbox(parsed.section, parsed.view || "overview");
+    await loadRows();
+    showInbox(parsed.view || "overview");
   } catch (err) {
     const node = document.getElementById("overview-status");
     if (node) {
@@ -882,6 +1038,10 @@ async function route() {
       node.className = "status is-error";
     }
   }
+}
+
+function go(hash) {
+  location.hash = hash.startsWith("#") ? hash : `#/${hash}`;
 }
 
 document.getElementById("login-form")?.addEventListener("submit", async (e) => {
@@ -897,7 +1057,7 @@ document.getElementById("login-form")?.addEventListener("submit", async (e) => {
   const user = await requireStaff();
   if (!user) return;
   showApp(true);
-  if (!location.hash) location.hash = "#/reservations/overview";
+  if (!location.hash || location.hash === "#") location.hash = "#/overview";
   route();
 });
 
@@ -906,32 +1066,47 @@ signOutBtn?.addEventListener("click", async () => {
   showApp(false);
 });
 
-document.getElementById("booking-list")?.addEventListener("click", (e) => {
-  const card = e.target.closest("[data-id]");
-  if (!card) return;
-  location.hash = `#/request/${card.dataset.id}`;
-});
-
-document.getElementById("timeline")?.addEventListener("click", (e) => {
-  const item = e.target.closest("[data-id]");
-  if (!item) return;
-  location.hash = `#/request/${item.dataset.id}`;
-});
-
-document.getElementById("cal-grid")?.addEventListener("click", (e) => {
+document.getElementById("inbox-views")?.addEventListener("click", (e) => {
+  const open = e.target.closest("[data-open]");
+  if (open) {
+    e.preventDefault();
+    e.stopPropagation();
+    go(open.dataset.open);
+    return;
+  }
   const cell = e.target.closest("[data-date]");
-  if (!cell) return;
-  state.selectedDate = cell.dataset.date;
-  location.hash = `#/${state.section}/overview`;
+  if (cell && cell.closest("#cal-grid")) {
+    state.selectedDate = cell.dataset.date;
+    go(`day/${cell.dataset.date}`);
+    return;
+  }
+  const track = e.target.closest("[data-table]");
+  if (track && !e.target.closest("[data-open]")) {
+    const Map = window.TinyReserveMap;
+    const { dayStart, span } = hourMarks();
+    const rect = track.getBoundingClientRect();
+    const pct = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    const start = minutesToTime(dayStart + pct * span);
+    const end = minutesToTime(dayStart + pct * span + 120);
+    openBlockModal({ tableIds: [track.dataset.table], start, end, date: state.selectedDate });
+  }
 });
 
 document.getElementById("inbox-date")?.addEventListener("change", (e) => {
   state.selectedDate = e.target.value || todayIso();
   state.calendarMonth = state.selectedDate.slice(0, 7);
-  const parsed = parseHash();
-  if (parsed.section === "reservations" || parsed.section === "birthdays") {
-    showInbox(parsed.section, parsed.view || "overview");
-  }
+  if (state.view === "day") go(`day/${state.selectedDate}`);
+  else showInbox(state.view);
+});
+
+document.getElementById("filter-type")?.addEventListener("change", (e) => {
+  state.filters.type = e.target.value || "all";
+  showInbox(state.view);
+});
+
+document.getElementById("filter-status")?.addEventListener("change", (e) => {
+  state.filters.status = e.target.value || "all";
+  showInbox(state.view);
 });
 
 document.getElementById("cal-prev")?.addEventListener("click", () => {
@@ -941,6 +1116,69 @@ document.getElementById("cal-prev")?.addEventListener("click", () => {
 document.getElementById("cal-next")?.addEventListener("click", () => {
   state.calendarMonth = shiftMonth(state.calendarMonth, 1);
   renderCalendar();
+});
+
+document.getElementById("day-back")?.addEventListener("click", () => {
+  go("calendar");
+});
+
+document.getElementById("block-tables")?.addEventListener("click", () => {
+  openBlockModal({ date: state.selectedDate });
+});
+
+document.getElementById("block-cancel")?.addEventListener("click", closeBlockModal);
+blockModal?.addEventListener("click", (e) => {
+  if (e.target === blockModal) closeBlockModal();
+});
+
+document.getElementById("block-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const statusEl = document.getElementById("block-status");
+  const name = document.getElementById("block-name")?.value.trim() || "Event block";
+  const date = document.getElementById("block-date")?.value;
+  const start = document.getElementById("block-start")?.value;
+  const end = document.getElementById("block-end")?.value;
+  const tableIds = [...document.querySelectorAll('input[name="block-table"]:checked')].map((input) => input.value);
+  if (!date || !start || !end || !tableIds.length) {
+    statusEl.textContent = "Choose a date, time range, and at least one table.";
+    statusEl.className = "status is-error";
+    return;
+  }
+  const Map = window.TinyReserveMap;
+  const tables = tableIds.map((id) => Map.findTable(id)).filter(Boolean);
+  const { data: sessionData } = await supabase.auth.getSession();
+  const user = sessionData.session?.user;
+  const code = `EVT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  const { error } = await supabase.from("requests").insert({
+    source: "event",
+    status: "booked",
+    public_code: code,
+    email: user?.email || "events@tinyhealthycafe.com",
+    contact_name: name,
+    party_date: date,
+    party_time: start,
+    package_name: Map.tableLabel(tables),
+    payload: {
+      event: { name },
+      reservation: {
+        name,
+        tableIds,
+        tableNumbers: tables.map((table) => table.number),
+        tableLabel: Map.tableLabel(tables),
+        area: tables[0]?.area || "terrace",
+        endTime: end,
+      },
+    },
+  });
+  if (error) {
+    statusEl.textContent = error.message;
+    statusEl.className = "status is-error";
+    return;
+  }
+  closeBlockModal();
+  state.selectedDate = date;
+  await loadRows();
+  showInbox("tables");
 });
 
 window.addEventListener("hashchange", () => {
@@ -961,19 +1199,16 @@ function tickClock() {
   });
 }
 
+tickClock();
+setInterval(tickClock, 1000);
+
 (async () => {
-  tickClock();
-  window.setInterval(tickClock, 1000);
-  if (!cfg.anonKey || cfg.anonKey === "PASTE_SUPABASE_ANON_KEY") {
-    setLoginError("Add the Supabase anon key in shared/supabase-config.js");
-    return;
-  }
   const user = await requireStaff();
   if (!user) {
     showApp(false);
     return;
   }
   showApp(true);
-  if (!location.hash) location.hash = "#/reservations/overview";
+  if (!location.hash || location.hash === "#") location.hash = "#/overview";
   route();
 })();

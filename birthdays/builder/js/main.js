@@ -301,6 +301,9 @@
     foodReviewed: false,
     decorReviewed: false,
     extras: [],
+    tableIds: [],
+    tableArea: "indoor",
+    occupancy: [],
   };
 
   let currentStepId = "intro";
@@ -1572,6 +1575,7 @@
     updateDayIndicator();
     renderPackages();
     renderFood();
+    renderPartyTables();
     renderSummary();
   }
 
@@ -1633,6 +1637,7 @@
     renderPackageHint();
     renderFood();
     checkTerraceGuestLimit();
+    assignPartyTables();
     renderSummary();
     updateStepProgress();
   }
@@ -1640,6 +1645,154 @@
   function selectedPackage() {
     if (!partyState.packageId) return null;
     return partyData.packages.find((p) => p.id === partyState.packageId) || null;
+  }
+
+  function partyTables() {
+    const Map = window.TinyReserveMap;
+    return (partyState.tableIds || []).map((id) => Map?.findTable?.(id)).filter(Boolean);
+  }
+
+  function heldPartyTableIds() {
+    const Map = window.TinyReserveMap;
+    if (!Map?.heldTableIds) return new Set();
+    return Map.heldTableIds(partyState.occupancy, partyTimeValue(), "birthday");
+  }
+
+  function unavailablePartyTables() {
+    const held = heldPartyTableIds();
+    return (partyState.tableIds || []).filter((id) => held.has(id));
+  }
+
+  function partyTableLabel() {
+    const Map = window.TinyReserveMap;
+    const tables = partyTables();
+    return tables.length && Map?.tableLabel ? Map.tableLabel(tables) : "";
+  }
+
+  async function loadPartyOccupancy() {
+    const Map = window.TinyReserveMap;
+    const date = document.getElementById("party-date")?.value || "";
+    const cfg = window.TINY_SUPABASE || {};
+    if (!cfg.url || !cfg.anonKey || !date) {
+      partyState.occupancy = Map?.withFixedHolds?.(date, []) || [];
+      renderPartyTables();
+      return;
+    }
+    try {
+      const res = await fetch(`${cfg.url}/rest/v1/rpc/reservation_occupancy`, {
+        method: "POST",
+        headers: {
+          apikey: cfg.anonKey,
+          Authorization: `Bearer ${cfg.anonKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ target_date: date }),
+      });
+      const data = await res.json();
+      const rows = Array.isArray(data) ? data : [];
+      partyState.occupancy = Map?.withFixedHolds?.(date, rows) || rows;
+    } catch (_) {
+      partyState.occupancy = Map?.withFixedHolds?.(date, []) || [];
+    }
+    renderPartyTables();
+    updateStepProgress();
+  }
+
+  function assignPartyTables() {
+    const Map = window.TinyReserveMap;
+    const pkg = selectedPackage();
+    if (!pkg || !Map) {
+      partyState.tableIds = [];
+      renderPartyTables();
+      return;
+    }
+    const auto = Map.birthdayTableIds?.(pkg.id, totalGuests()) || [];
+    if (auto.length) {
+      partyState.tableIds = auto;
+      partyState.tableArea = "terrace";
+    } else if (pkg.id === "simple") {
+      const stillFit = partyTables().every((table) => Map.canTakeTable(table, totalGuests()));
+      if (!stillFit) partyState.tableIds = [];
+    } else {
+      partyState.tableIds = [];
+    }
+    loadPartyOccupancy();
+  }
+
+  function renderPartyTables() {
+    const host = document.getElementById("party-tables");
+    const plan = document.getElementById("party-floorplan");
+    const areas = document.getElementById("party-table-areas");
+    const copy = document.getElementById("party-tables-copy");
+    const picked = document.getElementById("party-tables-picked");
+    const status = document.getElementById("party-tables-status");
+    const Map = window.TinyReserveMap;
+    const pkg = selectedPackage();
+    if (!host) return;
+    if (!pkg || !partyState.packageChosen) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    const interactive = pkg.id === "simple";
+    const area = interactive ? partyState.tableArea || "indoor" : "terrace";
+    if (areas) {
+      areas.hidden = !interactive;
+      areas.querySelectorAll("[data-area]").forEach((btn) => {
+        btn.classList.toggle("is-active", btn.dataset.area === area);
+      });
+    }
+    if (copy) {
+      if (pkg.id === "simple") {
+        copy.textContent =
+          "Pick tables that fit your guest count. Indoor max 8 people; indoor tables 1 and 2 can be joined. Saturday 14:00–17:00, terrace 18 and 19 are held for cooking class.";
+      } else if (pkg.id === "terrace") {
+        copy.textContent = "Whole Terrace reserves every terrace table for the party window.";
+      } else {
+        copy.textContent =
+          "Optimal uses terrace tables 18, 19, 12 and 13, added in that order until they fit your guest count.";
+      }
+    }
+    const blocked = unavailablePartyTables();
+    if (status) {
+      if (!partyTimeValue() || !document.getElementById("party-date")?.value) {
+        status.textContent = "Set the party date and time in step 01 so we can check table availability.";
+        status.className = "form-status";
+      } else if (blocked.length) {
+        status.textContent =
+          pkg.id === "simple"
+            ? "That table is already reserved for this party time. Please pick another."
+            : "Those terrace tables are already reserved (including Saturday cooking class on 18 and 19, 14:00–17:00). Please pick another time.";
+        status.className = "form-status is-error";
+      } else if (!(partyState.tableIds || []).length) {
+        status.textContent = "Select tables to continue.";
+        status.className = "form-status";
+      } else {
+        status.textContent = "";
+        status.className = "form-status";
+      }
+    }
+    if (picked) {
+      const label = partyTableLabel();
+      picked.textContent = label ? `Reserved: ${label}` : "No tables selected yet.";
+    }
+    if (plan && Map?.renderMap) {
+      Map.renderMap(plan, {
+        area,
+        selected: partyState.tableIds || [],
+        held: [...heldPartyTableIds()],
+        guests: totalGuests() || 1,
+        interactive,
+        base: "../../reserve/img/",
+        onPick: (id) => {
+          const next = Map.nextSelection(partyState.tableIds, id, totalGuests(), heldPartyTableIds());
+          partyState.tableIds = [...next];
+          renderPartyTables();
+          renderSummary();
+          updateStepProgress();
+        },
+      });
+    }
   }
 
   function packagePrice(pkg) {
@@ -2206,6 +2359,14 @@
         guestAdults: adults,
         foodNotes: document.getElementById("food-notes")?.value.trim() || "",
         notes: document.getElementById("party-notes")?.value.trim() || "",
+      },
+      reservation: {
+        name: document.getElementById("child-name")?.value.trim() || "",
+        area: partyTables()[0]?.area || partyState.tableArea || "terrace",
+        tableIds: partyState.tableIds || [],
+        tableNumbers: partyTables().map((table) => table.number),
+        tableLabel: partyTableLabel(),
+        guests: totalGuests(),
       },
       package: pkg
         ? {
@@ -2904,6 +3065,7 @@
     const rows = [
       ["Contact", [contact.email, contact.phone].filter(Boolean).join(" · ") || "—"],
       ["Package", pkg ? `${pkg.name} · ${packagePrice(pkg)}` : "—"],
+      ["Tables", partyTableLabel() || "—"],
       ["Day", partyState.day === "weekend" ? "Weekend" : "Weekday"],
       ["Decoration package", decorPackageLabel()],
       ["Decoration look", decorThemeLabel()],
@@ -2954,6 +3116,7 @@
     const lines = [
       "Hi Tiny! I'd like to build a birthday party.",
       pkg ? `Package: ${pkg.name} (${packagePrice(pkg)}, ${partyState.day})` : "",
+      partyTableLabel() ? `Tables: ${partyTableLabel()}` : "",
       `Decoration package: ${decorPackageLabel()}`,
       `Decoration look: ${decorThemeLabel()}`,
       designRequest && partyState.decorThemeId === "custom"
@@ -3396,7 +3559,12 @@
       case "details":
         return detailsAreComplete();
       case "package":
-        return partyState.packageChosen && Boolean(partyState.packageId);
+        return (
+          partyState.packageChosen &&
+          Boolean(partyState.packageId) &&
+          (partyState.tableIds || []).length > 0 &&
+          unavailablePartyTables().length === 0
+        );
       case "decor":
         return partyState.decorReviewed || partyState.decorThemeId === "custom";
       case "cakes":
@@ -3417,7 +3585,7 @@
       case "details":
         return "Please fill out the required details, including email or WhatsApp.";
       case "package":
-        return "Please choose a package.";
+        return "Please choose a package and available tables.";
       case "decor":
         return "Please choose a decoration look or build your own.";
       case "cakes":
@@ -3638,6 +3806,21 @@
     });
   }
 
+  function initPartyTables() {
+    const areas = document.getElementById("party-table-areas");
+    if (!areas || areas.dataset.bound) return;
+    areas.dataset.bound = "1";
+    areas.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-area]");
+      if (!btn) return;
+      partyState.tableArea = btn.dataset.area;
+      partyState.tableIds = [];
+      renderPartyTables();
+      renderSummary();
+      updateStepProgress();
+    });
+  }
+
   function initGuestLimit() {
     ["guest-kids", "guest-adults"].forEach((id) => {
       const el = document.getElementById(id);
@@ -3647,12 +3830,14 @@
         checkTerraceGuestLimit();
         renderPackages();
         renderPackageHint();
+        assignPartyTables();
         updateStepProgress();
       });
       el.addEventListener("change", () => {
         checkTerraceGuestLimit();
         renderPackages();
         renderPackageHint();
+        assignPartyTables();
         updateStepProgress();
       });
     });
@@ -3664,11 +3849,13 @@
         validateDetailsSection(false);
         updateStepProgress();
         renderSummary();
+        if (id === "party-date" || id === "party-time") loadPartyOccupancy();
       });
       el.addEventListener("change", () => {
         validateDetailsSection(false);
         updateStepProgress();
         renderSummary();
+        if (id === "party-date" || id === "party-time") loadPartyOccupancy();
       });
     });
   }
@@ -3929,6 +4116,7 @@
     initBuilderModals();
     initCollapsibleAddons();
     initGuestLimit();
+    initPartyTables();
     renderMasterclasses();
     renderExtras();
     renderFood();

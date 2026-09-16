@@ -2399,3 +2399,103 @@ body.steps-pinned .site-header {
     display: none !important;
   }
 }
+
+.party-tables {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid rgba(100, 124, 110, 0.16);
+}
+
+.party-tables h3 {
+  margin: 0 0 8px;
+}
+
+.plan-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.plan-tab {
+  border: 1px solid rgba(100, 124, 110, 0.3);
+  background: transparent;
+  border-radius: 999px;
+  padding: 8px 16px;
+  font: 600 14px Jost, system-ui, sans-serif;
+  cursor: pointer;
+  color: inherit;
+}
+
+.plan-tab.is-active {
+  background: #2c3a32;
+  color: #fff;
+  border-color: #2c3a32;
+}
+
+.party-floorplan {
+  max-width: 720px;
+}
+
+.party-floorplan .plan-map {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.party-floorplan .plan-map img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: min(70dvh, 640px);
+}
+
+.table-hit {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+
+.table-hit--round { border-radius: 50%; }
+.table-hit--square { border-radius: 8px; }
+.table-hit--clover { border-radius: 10px; transform: rotate(45deg); }
+.table-hit--lounge,
+.table-hit--rect { border-radius: 14px; }
+.table-hit--pill { border-radius: 999px; }
+
+.table-hit.is-selected {
+  background: rgba(100, 124, 110, 0.32);
+  border-color: #647c6e;
+}
+
+.table-hit.is-held {
+  background: rgba(61, 79, 69, 0.55);
+  border-color: rgba(61, 79, 69, 0.8);
+  cursor: not-allowed;
+}
+
+.table-hit.is-small {
+  opacity: 0.22;
+  cursor: not-allowed;
+}
+
+.table-hit__note {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #fff;
+  text-align: center;
+}
+
+.table-hit--clover .table-hit__note {
+  transform: rotate(-45deg);
+}

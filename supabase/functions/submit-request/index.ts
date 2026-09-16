@@ -14,8 +14,14 @@ const ALLOWED_SOURCES = new Set(["party_builder", "cake", "pdf_quote", "reservat
 const SLOT_MINUTES = 120;
 const RES_BEFORE = 30;
 const RES_AFTER = 30;
+const BDAY_BEFORE = 60;
+const BDAY_AFTER = 180;
 const GRACE_MINUTES = 15;
 const BALI_OFFSET = "+08:00";
+const COOKING_TABLES = new Set(["tr-18", "tr-19"]);
+const COOKING_START = 14 * 60;
+const COOKING_END = 17 * 60;
+const OCCUPY_SOURCES = ["reservation", "event", "party_builder"];
 
 function timeToMinutes(value: string) {
   const slot = String(value || "").slice(0, 5);
@@ -24,17 +30,46 @@ function timeToMinutes(value: string) {
   return hour * 60 + minute;
 }
 
-function occupyRange(time: string) {
+function occupyKind(source: string) {
+  if (source === "party_builder") return "birthday";
+  if (source === "event") return "event";
+  return "reservation";
+}
+
+function occupyRange(time: string, kind = "reservation", endTime = "") {
   const start = timeToMinutes(time);
   if (start == null) return null;
+  const explicitEnd = timeToMinutes(endTime);
+  if (explicitEnd != null) return { start, end: Math.max(start + 30, explicitEnd) };
+  if (kind === "birthday") return { start: start - BDAY_BEFORE, end: start + BDAY_AFTER };
   return { start: start - RES_BEFORE, end: start + SLOT_MINUTES + RES_AFTER };
 }
 
-function slotsOverlap(a: string, b: string) {
-  const left = occupyRange(a);
-  const right = occupyRange(b);
+function rangesOverlap(
+  aTime: string,
+  bTime: string,
+  aKind = "reservation",
+  bKind = "reservation",
+  aEnd = "",
+  bEnd = ""
+) {
+  const left = occupyRange(aTime, aKind, aEnd);
+  const right = occupyRange(bTime, bKind, bEnd);
   if (!left || !right) return false;
   return left.start < right.end && right.start < left.end;
+}
+
+function isSaturday(date: string) {
+  const [year, month, day] = String(date).split("-").map(Number);
+  if (!year || !month || !day) return false;
+  return new Date(Date.UTC(year, month - 1, day)).getUTCDay() === 6;
+}
+
+function cookingClassClash(date: string, time: string, tableIds: string[], kind: string, endTime = "") {
+  if (!isSaturday(date) || !tableIds.some((id) => COOKING_TABLES.has(id))) return false;
+  const wanted = occupyRange(time, kind, endTime);
+  if (!wanted) return false;
+  return wanted.start < COOKING_END && COOKING_START < wanted.end;
 }
 
 function isReleasedNoShow(status: string | null | undefined, date: string, time: string) {
@@ -194,11 +229,54 @@ Deno.serve(async (req) => {
     return json({ ok: false, error: "Request is too large." }, 400, origin);
   }
 
+  async function tablesClash(
+    wantedDate: string,
+    wantedTime: string,
+    tableIds: unknown[],
+    kind: string,
+    endTime = ""
+  ) {
+    const wanted = new Set(tableIds.map((id) => String(id)));
+    if (!wanted.size) return false;
+    if (cookingClassClash(wantedDate, wantedTime, [...wanted], kind, endTime)) return true;
+    const { data: clashes } = await supabase
+      .from("requests")
+      .select("id, source, status, party_time, payload")
+      .in("source", OCCUPY_SOURCES)
+      .eq("party_date", wantedDate)
+      .not("status", "in", "(cancelled,rejected,closed)");
+    return (clashes || []).some((row) => {
+      const rowTime = asString(row.party_time);
+      const rowPayload = (row.payload as { reservation?: { tableIds?: unknown[]; endTime?: unknown } })
+        ?.reservation || {};
+      const held = rowPayload.tableIds || [];
+      const rowKind = occupyKind(String(row.source || ""));
+      const rowEnd = asString(rowPayload.endTime);
+      if (!rangesOverlap(rowTime, wantedTime, rowKind, kind, rowEnd, endTime)) return false;
+      if (row.source === "reservation" && isReleasedNoShow(row.status as string, wantedDate, rowTime)) {
+        return false;
+      }
+      return held.some((id) => wanted.has(String(id)));
+    });
+  }
+
   if (source === "party_builder") {
     const party = (payload as { party?: Record<string, unknown> }).party || {};
     const pkg = (payload as { package?: Record<string, unknown> }).package || {};
+    const reservation = (payload as { reservation?: Record<string, unknown> }).reservation || {};
+    const tableIds = Array.isArray(reservation.tableIds) ? reservation.tableIds : [];
     if (!asString(pkg.id) || !asString(party.date) || !asString(party.childName)) {
       return json({ ok: false, error: "Please complete the party details." }, 400, origin);
+    }
+    if (!asString(party.time) || !tableIds.length) {
+      return json({ ok: false, error: "Please choose tables for this party." }, 400, origin);
+    }
+    if (await tablesClash(asString(party.date), asString(party.time), tableIds, "birthday")) {
+      return json(
+        { ok: false, error: "Those tables are already reserved for this party time. Please pick another." },
+        409,
+        origin
+      );
     }
   }
   if (source === "cake") {
@@ -215,24 +293,7 @@ Deno.serve(async (req) => {
     if (!asString(party.date) || !asString(party.time) || !asString(reservation.name) || !tableIds.length) {
       return json({ ok: false, error: "Please complete the reservation details." }, 400, origin);
     }
-    const wantedTime = asString(party.time);
-    const wantedDate = asString(party.date);
-    const { data: clashes } = await supabase
-      .from("requests")
-      .select("id, status, party_time, payload")
-      .eq("source", "reservation")
-      .eq("party_date", wantedDate)
-      .not("status", "in", "(cancelled,rejected,closed)");
-    const wanted = new Set(tableIds.map((id) => String(id)));
-    const taken = (clashes || []).some((row) => {
-      const rowTime = asString(row.party_time);
-      if (!slotsOverlap(rowTime, wantedTime)) return false;
-      if (isReleasedNoShow(row.status as string, wantedDate, rowTime)) return false;
-      const held =
-        ((row.payload as { reservation?: { tableIds?: unknown[] } })?.reservation?.tableIds) || [];
-      return held.some((id) => wanted.has(String(id)));
-    });
-    if (taken) {
+    if (await tablesClash(asString(party.date), asString(party.time), tableIds, "reservation")) {
       return json(
         { ok: false, error: "That table is already reserved for this 2-hour slot. Please pick another." },
         409,

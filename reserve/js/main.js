@@ -316,7 +316,8 @@
         body: JSON.stringify({ target_date: state.date }),
       });
       const data = await res.json();
-      state.occupancy = Array.isArray(data) ? data : [];
+      const rows = Array.isArray(data) ? data : [];
+      state.occupancy = Map.withFixedHolds ? Map.withFixedHolds(state.date, rows) : rows;
     } catch (_) {
       state.occupancy = [];
     }

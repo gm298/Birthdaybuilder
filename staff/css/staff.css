@@ -574,3 +574,235 @@ input, select, textarea {
   .stat-grid { grid-template-columns: 1fr 1fr; }
   .booking-card { grid-template-columns: 1fr; }
 }
+
+.staff-shell { max-width: 1440px; }
+
+.toolbar--inbox {
+  grid-template-columns: 1.4fr repeat(3, minmax(140px, 200px));
+  align-items: end;
+}
+
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--sage);
+}
+
+.filter input,
+.filter select {
+  width: 100%;
+}
+
+.badge--reservation { background: #e7eefc; color: #2b62c5; }
+.badge--birthday { background: #e7eee8; color: #2f6b46; }
+.badge--event { background: #f3e8fb; color: #6941c6; }
+
+.cal-cell {
+  min-height: 148px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.cal-daynum {
+  align-self: flex-start;
+  border: 0;
+  background: transparent;
+  font: 700 14px Jost, system-ui, sans-serif;
+  color: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cal-events {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cal-event,
+.cal-more {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font: 600 11px/1.3 Jost, system-ui, sans-serif;
+  text-align: left;
+  cursor: pointer;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-event.is-reservation { background: #2b62c5; }
+.cal-event.is-birthday { background: #2f6b46; }
+.cal-event.is-event { background: #6941c6; }
+.cal-event.is-cooking { background: #9a6b2f; }
+.cal-more {
+  background: transparent;
+  color: var(--sage);
+  padding: 0 6px;
+}
+
+.day-head,
+.tables-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.day-board,
+.pms {
+  position: relative;
+  overflow: auto;
+  background: var(--white);
+  border: 1px solid rgba(100, 124, 110, 0.16);
+  border-radius: 12px;
+}
+
+.day-board {
+  min-height: 640px;
+}
+
+.day-hours,
+.pms__hours,
+.pms__row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+}
+
+.day-track,
+.pms__track {
+  position: relative;
+  min-height: 48px;
+  border-bottom: 1px solid rgba(100, 124, 110, 0.12);
+}
+
+.day-hour,
+.pms__hour {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--sage);
+  border-bottom: 1px solid rgba(100, 124, 110, 0.12);
+}
+
+.day-item,
+.pms__item {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
+  font: 600 12px/1.3 Jost, system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.day-item.is-reservation,
+.pms__item.is-reservation { background: #2b62c5; }
+.day-item.is-birthday,
+.pms__item.is-birthday { background: #2f6b46; }
+.day-item.is-event,
+.pms__item.is-event { background: #6941c6; }
+.day-item.is-cooking,
+.pms__item.is-cooking { background: repeating-linear-gradient(135deg, #9a6b2f, #9a6b2f 8px, #b8843c 8px, #b8843c 16px); }
+
+.pms__row {
+  min-height: 44px;
+  border-bottom: 1px solid rgba(100, 124, 110, 0.1);
+}
+
+.pms__label {
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  border-right: 1px solid rgba(100, 124, 110, 0.12);
+  background: #f7f5ee;
+}
+
+.pms__hours {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f7f5ee;
+  border-bottom: 1px solid rgba(100, 124, 110, 0.16);
+}
+
+.pms__hourline {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(100, 124, 110, 0.12);
+  pointer-events: none;
+}
+
+.pms__item {
+  left: auto;
+  right: auto;
+  top: 6px;
+  bottom: 6px;
+  height: auto;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(44, 58, 50, 0.35);
+  display: grid;
+  place-items: center;
+  z-index: 40;
+  padding: 20px;
+}
+
+.modal[hidden] { display: none; }
+
+.modal__card {
+  width: min(560px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--white);
+  border-radius: 16px;
+  padding: 24px;
+}
+
+.block-tables {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 16px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 14px;
+  color: var(--deep);
+}
+
+.block-tables label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+@media (max-width: 900px) {
+  .toolbar--inbox { grid-template-columns: 1fr 1fr; }
+  .pms__row,
+  .day-hours,
+  .pms__hours { grid-template-columns: 72px 1fr; }
+}

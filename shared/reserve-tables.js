@@ -14,6 +14,10 @@
   const CLOSE_MINUTES = 18 * 60;
   const DAY_START = 7 * 60 + 30;
   const DAY_END = 19 * 60;
+  const COOKING_TABLES = ["tr-18", "tr-19"];
+  const COOKING_START = 14 * 60;
+  const COOKING_END = 17 * 60;
+  const OPTIMAL_TABLES = ["tr-18", "tr-19", "tr-12", "tr-13"];
 
   const TABLES = [
     { id: "in-1", area: "indoor", number: 1, name: "Table 1", seats: 4, hint: "Square by the entrance", x: 78.2, y: 24.8, w: 7.4, h: 13.2, shape: "clover" },
@@ -58,9 +62,14 @@
     return padTime(start + extra);
   }
 
-  function occupyRange(time, kind) {
+  function occupyRange(time, kind, endTime) {
+    if (time && typeof time === "object") {
+      return occupyRange(time.time, time.kind || kind, time.endTime || endTime);
+    }
     const start = timeToMinutes(time);
     if (start == null) return null;
+    const explicitEnd = timeToMinutes(endTime);
+    if (explicitEnd != null) return { start, end: Math.max(start + 30, explicitEnd) };
     if (kind === "birthday") return { start: start - BDAY_BEFORE, end: start + BDAY_AFTER };
     return { start: start - RES_BEFORE, end: start + SLOT_MINUTES + RES_AFTER };
   }
@@ -70,6 +79,53 @@
     const right = occupyRange(b, kindB || "reservation");
     if (!left || !right) return false;
     return left.start < right.end && right.start < left.end;
+  }
+
+  function isSaturday(iso) {
+    if (!iso) return false;
+    const [year, month, day] = String(iso).split("-").map(Number);
+    if (!year || !month || !day) return false;
+    return new Date(Date.UTC(year, month - 1, day)).getUTCDay() === 6;
+  }
+
+  function cookingClassItem(iso) {
+    if (!isSaturday(iso)) return null;
+    return {
+      id: `cooking-${iso}`,
+      time: "14:00",
+      endTime: "17:00",
+      tableIds: COOKING_TABLES.slice(),
+      kind: "event",
+      synthetic: true,
+      label: "Cooking class",
+    };
+  }
+
+  function withFixedHolds(iso, occupancy) {
+    const extra = cookingClassItem(iso);
+    return extra ? [...(occupancy || []), extra] : occupancy || [];
+  }
+
+  function terraceTableIds() {
+    return TABLES.filter((table) => table.area === "terrace").map((table) => table.id);
+  }
+
+  function optimalTableIds(pax) {
+    const guests = Math.max(1, Number(pax) || 1);
+    const ids = [];
+    let seats = 0;
+    OPTIMAL_TABLES.forEach((id) => {
+      if (seats >= guests) return;
+      ids.push(id);
+      seats += findTable(id)?.seats || 0;
+    });
+    return ids;
+  }
+
+  function birthdayTableIds(packageId, pax) {
+    if (packageId === "terrace") return terraceTableIds();
+    if (packageId === "signature" || packageId === "optimal") return optimalTableIds(pax);
+    return [];
   }
 
   function occupyLabel(time, kind) {
@@ -126,10 +182,13 @@
     return groupSeats(neededIds(table, guests)) >= guests;
   }
 
-  function heldTableIds(occupancy, time) {
+  function heldTableIds(occupancy, time, kind) {
+    const wanted = occupyRange(time, kind || "reservation");
     const held = new Set();
+    if (!wanted) return held;
     (occupancy || []).forEach((item) => {
-      if (!occupyOverlap(item.time, time, item.kind || "reservation", "reservation")) return;
+      const other = occupyRange(item);
+      if (!other || wanted.start >= other.end || other.start >= wanted.end) return;
       (item.tableIds || []).forEach((id) => held.add(String(id)));
     });
     return held;
@@ -223,6 +282,16 @@
     CLOSE_MINUTES,
     DAY_START,
     DAY_END,
+    COOKING_TABLES,
+    COOKING_START,
+    COOKING_END,
+    OPTIMAL_TABLES,
+    isSaturday,
+    cookingClassItem,
+    withFixedHolds,
+    terraceTableIds,
+    optimalTableIds,
+    birthdayTableIds,
     timeToMinutes,
     addMinutes,
     occupyRange,
