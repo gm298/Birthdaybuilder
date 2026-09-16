@@ -118,7 +118,11 @@ function displayGuests(row) {
         .join(" · ") || "—"
     );
   }
-  return `${row.guest_adults || row.payload?.reservation?.guests || "—"} pax`;
+  return (
+    [row.guest_kids ? `${row.guest_kids} kids` : "", row.guest_adults ? `${row.guest_adults} adults` : ""]
+      .filter(Boolean)
+      .join(" · ") || `${row.guest_adults || row.payload?.reservation?.guests || "—"} pax`
+  );
 }
 
 function displaySubtitle(row) {
@@ -156,8 +160,18 @@ function baliNowParts() {
   };
 }
 
+function occupyKind(row) {
+  return BIRTHDAY_SOURCES.includes(row.source) ? "birthday" : "reservation";
+}
+
 function slotRange(row) {
   const time = timeLabel(row.party_time);
+  return window.TinyReserveMap?.occupyLabel?.(time, occupyKind(row)) || time;
+}
+
+function dineRange(row) {
+  const time = timeLabel(row.party_time);
+  if (occupyKind(row) === "birthday") return slotRange(row);
   return window.TinyReserveMap?.timeRangeLabel?.(time) || time;
 }
 
@@ -481,6 +495,23 @@ function legendItems() {
   ];
 }
 
+function calendarRows(iso) {
+  if (isBirthdaySection()) return state.birthdays.filter((row) => row.party_date === iso);
+  return [
+    ...state.reservations.filter((row) => row.party_date === iso),
+    ...state.birthdays.filter(
+      (row) =>
+        row.party_date === iso &&
+        row.source === "party_builder" &&
+        !["cancelled", "rejected", "closed"].includes(row.status)
+    ),
+  ];
+}
+
+function timelineRows() {
+  return calendarRows(state.selectedDate).filter((row) => row.party_time);
+}
+
 function renderCalendar() {
   const title = document.getElementById("cal-title");
   const [year, month] = state.calendarMonth.split("-").map(Number);
@@ -497,7 +528,7 @@ function renderCalendar() {
     .join("");
   const cells = monthCells(state.calendarMonth)
     .map((cell) => {
-      const rows = rowsOnDate(cell.iso);
+      const rows = calendarRows(cell.iso);
       const classes = [
         "cal-cell",
         cell.muted ? "is-muted" : "",
@@ -520,38 +551,65 @@ function renderCalendar() {
 }
 
 function renderTimeline() {
-  const rows = rowsOnDate(state.selectedDate);
+  const rows = timelineRows();
+  const Map = window.TinyReserveMap;
+  const dayStart = Map?.DAY_START ?? 7 * 60 + 30;
+  const dayEnd = Map?.DAY_END ?? 19 * 60;
+  const span = dayEnd - dayStart;
   document.getElementById("timeline-count").textContent = isBirthdaySection()
-    ? `${rows.length} ${rows.length === 1 ? "party" : "parties"} booked`
-    : `${rows.length} table${rows.length === 1 ? "" : "s"} booked`;
+    ? `${rows.length} ${rows.length === 1 ? "party" : "parties"} booked · 4-hour hold (1h prep + 3h party)`
+    : `${rows.length} booking${rows.length === 1 ? "" : "s"} · tables 3 hours, birthdays 4 hours`;
   const slots = [];
-  for (let minutes = 8 * 60 + 30; minutes <= 18 * 60; minutes += 30) {
+  for (let minutes = dayStart; minutes <= dayEnd; minutes += 30) {
     const hour = Math.floor(minutes / 60);
     const min = minutes % 60;
     slots.push(`${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
   }
   const empty = isBirthdaySection()
     ? "No parties booked on this date."
-    : "No tables booked on this date.";
+    : "No tables or parties booked on this date.";
+  const packed = rows
+    .slice()
+    .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)))
+    .map((row) => {
+      const range = Map?.occupyRange?.(row.party_time, occupyKind(row)) || {
+        start: Map?.timeToMinutes?.(row.party_time) || dayStart,
+        end: (Map?.timeToMinutes?.(row.party_time) || dayStart) + 120,
+      };
+      return { row, range };
+    });
+  const lanes = [];
+  packed.forEach((item) => {
+    let lane = lanes.findIndex((list) =>
+      list.every((other) => item.range.end <= other.range.start || item.range.start >= other.range.end)
+    );
+    if (lane < 0) {
+      lanes.push([]);
+      lane = lanes.length - 1;
+    }
+    lanes[lane].push(item);
+    item.lane = lane;
+  });
   document.getElementById("timeline").innerHTML = `
-    <div class="timeline__track">
+    <div class="timeline__track" style="--lanes:${Math.max(lanes.length, 1)}; --slots:${slots.length}">
       <div class="timeline__hours">
         ${slots.map((slot) => `<div class="timeline__slot">${slot}</div>`).join("")}
       </div>
       <div class="timeline__bookings">
         ${
-          rows.length
-            ? rows
-                .slice()
-                .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)))
-                .map(
-                  (row) => `<button class="timeline__item" type="button" data-id="${escapeHtml(row.id)}">
-                    <strong>${escapeHtml(isBirthdaySection() ? timeLabel(row.party_time) : slotRange(row))}</strong>
-                    ${escapeHtml(displayName(row))} · ${escapeHtml(displaySubtitle(row))}
-                    · ${escapeHtml(displayGuests(row))}
-                    ${isBirthdaySection() ? "" : `<span class="muted">Arrive by ${escapeHtml(arriveBy(row))}</span>`}
-                  </button>`
-                )
+          packed.length
+            ? packed
+                .map((item) => {
+                  const left = ((item.range.start - dayStart) / span) * 100;
+                  const width = ((item.range.end - item.range.start) / span) * 100;
+                  const kind = occupyKind(item.row);
+                  return `<button class="timeline__item is-${kind}" type="button" data-id="${escapeHtml(item.row.id)}" style="left:${left}%;width:${width}%;top:calc(${item.lane} * 46px)">
+                    <strong>${escapeHtml(slotRange(item.row))}</strong>
+                    ${escapeHtml(displayName(item.row))} · ${escapeHtml(displaySubtitle(item.row))}
+                    · ${escapeHtml(displayGuests(item.row))}
+                    ${kind === "birthday" ? `<span class="muted">Prep + party</span>` : `<span class="muted">Dine ${escapeHtml(dineRange(item.row))} · arrive by ${escapeHtml(arriveBy(item.row))}</span>`}
+                  </button>`;
+                })
                 .join("")
             : `<p class="muted">${empty}</p>`
         }
@@ -664,11 +722,14 @@ async function loadDetail(id) {
               isReservation ? displayName(row) : row.child_name || "—"
             )}${!isReservation && row.child_age ? ` · turning ${escapeHtml(row.child_age)}` : ""}</span></li>
             <li><span>Date</span><span>${escapeHtml(row.party_date || "—")}</span></li>
-            <li><span>Time</span><span>${escapeHtml(isReservation ? slotRange(row) : timeLabel(row.party_time))}</span></li>
+            <li><span>Time</span><span>${escapeHtml(isReservation ? dineRange(row) : timeLabel(row.party_time))}</span></li>
             ${
               isReservation
-                ? `<li><span>Arrive by</span><span>${escapeHtml(arriveBy(row))} or the table is released</span></li>`
-                : ""
+                ? `<li><span>Held</span><span>${escapeHtml(slotRange(row))} (30 min before and after)</span></li>
+                   <li><span>Arrive by</span><span>${escapeHtml(arriveBy(row))} or the table is released</span></li>`
+                : row.source === "party_builder"
+                  ? `<li><span>Held</span><span>${escapeHtml(slotRange(row))} (1h prep + 3h party)</span></li>`
+                  : ""
             }
             <li><span>Guests</span><span>${escapeHtml(displayGuests(row))}</span></li>
             <li><span>${isReservation ? "Table" : "Package"}</span><span>${escapeHtml(
@@ -811,7 +872,7 @@ async function route() {
     if (parsed.section === "birthdays") {
       await loadBirthdays();
     } else {
-      await loadReservations();
+      await Promise.all([loadReservations(), loadBirthdays()]);
     }
     showInbox(parsed.section, parsed.view || "overview");
   } catch (err) {

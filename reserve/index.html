@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20260916f">
-  <link rel="stylesheet" href="../shared/chrome.css?v=20260916a">
+  <link rel="stylesheet" href="css/styles.css?v=20260916g">
+  <link rel="stylesheet" href="../shared/chrome.css?v=20260916g">
 </head>
 <body data-page="reserve">
   <div id="site-chrome-header"></div>
@@ -38,12 +38,17 @@
 
       <form id="reserve-form" novalidate>
         <div class="wizard-panel is-active" data-panel="1">
-          <div class="field">
-            <span class="field__label" id="guests-label">Select the number of guests</span>
-            <div class="stepper">
-              <button type="button" class="stepper__btn" id="guests-minus" aria-label="Fewer guests">−</button>
-              <input type="number" id="reserve-guests" name="guests" min="1" max="8" value="2" inputmode="numeric" aria-labelledby="guests-label">
-              <button type="button" class="stepper__btn" id="guests-plus" aria-label="More guests">+</button>
+          <div class="field field--guests">
+            <span class="field__label">How many people? <span class="field__req">*</span></span>
+            <div class="guest-pair">
+              <div class="field">
+                <label class="field__label field__label--soft" for="guest-kids">Kids</label>
+                <input type="number" id="guest-kids" name="guest-kids" min="0" value="0" placeholder="e.g. 2" inputmode="numeric">
+              </div>
+              <div class="field">
+                <label class="field__label field__label--soft" for="guest-adults">Adults</label>
+                <input type="number" id="guest-adults" name="guest-adults" min="0" value="2" placeholder="e.g. 2" inputmode="numeric">
+              </div>
             </div>
           </div>
           <div class="field">
@@ -116,7 +121,7 @@
           <div class="plan__head">
             <div>
               <h3 class="panel-title">Pick a table</h3>
-              <p class="field__hint" id="guests-hint">Tap a numbered table. Grey tables are too small. “Already reserved” means that 2-hour slot is taken.</p>
+              <p class="field__hint" id="guests-hint">Tables shown fit your party. Indoor tables 1 and 2 can be joined.</p>
             </div>
             <div class="plan__tabs" role="tablist" aria-label="Cafe area">
               <button type="button" class="plan-tab is-active" role="tab" aria-selected="true" data-area="indoor">Indoor</button>
@@ -157,8 +162,8 @@
 
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/submit-request.js?v=20260910b"></script>
-  <script src="../shared/reserve-tables.js?v=20260916f"></script>
-  <script src="../shared/chrome.js?v=20260916a" defer></script>
-  <script src="js/main.js?v=20260916f" defer></script>
+  <script src="../shared/reserve-tables.js?v=20260916g"></script>
+  <script src="../shared/chrome.js?v=20260916g" defer></script>
+  <script src="js/main.js?v=20260916g" defer></script>
 </body>
 </html>

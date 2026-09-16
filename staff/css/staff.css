@@ -424,14 +424,47 @@ input, select, textarea {
 .timeline__track {
   display: grid;
   gap: 8px;
-  min-width: 1100px;
+  min-width: 1400px;
 }
 
 .timeline__hours {
   display: grid;
-  grid-template-columns: repeat(20, minmax(56px, 1fr));
-  font-size: 12px;
+  grid-template-columns: repeat(var(--slots, 24), minmax(48px, 1fr));
+  font-size: 11px;
   color: var(--sage);
+}
+
+.timeline__bookings {
+  position: relative;
+  min-height: calc(var(--lanes, 1) * 46px + 8px);
+}
+
+.timeline__item {
+  position: absolute;
+  border: 1px solid rgba(100, 124, 110, 0.2);
+  border-radius: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  background: #f4f7f4;
+  text-align: left;
+  font: inherit;
+  overflow: hidden;
+  min-height: 42px;
+}
+
+.timeline__item.is-birthday {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+.timeline__item strong {
+  display: block;
+  font-size: 12px;
+}
+
+.timeline__item .muted {
+  display: block;
+  font-size: 11px;
 }
 
 .timeline__slot {
@@ -446,22 +479,6 @@ input, select, textarea {
   border-radius: 50%;
   background: #c45c32;
   margin: 0 auto 6px;
-}
-
-.timeline__bookings {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.timeline__item {
-  border: 1px solid rgba(100, 124, 110, 0.2);
-  border-radius: 8px;
-  padding: 8px 10px;
-  cursor: pointer;
-  background: #f4f7f4;
-  text-align: left;
-  font: inherit;
 }
 
 .staff-plans {
@@ -502,10 +519,16 @@ input, select, textarea {
   margin: 0;
   padding: 0;
   border: 2px solid transparent;
-  border-radius: 12px;
   background: transparent;
   pointer-events: none;
 }
+
+.table-hit--round { border-radius: 50%; }
+.table-hit--square { border-radius: 8px; }
+.table-hit--clover { border-radius: 10px; transform: rotate(45deg); }
+.table-hit--lounge,
+.table-hit--rect { border-radius: 14px; }
+.table-hit--pill { border-radius: 999px; }
 
 .table-hit.is-selected {
   background: rgba(100, 124, 110, 0.32);

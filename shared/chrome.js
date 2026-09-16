@@ -97,18 +97,17 @@
       </a>
       <nav class="site-nav" aria-label="Header menu">
         <a href="${CAFE.home}">Home</a>
-        <a href="${CAFE.about}">About Us</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
         <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
         <a href="${CAFE.events}">Event Calendar</a>
         <div class="nav-drop">
           <a class="nav-drop__toggle${birthdayClass}" href="${p.birthdays}" aria-haspopup="true" aria-expanded="false">Birthdays</a>
           <div class="nav-drop__menu" role="menu">
+            <a role="menuitem" class="${current(page, "landing").trim()}" href="${p.birthdays}">About Birthdays</a>
             <a role="menuitem" class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
             <a role="menuitem" class="${current(page, "cakes").trim()}" href="${p.cakes}">Cake Builder</a>
           </div>
         </div>
-        <a href="${WA_CONTACT}">Contact us!</a>
       </nav>
       <div class="site-header__cta">
         ${ctaHtml(page, p)}
@@ -121,21 +120,22 @@
       <div class="nav-drawer__panel" role="dialog" aria-label="Navigation">
         <button class="nav-drawer__close" type="button" aria-label="Close menu">&times;</button>
         <a href="${CAFE.home}">Home</a>
-        <a href="${CAFE.about}">About Us</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
         <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
         <a href="${CAFE.events}">Event Calendar</a>
-        <a class="${current(page, "landing").trim()}" href="${p.birthdays}">Birthdays</a>
+        <a class="${current(page, "landing").trim()}" href="${p.birthdays}">About Birthdays</a>
         <a class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
         <a class="${current(page, "cakes").trim()}" href="${p.cakes}">Cake Builder</a>
-        <a href="${WA_CONTACT}">Contact us!</a>
         ${
           page === "reserve"
             ? `<a href="#book">Reserve a table</a>`
             : `<a href="${WA_TASTING}" target="_blank" rel="noopener noreferrer" data-wa="drawer_tasting">Book a free cake tasting</a>`
         }
       </div>
-    </div>`;
+    </div>
+    <a class="wa-float" href="${WA_CONTACT}" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp Tiny">
+      ${ICON_WA}
+    </a>`;
   }
 
   function footerHtml(page, p) {

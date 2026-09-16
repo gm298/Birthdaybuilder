@@ -4,7 +4,6 @@
   const WA_BASE = "https://wa.me/6282266484226";
   const TZ = "Asia/Makassar";
   const Map = window.TinyReserveMap;
-  const INDOOR_MAX = Map?.INDOOR_MAX || 8;
 
   const CAFE = {
     name: "Tiny Healthy Family Cafe",
@@ -15,6 +14,8 @@
     step: 1,
     area: "indoor",
     selected: new Set(),
+    kids: 0,
+    adults: 2,
     guests: 2,
     time: "",
     date: "",
@@ -49,18 +50,8 @@
   function renderPicked() {
     const box = document.getElementById("picked");
     const meta = document.getElementById("picked-meta");
-    const hint = document.getElementById("guests-hint");
     const tables = selectedTables();
     const seats = selectedSeats();
-    if (hint) {
-      if (state.guests > INDOOR_MAX) {
-        hint.textContent = `Indoor tables seat up to ${INDOOR_MAX} when tables 1 and 2 are joined. For a larger group, message us on WhatsApp.`;
-      } else if (state.guests >= 6) {
-        hint.textContent = "Parties of 6–8 use indoor tables 1 and 2 together.";
-      } else {
-        hint.textContent = "Tables shown fit your party. Indoor tables 1 and 2 can be joined.";
-      }
-    }
     if (!tables.length) {
       box.innerHTML = "<h3>No table yet</h3><p>Tap a numbered table on the layout.</p>";
       meta.hidden = true;
@@ -72,7 +63,7 @@
     meta.hidden = false;
     meta.innerHTML = `
       <div><dt>Seats</dt><dd>${seats}</dd></div>
-      <div><dt>Guests</dt><dd>${state.guests}</dd></div>
+      <div><dt>Guests</dt><dd>${state.kids} kids · ${state.adults} adults</dd></div>
       <div><dt>Slot</dt><dd>${Map.timeRangeLabel(state.time)}</dd></div>
     `;
   }
@@ -144,10 +135,24 @@
     renderPlan();
   }
 
-  function setGuests(next) {
-    state.guests = Math.min(INDOOR_MAX, Math.max(1, next));
-    const input = document.getElementById("reserve-guests");
-    if (input) input.value = String(state.guests);
+  function readGuests() {
+    const kids = Math.max(0, Number(document.getElementById("guest-kids")?.value) || 0);
+    const adults = Math.max(0, Number(document.getElementById("guest-adults")?.value) || 0);
+    state.kids = kids;
+    state.adults = adults;
+    state.guests = kids + adults;
+    pruneSelection();
+    renderPlan();
+  }
+
+  function setGuests(kids, adults) {
+    state.kids = Math.max(0, kids);
+    state.adults = Math.max(0, adults);
+    state.guests = state.kids + state.adults;
+    const kidsInput = document.getElementById("guest-kids");
+    const adultsInput = document.getElementById("guest-adults");
+    if (kidsInput) kidsInput.value = String(state.kids);
+    if (adultsInput) adultsInput.value = String(state.adults);
     pruneSelection();
     renderPlan();
   }
@@ -219,7 +224,7 @@
       `Date: ${prettyDate(state.date)}`,
       `Time: ${Map.timeRangeLabel(state.time)} (2-hour table)`,
       `Please arrive by ${Map.graceLabel(state.time)} or the reservation is cancelled.`,
-      `Guests: ${state.guests}`,
+      `Guests: ${state.kids} kids, ${state.adults} adults`,
       Map.tableLabel(selectedTables()) ? `Table: ${Map.tableLabel(selectedTables())}` : null,
       purpose ? `Purpose: ${purpose}` : null,
       notes ? `Notes: ${notes}` : null,
@@ -239,7 +244,8 @@
         date: state.date,
         time: state.time,
         day: weekdayShort(state.date),
-        guestAdults: state.guests,
+        guestAdults: state.adults,
+        guestKids: state.kids,
       },
       reservation: {
         name: guestName(),
@@ -247,13 +253,17 @@
         purpose: document.getElementById("reserve-purpose")?.value || "",
         notes: document.getElementById("reserve-notes")?.value.trim() || "",
         guests: state.guests,
+        kids: state.kids,
+        adults: state.adults,
         area: tables[0]?.area || state.area,
         tableIds: tables.map((table) => table.id),
         tableNumbers: tables.map((table) => table.number),
         tableLabel: Map.tableLabel(tables),
         slotMinutes: Map.SLOT_MINUTES,
         graceMinutes: Map.GRACE_MINUTES,
-        endTime: Map.addMinutes(state.time, Map.SLOT_MINUTES),
+        occupyBefore: Map.RES_BEFORE,
+        occupyAfter: Map.RES_AFTER,
+        occupyLabel: Map.occupyLabel(state.time, "reservation"),
         holdUntil: Map.graceLabel(state.time),
       },
     };
@@ -263,6 +273,7 @@
     if (step === 1) {
       if (!state.date) return "Please choose a date.";
       if (!state.time) return "Please choose a time.";
+      if (state.guests < 1) return "Please add how many kids and adults are coming.";
       return "";
     }
     if (step === 2) {
@@ -441,7 +452,7 @@
         <div class="summary-row">
           <div><span>Date</span><strong>${prettyDate(state.date, { weekday: "short", month: "short" })}</strong></div>
           <div><span>Time</span><strong>${Map.timeRangeLabel(state.time)}</strong></div>
-          <div><span>Guests</span><strong>${state.guests} pax</strong></div>
+          <div><span>Guests</span><strong>${state.kids} kids · ${state.adults} adults</strong></div>
         </div>
         <p class="field__hint">Arrive by ${Map.graceLabel(state.time)}. After that the table is released.</p>
       </div>
@@ -477,7 +488,7 @@
     window.TinyContact?.initDialCombobox?.();
     state.selected = new Set();
     state.area = "indoor";
-    setGuests(2);
+    setGuests(0, 2);
     setDate(baliNowParts().date);
     setStep(1);
     setStatus("");
@@ -492,11 +503,8 @@
     state.date = now.date;
     date.addEventListener("change", () => setDate(date.value));
 
-    const guests = document.getElementById("reserve-guests");
-    guests.max = String(INDOOR_MAX);
-    guests.addEventListener("input", () => setGuests(Number(guests.value) || 1));
-    document.getElementById("guests-minus").addEventListener("click", () => setGuests(state.guests - 1));
-    document.getElementById("guests-plus").addEventListener("click", () => setGuests(state.guests + 1));
+    document.getElementById("guest-kids")?.addEventListener("input", readGuests);
+    document.getElementById("guest-adults")?.addEventListener("input", readGuests);
     document.getElementById("reserve-notes")?.addEventListener("input", updateNotesCount);
 
     document.querySelectorAll(".plan-tab").forEach((tab) => {

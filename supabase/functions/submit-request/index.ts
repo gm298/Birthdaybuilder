@@ -12,6 +12,8 @@ const ALLOWED_ORIGINS = [
 
 const ALLOWED_SOURCES = new Set(["party_builder", "cake", "pdf_quote", "reservation"]);
 const SLOT_MINUTES = 120;
+const RES_BEFORE = 30;
+const RES_AFTER = 30;
 const GRACE_MINUTES = 15;
 const BALI_OFFSET = "+08:00";
 
@@ -22,11 +24,17 @@ function timeToMinutes(value: string) {
   return hour * 60 + minute;
 }
 
+function occupyRange(time: string) {
+  const start = timeToMinutes(time);
+  if (start == null) return null;
+  return { start: start - RES_BEFORE, end: start + SLOT_MINUTES + RES_AFTER };
+}
+
 function slotsOverlap(a: string, b: string) {
-  const left = timeToMinutes(a);
-  const right = timeToMinutes(b);
-  if (left == null || right == null) return false;
-  return Math.abs(left - right) < SLOT_MINUTES;
+  const left = occupyRange(a);
+  const right = occupyRange(b);
+  if (!left || !right) return false;
+  return left.start < right.end && right.start < left.end;
 }
 
 function isReleasedNoShow(status: string | null | undefined, date: string, time: string) {

@@ -3,33 +3,39 @@
 
   const SLOT_MINUTES = 120;
   const GRACE_MINUTES = 15;
+  const RES_BEFORE = 30;
+  const RES_AFTER = 30;
+  const BDAY_BEFORE = 60;
+  const BDAY_AFTER = 180;
   const INDOOR_MAX = 8;
   const JOIN_GROUPS = [["in-1", "in-2"]];
   const OPEN_MINUTES = 8 * 60 + 30;
   const LAST_START_MINUTES = 16 * 60;
   const CLOSE_MINUTES = 18 * 60;
+  const DAY_START = 7 * 60 + 30;
+  const DAY_END = 19 * 60;
 
   const TABLES = [
-    { id: "in-1", area: "indoor", number: 1, name: "Table 1", seats: 4, hint: "Square by the entrance", x: 74, y: 20, w: 16, h: 26 },
-    { id: "in-2", area: "indoor", number: 2, name: "Table 2", seats: 4, hint: "Square by the entrance", x: 74, y: 52, w: 16, h: 26 },
-    { id: "in-3", area: "indoor", number: 3, name: "Table 3", seats: 4, hint: "Square by the playground", x: 61, y: 14, w: 14, h: 24 },
-    { id: "in-4", area: "indoor", number: 4, name: "Table 4", seats: 4, hint: "Square by the cashier", x: 61, y: 50, w: 14, h: 24 },
-    { id: "in-5", area: "indoor", number: 5, name: "Table 5", seats: 2, hint: "Garden round", x: 49, y: 26, w: 11, h: 18 },
-    { id: "in-6", area: "indoor", number: 6, name: "Table 6", seats: 2, hint: "Garden round", x: 49, y: 52, w: 11, h: 18 },
-    { id: "in-7", area: "indoor", number: 7, name: "Table 7", seats: 2, hint: "Garden round", x: 30, y: 52, w: 11, h: 18 },
-    { id: "in-8", area: "indoor", number: 8, name: "Table 8", seats: 2, hint: "Garden round", x: 30, y: 28, w: 11, h: 18 },
-    { id: "in-9", area: "indoor", number: 9, name: "Table 9", seats: 2, hint: "Small square by the tree", x: 24, y: 15, w: 10, h: 18 },
-    { id: "in-11", area: "indoor", number: 11, name: "Table 11", seats: 4, hint: "Window lounge", x: 3, y: 14, w: 20, h: 28 },
-    { id: "in-12", area: "indoor", number: 12, name: "Table 12", seats: 4, hint: "Coffee-bar lounge", x: 3, y: 48, w: 22, h: 30 },
-    { id: "tr-12", area: "terrace", number: 12, name: "Table 12", seats: 2, hint: "Garden 2-top", x: 46, y: 66, w: 20, h: 18 },
-    { id: "tr-13", area: "terrace", number: 13, name: "Table 13", seats: 2, hint: "Garden 2-top", x: 46, y: 42, w: 20, h: 18 },
-    { id: "tr-14", area: "terrace", number: 14, name: "Table 14", seats: 5, hint: "Corner lounge", x: 7, y: 54, w: 22, h: 34 },
-    { id: "tr-15", area: "terrace", number: 15, name: "Table 15", seats: 4, hint: "Bench table", x: 19, y: 30, w: 22, h: 26 },
-    { id: "tr-16", area: "terrace", number: 16, name: "Table 16", seats: 4, hint: "Bench table", x: 19, y: 2, w: 22, h: 26 },
-    { id: "tr-17", area: "terrace", number: 17, name: "Table 17", seats: 4, hint: "Sofa lounge", x: 0.5, y: 6, w: 18, h: 36 },
-    { id: "tr-18", area: "terrace", number: 18, name: "Table 18", seats: 4, hint: "Covered 4-top", x: 72, y: 32, w: 26, h: 28 },
-    { id: "tr-19", area: "terrace", number: 19, name: "Table 19", seats: 4, hint: "Covered 4-top", x: 72, y: 2, w: 26, h: 28 },
-    { id: "tr-20", area: "terrace", number: 20, name: "Table 20", seats: 2, hint: "Covered square", x: 70, y: 72, w: 10, h: 16 },
+    { id: "in-1", area: "indoor", number: 1, name: "Table 1", seats: 4, hint: "Square by the entrance", x: 78.2, y: 24.8, w: 7.4, h: 13.2, shape: "clover" },
+    { id: "in-2", area: "indoor", number: 2, name: "Table 2", seats: 4, hint: "Square by the entrance", x: 78.2, y: 56.2, w: 7.4, h: 13.2, shape: "clover" },
+    { id: "in-3", area: "indoor", number: 3, name: "Table 3", seats: 4, hint: "Square by the playground", x: 66.4, y: 18.2, w: 7.4, h: 13.2, shape: "clover" },
+    { id: "in-4", area: "indoor", number: 4, name: "Table 4", seats: 4, hint: "Square by the cashier", x: 64.6, y: 52.6, w: 7.4, h: 13.2, shape: "clover" },
+    { id: "in-5", area: "indoor", number: 5, name: "Table 5", seats: 2, hint: "Garden round", x: 51.8, y: 29.2, w: 6.4, h: 11.4, shape: "round" },
+    { id: "in-6", area: "indoor", number: 6, name: "Table 6", seats: 2, hint: "Garden round", x: 51.8, y: 54.4, w: 6.4, h: 11.4, shape: "round" },
+    { id: "in-7", area: "indoor", number: 7, name: "Table 7", seats: 2, hint: "Garden round", x: 31.6, y: 54.4, w: 6.4, h: 11.4, shape: "round" },
+    { id: "in-8", area: "indoor", number: 8, name: "Table 8", seats: 2, hint: "Garden round", x: 31.8, y: 30.2, w: 6.4, h: 11.4, shape: "round" },
+    { id: "in-9", area: "indoor", number: 9, name: "Table 9", seats: 2, hint: "Small square by the tree", x: 27.6, y: 16.6, w: 5.4, h: 9.8, shape: "square" },
+    { id: "in-11", area: "indoor", number: 11, name: "Table 11", seats: 4, hint: "Window lounge", x: 9.6, y: 16.4, w: 9.2, h: 21.2, shape: "lounge" },
+    { id: "in-12", area: "indoor", number: 12, name: "Table 12", seats: 4, hint: "Coffee-bar lounge", x: 9.6, y: 50.2, w: 9.2, h: 22.4, shape: "lounge" },
+    { id: "tr-12", area: "terrace", number: 12, name: "Table 12", seats: 2, hint: "Garden 2-top", x: 50.4, y: 67.8, w: 14.8, h: 12.6, shape: "pill" },
+    { id: "tr-13", area: "terrace", number: 13, name: "Table 13", seats: 2, hint: "Garden 2-top", x: 50.4, y: 43.8, w: 14.8, h: 12.6, shape: "pill" },
+    { id: "tr-14", area: "terrace", number: 14, name: "Table 14", seats: 5, hint: "Corner lounge", x: 16.4, y: 59.4, w: 8.6, h: 15.2, shape: "square" },
+    { id: "tr-15", area: "terrace", number: 15, name: "Table 15", seats: 4, hint: "Bench table", x: 21.2, y: 32.2, w: 16.8, h: 16.6, shape: "rect" },
+    { id: "tr-16", area: "terrace", number: 16, name: "Table 16", seats: 4, hint: "Bench table", x: 21.2, y: 4.4, w: 16.8, h: 16.6, shape: "rect" },
+    { id: "tr-17", area: "terrace", number: 17, name: "Table 17", seats: 4, hint: "Sofa lounge", x: 3.4, y: 8.6, w: 11.2, h: 27.4, shape: "lounge" },
+    { id: "tr-18", area: "terrace", number: 18, name: "Table 18", seats: 4, hint: "Covered 4-top", x: 75.6, y: 36.4, w: 18.4, h: 16.8, shape: "rect" },
+    { id: "tr-19", area: "terrace", number: 19, name: "Table 19", seats: 4, hint: "Covered 4-top", x: 75.6, y: 6.2, w: 18.4, h: 16.8, shape: "rect" },
+    { id: "tr-20", area: "terrace", number: 20, name: "Table 20", seats: 2, hint: "Covered square", x: 72.2, y: 75.8, w: 6.4, h: 11.4, shape: "square" },
   ];
 
   function padTime(minutes) {
@@ -52,6 +58,26 @@
     return padTime(start + extra);
   }
 
+  function occupyRange(time, kind) {
+    const start = timeToMinutes(time);
+    if (start == null) return null;
+    if (kind === "birthday") return { start: start - BDAY_BEFORE, end: start + BDAY_AFTER };
+    return { start: start - RES_BEFORE, end: start + SLOT_MINUTES + RES_AFTER };
+  }
+
+  function occupyOverlap(a, b, kindA, kindB) {
+    const left = occupyRange(a, kindA || "reservation");
+    const right = occupyRange(b, kindB || "reservation");
+    if (!left || !right) return false;
+    return left.start < right.end && right.start < left.end;
+  }
+
+  function occupyLabel(time, kind) {
+    const range = occupyRange(time, kind);
+    if (!range) return String(time || "").slice(0, 5);
+    return `${padTime(range.start)}–${padTime(range.end)}`;
+  }
+
   function timeRangeLabel(value) {
     const start = String(value || "").slice(0, 5);
     const end = addMinutes(start, SLOT_MINUTES);
@@ -63,10 +89,7 @@
   }
 
   function slotsOverlap(a, b) {
-    const left = timeToMinutes(a);
-    const right = timeToMinutes(b);
-    if (left == null || right == null) return false;
-    return Math.abs(left - right) < SLOT_MINUTES;
+    return occupyOverlap(a, b, "reservation", "reservation");
   }
 
   function timeSlots() {
@@ -106,7 +129,7 @@
   function heldTableIds(occupancy, time) {
     const held = new Set();
     (occupancy || []).forEach((item) => {
-      if (!slotsOverlap(item.time, time)) return;
+      if (!occupyOverlap(item.time, time, item.kind || "reservation", "reservation")) return;
       (item.tableIds || []).forEach((id) => held.add(String(id)));
     });
     return held;
@@ -155,7 +178,7 @@
     TABLES.filter((table) => table.area === area).forEach((table) => {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "table-hit";
+      btn.className = `table-hit table-hit--${table.shape || "square"}`;
       btn.dataset.table = table.id;
       btn.style.left = `${table.x}%`;
       btn.style.top = `${table.y}%`;
@@ -187,15 +210,24 @@
   window.TinyReserveMap = {
     TABLES,
     SLOT_MINUTES,
-    HOLD_MINUTES: SLOT_MINUTES,
+    HOLD_MINUTES: SLOT_MINUTES + RES_BEFORE + RES_AFTER,
     GRACE_MINUTES,
+    RES_BEFORE,
+    RES_AFTER,
+    BDAY_BEFORE,
+    BDAY_AFTER,
     INDOOR_MAX,
     JOIN_GROUPS,
     OPEN_MINUTES,
     LAST_START_MINUTES,
     CLOSE_MINUTES,
+    DAY_START,
+    DAY_END,
     timeToMinutes,
     addMinutes,
+    occupyRange,
+    occupyOverlap,
+    occupyLabel,
     timeRangeLabel,
     graceLabel,
     slotsOverlap,

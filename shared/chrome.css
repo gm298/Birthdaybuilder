@@ -265,6 +265,35 @@
   display: none;
 }
 
+.wa-float {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 90;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: #25d366;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.8;
+  box-shadow: 0 10px 24px rgba(37, 211, 102, 0.28);
+  text-decoration: none;
+}
+
+.wa-float svg {
+  width: 30px;
+  height: 30px;
+}
+
+.wa-float:hover,
+.wa-float:focus-visible {
+  opacity: 1;
+  color: #fff;
+}
+
 @media (max-width: 1100px) {
   .site-header__caption {
     display: none;
