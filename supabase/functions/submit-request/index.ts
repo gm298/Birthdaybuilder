@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-import { sendReservationEmail } from "../_shared/send-booking-email.ts";
+import { sendBookingEmail } from "../_shared/send-booking-email.ts";
 
 const ALLOWED_ORIGINS = [
   "https://tinyhealthycafe.com",
@@ -412,24 +412,63 @@ Deno.serve(async (req) => {
   const files = await uploadFiles(supabase, id, fileParts, {});
   await supabase.from("requests").update({ files }).eq("id", id);
 
-  if (source === "reservation" && email) {
-    const res = (payload as { reservation?: Record<string, unknown> }).reservation || {};
+  if (email) {
     const partyInfo = (payload as { party?: Record<string, unknown> }).party || {};
-    const kids = Number(res.kids ?? partyInfo.guestKids) || 0;
-    const adults = Number(res.adults ?? partyInfo.guestAdults) || 0;
+    const res = (payload as { reservation?: Record<string, unknown> }).reservation || {};
+    const pkg = (payload as { package?: Record<string, unknown> }).package || {};
+    const cake = (payload as { cake?: Record<string, unknown> }).cake || {};
+    const kids = Number(res.kids ?? partyInfo.guestKids ?? row.guest_kids) || 0;
+    const adults = Number(res.adults ?? partyInfo.guestAdults ?? row.guest_adults) || 0;
     const salutation = asString(res.salutation);
-    const bareName = asString(res.name) || asString(row.contact_name);
-    await sendReservationEmail({
-      to: email,
-      publicCode,
-      manageToken,
-      guestName: [salutation, bareName].filter(Boolean).join(" "),
-      partyDate: asString(partyInfo.date || row.party_date),
-      partyTime: asString(partyInfo.time || row.party_time).slice(0, 5),
-      guestsLabel: `${kids} kids · ${adults} adults`,
-      tableLabel: asString(res.tableLabel || row.package_name),
-      purpose: asString(res.purpose),
-    });
+    const bareName =
+      asString(res.name) ||
+      asString(partyInfo.childName) ||
+      asString(row.contact_name) ||
+      asString(row.child_name);
+    const guestName = [salutation, bareName].filter(Boolean).join(" ") || "there";
+    const partyDate = asString(partyInfo.date || row.party_date);
+    const partyTime = asString(partyInfo.time || row.party_time).slice(0, 5);
+
+    if (source === "reservation") {
+      await sendBookingEmail({
+        kind: "reservation",
+        to: email,
+        publicCode,
+        manageToken,
+        guestName,
+        partyDate,
+        partyTime,
+        guestsLabel: `${kids} kids · ${adults} adults`,
+        tableLabel: asString(res.tableLabel || row.package_name),
+        purpose: asString(res.purpose),
+      });
+    } else if (source === "party_builder") {
+      await sendBookingEmail({
+        kind: "birthday",
+        to: email,
+        publicCode,
+        manageToken,
+        guestName: asString(partyInfo.childName || row.child_name) || guestName,
+        partyDate,
+        partyTime,
+        guestsLabel: `${kids} kids · ${adults} adults`,
+        packageName: asString(pkg.name || row.package_name),
+        tableLabel: asString(res.tableLabel),
+        cakeLabel: [asString(cake.size), asString(cake.design || cake.theme)].filter(Boolean).join(" · "),
+      });
+    } else if (source === "cake") {
+      await sendBookingEmail({
+        kind: "cake",
+        to: email,
+        publicCode,
+        manageToken,
+        guestName,
+        partyDate,
+        cakeLabel: [asString(cake.size), asString(cake.design || cake.theme), asString(cake.priceLabel)]
+          .filter(Boolean)
+          .join(" · "),
+      });
+    }
   }
 
   return json({ ok: true, requestId: id, publicCode, manageToken }, 200, origin);

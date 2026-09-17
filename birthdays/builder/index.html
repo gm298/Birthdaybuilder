@@ -15,8 +15,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../cakes/css/styles.css?v=20260831f">
-  <link rel="stylesheet" href="css/styles.css?v=20260917b">
-  <link rel="stylesheet" href="../../shared/chrome.css?v=20260917c">
+  <link rel="stylesheet" href="css/styles.css?v=20260917e">
+  <link rel="stylesheet" href="../../shared/chrome.css?v=20260917e">
   <script src="../../shared/analytics.js?v=20260905a"></script>
 </head>
 <body data-page="builder" class="is-wizard" data-builder-step="intro">
@@ -91,8 +91,13 @@
         </div>
         <div class="details-row details-row--schedule">
           <div class="field">
-            <label class="field__label" for="party-time">Start time <span class="field__req">*</span></label>
-            <input type="time" id="party-time" name="party-time" required>
+            <span class="field__label" id="party-time-label">Start time <span class="field__req">*</span></span>
+            <button type="button" class="time-trigger" id="party-time-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="party-time-modal" aria-labelledby="party-time-label">
+              <span class="time-trigger__label" id="party-time-trigger-label">Select time</span>
+              <span class="time-trigger__hint" id="party-time-trigger-hint">Choose an available start time</span>
+            </button>
+            <input type="hidden" id="party-time" name="party-time" required value="">
+            <span class="field__hint">Party runs 3 hours from your start time. Last start is 16:00.</span>
           </div>
           <div class="field">
             <span class="field__label">Duration</span>
@@ -415,6 +420,17 @@
     </div>
   </div>
 
+  <div class="time-modal" id="party-time-modal" hidden aria-hidden="true">
+    <button type="button" class="time-modal__backdrop" data-close-party-time aria-label="Close"></button>
+    <div class="time-modal__panel" role="dialog" aria-modal="true" aria-labelledby="party-time-modal-title">
+      <div class="time-modal__head">
+        <h3 id="party-time-modal-title">Available times</h3>
+        <button type="button" class="time-modal__close" data-close-party-time aria-label="Close">&times;</button>
+      </div>
+      <div class="time-grid" id="party-time-grid" role="group" aria-labelledby="party-time-modal-title"></div>
+    </div>
+  </div>
+
   <div class="builder-modal builder-modal--alert" id="guest-limit-modal" role="alertdialog" aria-modal="true" aria-hidden="true" aria-labelledby="guest-limit-title" hidden>
     <button class="builder-modal__backdrop" type="button" aria-label="Close" data-close-guest-limit></button>
     <div class="builder-modal__panel builder-modal__panel--compact">
@@ -436,11 +452,11 @@
     </div>
   </div>
 
-  <script src="../../shared/chrome.js?v=20260917d" defer></script>
-  <script src="../../shared/supabase-config.js?v=20260917d" defer></script>
-  <script src="../../shared/submit-request.js?v=20260917d" defer></script>
-  <script src="../../shared/success-modal.js?v=20260917d" defer></script>
-  <script src="../../shared/reserve-tables.js?v=20260917a" defer></script>
-  <script src="js/main.js?v=20260917d" defer></script>
+  <script src="../../shared/chrome.js?v=20260917e" defer></script>
+  <script src="../../shared/supabase-config.js?v=20260917e" defer></script>
+  <script src="../../shared/submit-request.js?v=20260917e" defer></script>
+  <script src="../../shared/success-modal.js?v=20260917e" defer></script>
+  <script src="../../shared/reserve-tables.js?v=20260917e" defer></script>
+  <script src="js/main.js?v=20260917e" defer></script>
 </body>
 </html>

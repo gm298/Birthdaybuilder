@@ -1,13 +1,18 @@
+export type BookingEmailKind = "reservation" | "birthday" | "cake";
+
 export type BookingEmailInput = {
+  kind?: BookingEmailKind;
   to: string;
   publicCode: string;
   manageToken: string;
   guestName: string;
   partyDate: string;
-  partyTime: string;
-  guestsLabel: string;
-  tableLabel: string;
+  partyTime?: string;
+  guestsLabel?: string;
+  tableLabel?: string;
   purpose?: string;
+  packageName?: string;
+  cakeLabel?: string;
 };
 
 function siteOrigin() {
@@ -26,49 +31,83 @@ function escapeHtml(value: string) {
     .replace(/"/g, "&quot;");
 }
 
-export async function sendReservationEmail(input: BookingEmailInput) {
+function copyForKind(kind: BookingEmailKind) {
+  if (kind === "birthday") {
+    return {
+      subject: (code: string) => `Your Tiny birthday plan ${code}`,
+      saved: "Your birthday plan at Tiny Healthy Cafe is saved.",
+      linkLabel: "View, edit or cancel your birthday plan",
+    };
+  }
+  if (kind === "cake") {
+    return {
+      subject: (code: string) => `Your Tiny cake order ${code}`,
+      saved: "Your cake request at Tiny Healthy Cafe is saved.",
+      linkLabel: "View, edit or cancel your cake request",
+    };
+  }
+  return {
+    subject: (code: string) => `Your Tiny reservation ${code}`,
+    saved: "Your table request at Tiny Healthy Cafe is saved.",
+    linkLabel: "View, edit or cancel your reservation",
+  };
+}
+
+export async function sendBookingEmail(input: BookingEmailInput) {
   const apiKey = Deno.env.get("RESEND_API_KEY") || "";
   if (!apiKey) {
-    console.warn("RESEND_API_KEY not set; skipping reservation email");
+    console.warn("RESEND_API_KEY not set; skipping booking email");
     return { ok: false, skipped: true };
   }
+  const kind = input.kind || "reservation";
+  const copy = copyForKind(kind);
   const from =
     Deno.env.get("BOOKING_FROM_EMAIL") || "Tiny Healthy Cafe <onboarding@resend.dev>";
   const link = manageLink(input.manageToken);
-  const subject = `Your Tiny reservation ${input.publicCode}`;
+  const subject = copy.subject(input.publicCode);
+  const detailLines = [
+    `Code: ${input.publicCode}`,
+    input.partyDate ? `Date: ${input.partyDate}` : "",
+    input.partyTime ? `Time: ${input.partyTime}` : "",
+    input.guestsLabel ? `Guests: ${input.guestsLabel}` : "",
+    input.packageName ? `Package: ${input.packageName}` : "",
+    input.tableLabel ? `Table: ${input.tableLabel}` : "",
+    input.cakeLabel ? `Cake: ${input.cakeLabel}` : "",
+    input.purpose ? `Purpose: ${input.purpose}` : "",
+  ].filter(Boolean);
+
   const text = [
     `Hi ${input.guestName || "there"},`,
     "",
-    "Your table request at Tiny Healthy Cafe is saved.",
+    copy.saved,
     "",
-    `Code: ${input.publicCode}`,
-    `Date: ${input.partyDate}`,
-    `Time: ${input.partyTime}`,
-    `Guests: ${input.guestsLabel}`,
-    input.tableLabel ? `Table: ${input.tableLabel}` : "",
-    input.purpose ? `Purpose: ${input.purpose}` : "",
+    ...detailLines,
     "",
     `View, edit or cancel: ${link}`,
     "",
     "Tiny Healthy Cafe · Berawa, Bali",
     "+62 822 6648 4226",
+  ].join("\n");
+
+  const htmlDetails = [
+    `<strong>Code:</strong> ${escapeHtml(input.publicCode)}`,
+    input.partyDate ? `<strong>Date:</strong> ${escapeHtml(input.partyDate)}` : "",
+    input.partyTime ? `<strong>Time:</strong> ${escapeHtml(input.partyTime)}` : "",
+    input.guestsLabel ? `<strong>Guests:</strong> ${escapeHtml(input.guestsLabel)}` : "",
+    input.packageName ? `<strong>Package:</strong> ${escapeHtml(input.packageName)}` : "",
+    input.tableLabel ? `<strong>Table:</strong> ${escapeHtml(input.tableLabel)}` : "",
+    input.cakeLabel ? `<strong>Cake:</strong> ${escapeHtml(input.cakeLabel)}` : "",
+    input.purpose ? `<strong>Purpose:</strong> ${escapeHtml(input.purpose)}` : "",
   ]
     .filter(Boolean)
-    .join("\n");
+    .join("<br>");
 
   const html = `
     <div style="font-family:Georgia,serif;color:#33413a;line-height:1.5">
       <p>Hi ${escapeHtml(input.guestName || "there")},</p>
-      <p>Your table request at <strong>Tiny Healthy Cafe</strong> is saved.</p>
-      <p>
-        <strong>Code:</strong> ${escapeHtml(input.publicCode)}<br>
-        <strong>Date:</strong> ${escapeHtml(input.partyDate)}<br>
-        <strong>Time:</strong> ${escapeHtml(input.partyTime)}<br>
-        <strong>Guests:</strong> ${escapeHtml(input.guestsLabel)}<br>
-        ${input.tableLabel ? `<strong>Table:</strong> ${escapeHtml(input.tableLabel)}<br>` : ""}
-        ${input.purpose ? `<strong>Purpose:</strong> ${escapeHtml(input.purpose)}<br>` : ""}
-      </p>
-      <p><a href="${escapeHtml(link)}" style="color:#647c6e">View, edit or cancel your reservation</a></p>
+      <p>${escapeHtml(copy.saved).replace("Tiny Healthy Cafe", "<strong>Tiny Healthy Cafe</strong>")}</p>
+      <p>${htmlDetails}</p>
+      <p><a href="${escapeHtml(link)}" style="color:#647c6e">${escapeHtml(copy.linkLabel)}</a></p>
       <p style="color:#8a9c8f;font-size:14px">Tiny Healthy Cafe · Berawa, Bali · +62 822 6648 4226</p>
     </div>
   `;
@@ -98,4 +137,9 @@ export async function sendReservationEmail(input: BookingEmailInput) {
     console.error("Resend send failed", err);
     return { ok: false, error: String(err) };
   }
+}
+
+/** @deprecated Prefer sendBookingEmail({ kind: "reservation", ... }) */
+export async function sendReservationEmail(input: Omit<BookingEmailInput, "kind">) {
+  return sendBookingEmail({ ...input, kind: "reservation" });
 }

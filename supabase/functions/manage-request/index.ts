@@ -134,6 +134,18 @@ function publicRow(row: Record<string, unknown>) {
     string,
     unknown
   >;
+  const decor = (payload.decor && typeof payload.decor === "object" ? payload.decor : {}) as Record<
+    string,
+    unknown
+  >;
+  const addons = (payload.addons && typeof payload.addons === "object" ? payload.addons : {}) as Record<
+    string,
+    unknown
+  >;
+  const quote = (payload.quote && typeof payload.quote === "object" ? payload.quote : {}) as Record<
+    string,
+    unknown
+  >;
 
   return {
     source: row.source,
@@ -168,15 +180,23 @@ function publicRow(row: Record<string, unknown>) {
       childAge: party.childAge || row.child_age || "",
       date: party.date || row.party_date || "",
       time: String(party.time || row.party_time || "").slice(0, 5),
+      day: party.day || "",
       notes: party.notes || "",
       foodNotes: party.foodNotes || "",
       guestKids: party.guestKids ?? row.guest_kids ?? 0,
       guestAdults: party.guestAdults ?? row.guest_adults ?? 0,
+      endTime: party.endTime || "",
+      durationHours: party.durationHours || null,
     },
     package: {
       id: pkg.id || "",
       name: pkg.name || row.package_name || "",
+      priceLabel: pkg.priceLabel || "",
+      priceValue: pkg.priceValue ?? null,
     },
+    decor,
+    addons,
+    quote,
     cake: {
       size: cake.size || "",
       priceLabel: cake.priceLabel || "",
@@ -184,6 +204,8 @@ function publicRow(row: Record<string, unknown>) {
       sugarSponge: cake.sugarSponge || "",
       mode: cake.mode || "",
       design: cake.design || "",
+      designId: cake.designId || "",
+      designSrc: cake.designSrc || "",
       theme: cake.theme || "",
       diet: Array.isArray(cake.diet) ? cake.diet : [],
       notes: cake.notes || "",
@@ -482,6 +504,30 @@ Deno.serve(async (req) => {
       payloadIn.party && typeof payloadIn.party === "object"
         ? (payloadIn.party as Record<string, unknown>)
         : {};
+    const reservationIn =
+      payloadIn.reservation && typeof payloadIn.reservation === "object"
+        ? (payloadIn.reservation as Record<string, unknown>)
+        : {};
+    const packageIn =
+      payloadIn.package && typeof payloadIn.package === "object"
+        ? (payloadIn.package as Record<string, unknown>)
+        : {};
+    const decorIn =
+      payloadIn.decor && typeof payloadIn.decor === "object"
+        ? (payloadIn.decor as Record<string, unknown>)
+        : null;
+    const cakeIn =
+      payloadIn.cake && typeof payloadIn.cake === "object"
+        ? (payloadIn.cake as Record<string, unknown>)
+        : null;
+    const addonsIn =
+      payloadIn.addons && typeof payloadIn.addons === "object"
+        ? (payloadIn.addons as Record<string, unknown>)
+        : null;
+    const quoteIn =
+      payloadIn.quote && typeof payloadIn.quote === "object"
+        ? (payloadIn.quote as Record<string, unknown>)
+        : null;
     const prevParty =
       existingPayload.party && typeof existingPayload.party === "object"
         ? (existingPayload.party as Record<string, unknown>)
@@ -489,6 +535,10 @@ Deno.serve(async (req) => {
     const prevRes =
       existingPayload.reservation && typeof existingPayload.reservation === "object"
         ? (existingPayload.reservation as Record<string, unknown>)
+        : {};
+    const prevPkg =
+      existingPayload.package && typeof existingPayload.package === "object"
+        ? (existingPayload.package as Record<string, unknown>)
         : {};
 
     const date = asString(partyIn.date || row.party_date);
@@ -503,7 +553,11 @@ Deno.serve(async (req) => {
     const guestAdults = Number.isFinite(Number(partyIn.guestAdults))
       ? Math.max(0, Number(partyIn.guestAdults))
       : Number(row.guest_adults) || 0;
-    const tableIds = Array.isArray(prevRes.tableIds) ? prevRes.tableIds.map(String) : [];
+    const tableIds = Array.isArray(reservationIn.tableIds)
+      ? reservationIn.tableIds.map(String)
+      : Array.isArray(prevRes.tableIds)
+        ? prevRes.tableIds.map(String)
+        : [];
 
     if (!date || !time || !childName) {
       return json({ ok: false, error: "Please complete the party details." }, 400, origin);
@@ -526,6 +580,7 @@ Deno.serve(async (req) => {
 
     const nextParty = {
       ...prevParty,
+      ...partyIn,
       date,
       time,
       childName,
@@ -535,10 +590,31 @@ Deno.serve(async (req) => {
       guestKids,
       guestAdults,
     };
-    const nextPayload = {
+    const nextReservation = {
+      ...prevRes,
+      ...reservationIn,
+      tableIds,
+      tableLabel: asString(reservationIn.tableLabel || prevRes.tableLabel),
+      area: asString(reservationIn.area || prevRes.area),
+      guests: guestKids + guestAdults,
+    };
+    const nextPackage = {
+      ...prevPkg,
+      ...packageIn,
+      id: asString(packageIn.id || prevPkg.id),
+      name: asString(packageIn.name || prevPkg.name || row.package_name),
+    };
+    const nextPayload: Record<string, unknown> = {
       ...existingPayload,
       party: nextParty,
+      reservation: nextReservation,
+      package: nextPackage,
     };
+    if (decorIn) nextPayload.decor = { ...((existingPayload.decor as object) || {}), ...decorIn };
+    if (cakeIn) nextPayload.cake = { ...((existingPayload.cake as object) || {}), ...cakeIn };
+    if (addonsIn) nextPayload.addons = { ...((existingPayload.addons as object) || {}), ...addonsIn };
+    if (quoteIn) nextPayload.quote = quoteIn;
+    if (payloadIn.builderVersion) nextPayload.builderVersion = payloadIn.builderVersion;
 
     const oldRecord = { ...row };
     const { data: updated, error: updateError } = await supabase
@@ -553,6 +629,8 @@ Deno.serve(async (req) => {
         party_time: time,
         guest_kids: guestKids,
         guest_adults: guestAdults,
+        package_name: emptyToNull(asString(nextPackage.name)),
+        package_id: emptyToNull(asString(nextPackage.id)),
         payload: nextPayload,
       })
       .eq("id", row.id)

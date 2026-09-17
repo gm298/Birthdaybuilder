@@ -308,7 +308,12 @@
 
   let currentStepId = "intro";
   const staffRequestId = new URLSearchParams(window.location.search).get("staffRequest") || "";
+  const editManageToken = new URLSearchParams(window.location.search).get("edit") || "";
   let staffDecorRestore = null;
+  let editOwnTableIds = [];
+  let editVerifiedEmail = "";
+  let editVerifiedPhone = "";
+  let editPublicCode = "";
 
   const cakeState = {
     filter: "All",
@@ -421,6 +426,114 @@
 
   function partyTimeValue() {
     return document.getElementById("party-time")?.value || "";
+  }
+
+  function setPartyTimeValue(time) {
+    const input = document.getElementById("party-time");
+    if (input) input.value = time || "";
+    updatePartyTimeTrigger();
+  }
+
+  function baliNowParts() {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Makassar",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const get = (type) => parts.find((p) => p.type === type)?.value || "";
+    return {
+      date: `${get("year")}-${get("month")}-${get("day")}`,
+      hour: Number(get("hour")),
+      minute: Number(get("minute")),
+    };
+  }
+
+  function updatePartyTimeTrigger() {
+    const label = document.getElementById("party-time-trigger-label");
+    const hint = document.getElementById("party-time-trigger-hint");
+    const Map = window.TinyReserveMap;
+    const time = partyTimeValue();
+    if (!label) return;
+    if (time) {
+      const end = partyEndTimeLabel() || (Map?.addMinutes ? Map.addMinutes(time, PARTY_DURATION_HOURS * 60) : "");
+      label.textContent = end ? `${time} – ${end}` : time;
+      if (hint) hint.textContent = `${PARTY_DURATION_HOURS}-hour party`;
+    } else {
+      label.textContent = "Select time";
+      if (hint) hint.textContent = "Choose an available start time";
+    }
+  }
+
+  function openPartyTimeModal() {
+    const modal = document.getElementById("party-time-modal");
+    const trigger = document.getElementById("party-time-trigger");
+    if (!modal) return;
+    renderPartyTimes();
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    trigger?.setAttribute("aria-expanded", "true");
+    document.body.classList.add("time-modal-open");
+  }
+
+  function closePartyTimeModal() {
+    const modal = document.getElementById("party-time-modal");
+    const trigger = document.getElementById("party-time-trigger");
+    if (!modal) return;
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    trigger?.setAttribute("aria-expanded", "false");
+    document.body.classList.remove("time-modal-open");
+  }
+
+  function renderPartyTimes() {
+    const grid = document.getElementById("party-time-grid");
+    const Map = window.TinyReserveMap;
+    if (!grid || !Map?.timeSlots) return;
+    const selected = partyTimeValue();
+    const date = document.getElementById("party-date")?.value || "";
+    const now = baliNowParts();
+    grid.innerHTML = "";
+    Map.timeSlots().forEach((time) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "time-chip" + (time === selected ? " is-active" : "");
+      btn.dataset.time = time;
+      const end = Map.addMinutes(time, PARTY_DURATION_HOURS * 60);
+      btn.innerHTML = `<strong>${time}</strong><span>until ${end}</span>`;
+      const [hour, minute] = time.split(":").map(Number);
+      const past = date === now.date && hour * 60 + minute <= now.hour * 60 + now.minute;
+      btn.disabled = past;
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        setPartyTimeValue(time);
+        grid.querySelectorAll(".time-chip").forEach((item) => {
+          item.classList.toggle("is-active", item === btn);
+        });
+        loadPartyOccupancy();
+        updateStepProgress();
+        renderSummary();
+        closePartyTimeModal();
+      });
+      grid.appendChild(btn);
+    });
+    updatePartyTimeTrigger();
+  }
+
+  function initPartyTime() {
+    document.getElementById("party-time-trigger")?.addEventListener("click", openPartyTimeModal);
+    document.querySelectorAll("[data-close-party-time]").forEach((el) => {
+      el.addEventListener("click", closePartyTimeModal);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !document.getElementById("party-time-modal")?.hidden) {
+        closePartyTimeModal();
+      }
+    });
+    updatePartyTimeTrigger();
   }
 
   function partyEndTimeLabel() {
@@ -1678,7 +1791,11 @@
   function heldPartyTableIds() {
     const Map = window.TinyReserveMap;
     if (!Map?.heldTableIds) return new Set();
-    return Map.heldTableIds(partyState.occupancy, partyTimeValue(), "birthday");
+    const held = Map.heldTableIds(partyState.occupancy, partyTimeValue(), "birthday");
+    if (editManageToken) {
+      editOwnTableIds.forEach((id) => held.delete(String(id)));
+    }
+    return held;
   }
 
   function unavailablePartyTables() {
@@ -1734,6 +1851,14 @@
       partyState.tableIds = auto;
       partyState.tableArea = "terrace";
     } else if (pkg.id === "simple") {
+      const indoorMax = Map.INDOOR_MAX || 8;
+      if (totalGuests() > indoorMax) {
+        const hasIndoor = partyTables().some((table) => table.area === "indoor");
+        if (hasIndoor) {
+          partyState.tableIds = [];
+          partyState.tableArea = "terrace";
+        }
+      }
       const stillFit = partyTables().every((table) => Map.canTakeTable(table, totalGuests()));
       if (!stillFit) partyState.tableIds = [];
     } else {
@@ -1752,29 +1877,35 @@
     const Map = window.TinyReserveMap;
     const pkg = selectedPackage();
     if (!host) return;
-    if (!pkg || !partyState.packageChosen) {
+    if (!pkg || !partyState.packageChosen || pkg.id !== "simple") {
       host.hidden = true;
       return;
     }
     host.hidden = false;
-    const interactive = pkg.id === "simple";
-    const area = interactive ? partyState.tableArea || "indoor" : "terrace";
+    const interactive = true;
+    const indoorMax = Map?.INDOOR_MAX || 8;
+    const guests = totalGuests() || 1;
+    if (guests > indoorMax && partyState.tableArea === "indoor") {
+      partyState.tableArea = "terrace";
+    }
+    const area = partyState.tableArea || "indoor";
     if (areas) {
-      areas.hidden = !interactive;
+      areas.hidden = false;
       areas.querySelectorAll("[data-area]").forEach((btn) => {
-        btn.classList.toggle("is-active", btn.dataset.area === area);
+        const tabArea = btn.dataset.area;
+        btn.classList.toggle("is-active", tabArea === area);
+        btn.disabled = tabArea === "indoor" && guests > indoorMax;
+        btn.title =
+          tabArea === "indoor" && guests > indoorMax
+            ? `Indoor is limited to ${indoorMax} guests`
+            : "";
       });
     }
     if (copy) {
-      if (pkg.id === "simple") {
-        copy.textContent =
-          "Pick tables that fit your guest count. Indoor max 8 people; indoor tables 1 and 2 can be joined. Saturday 14:00–17:00, terrace 18 and 19 are held for cooking class.";
-      } else if (pkg.id === "terrace") {
-        copy.textContent = "Whole Terrace reserves every terrace table for the party window.";
-      } else {
-        copy.textContent =
-          "Optimal uses terrace tables 18, 19, 12 and 13, added in that order until they fit your guest count.";
-      }
+      copy.textContent =
+        guests > indoorMax
+          ? `Indoor seating is limited to ${indoorMax} guests — pick terrace tables for this party size. Indoor tables 1 and 2 can be joined when you have 8 or fewer.`
+          : `Pick tables that fit your guest count. Indoor max ${indoorMax} people; indoor tables 1 and 2 can be joined. Saturday 14:00–17:00, terrace 18 and 19 are held for cooking class.`;
     }
     const blocked = unavailablePartyTables();
     if (status) {
@@ -1782,10 +1913,7 @@
         status.textContent = "Set the party date and time in step 01 so we can check table availability.";
         status.className = "form-status";
       } else if (blocked.length) {
-        status.textContent =
-          pkg.id === "simple"
-            ? "That table is already reserved for this party time. Please pick another."
-            : "Those terrace tables are already reserved (including Saturday cooking class on 18 and 19, 14:00–17:00). Please pick another time.";
+        status.textContent = "That table is already reserved for this party time. Please pick another.";
         status.className = "form-status is-error";
       } else if (!(partyState.tableIds || []).length) {
         status.textContent = "Select tables to continue.";
@@ -1804,11 +1932,19 @@
         area,
         selected: partyState.tableIds || [],
         held: [...heldPartyTableIds()],
-        guests: totalGuests() || 1,
+        guests,
         interactive,
         base: "../../reserve/img/",
         onPick: (id) => {
-          const next = Map.nextSelection(partyState.tableIds, id, totalGuests(), heldPartyTableIds());
+          const table = Map.findTable?.(id);
+          if (table?.area === "indoor" && guests > indoorMax) {
+            if (status) {
+              status.textContent = `Indoor is limited to ${indoorMax} guests. Choose terrace tables or reduce your party size.`;
+              status.className = "form-status is-error";
+            }
+            return;
+          }
+          const next = Map.nextSelection(partyState.tableIds, id, guests, heldPartyTableIds());
           partyState.tableIds = [...next];
           renderPartyTables();
           renderSummary();
@@ -2854,7 +2990,10 @@
     const input = document.getElementById("party-date");
     if (!input) return;
     input.min = minOrderDate();
-    input.addEventListener("change", syncDayFromDate);
+    input.addEventListener("change", () => {
+      syncDayFromDate();
+      updatePartyTimeTrigger();
+    });
     input.addEventListener("input", syncDayFromDate);
     syncDayFromDate();
   }
@@ -3244,34 +3383,61 @@
       }
       window.TinyContact?.markContactValidity?.(true);
 
-      if (!window.TinySubmit?.submitRequest) {
+      const isEdit = Boolean(editManageToken);
+      if (isEdit && !window.TinySubmit?.manageRequest) {
+        setStatus("Saving is not configured yet.", "is-error");
+        return;
+      }
+      if (!isEdit && !window.TinySubmit?.submitRequest) {
         setStatus("Saving is not configured yet.", "is-error");
         return;
       }
 
       btn.disabled = true;
       if (exportBtn) exportBtn.disabled = true;
-      statusPreparing = (msg) => setStatus(msg || "Saving your request…");
+      statusPreparing = (msg) => setStatus(msg || (isEdit ? "Saving your changes…" : "Saving your request…"));
 
       try {
-        statusPreparing("Preparing quotation PDF…");
-        const files = await collectSubmitFiles();
         const payload = buildRequestPayload();
-        const result = await window.TinySubmit.submitRequest({
-          source: "party_builder",
-          payload,
-          files,
-          onProgress: statusPreparing,
-          extraClient: { builderVersion: BUILDER_VERSION },
-        });
-        const code = result.publicCode || "";
-        const manageToken = result.manageToken || "";
-        window.TinySubmit?.rememberManage?.("party_builder", {
-          publicCode: code,
-          manageToken,
-          requestId: result.requestId,
-        });
-        track("builder_save_success", {
+        payload.email = contact.email || editVerifiedEmail || "";
+        payload.phone = contact.phone || editVerifiedPhone || "";
+        payload.contactName = document.getElementById("child-name")?.value.trim() || "";
+
+        let code = editPublicCode || "";
+        let manageToken = editManageToken || "";
+
+        if (isEdit) {
+          statusPreparing("Saving your changes…");
+          const result = await window.TinySubmit.manageRequest({
+            action: "update",
+            manageToken: editManageToken,
+            email: payload.email,
+            phone: payload.phone,
+            payload,
+          });
+          code = result.booking?.publicCode || code;
+          manageToken = result.booking?.manageToken || manageToken;
+          editOwnTableIds = (partyState.tableIds || []).map(String);
+        } else {
+          statusPreparing("Preparing quotation PDF…");
+          const files = await collectSubmitFiles();
+          const result = await window.TinySubmit.submitRequest({
+            source: "party_builder",
+            payload,
+            files,
+            onProgress: statusPreparing,
+            extraClient: { builderVersion: BUILDER_VERSION },
+          });
+          code = result.publicCode || "";
+          manageToken = result.manageToken || "";
+          window.TinySubmit?.rememberManage?.("party_builder", {
+            publicCode: code,
+            manageToken,
+            requestId: result.requestId,
+          });
+        }
+
+        track(isEdit ? "builder_edit_success" : "builder_save_success", {
           package: partyState.packageId,
           publicCode: code,
         });
@@ -3281,18 +3447,25 @@
           extras: partyState.extras.join(","),
           publicCode: code,
           saved: true,
+          edited: isEdit,
         });
-        setStatus(code ? `Saved as ${code}.` : "Saved.", "is-success");
+        setStatus(code ? (isEdit ? `Updated ${code}.` : `Saved as ${code}.`) : "Saved.", "is-success");
         const waHref = `${WA_BASE}?text=${encodeURIComponent(composeWhatsAppMessage(code))}`;
+        const manageHref = isEdit
+          ? window.TinySubmit?.bookingUrl?.(manageToken)
+          : window.TinySubmit?.builderEditUrl?.(manageToken) || window.TinySubmit?.bookingUrl?.(manageToken);
         if (window.TinySuccessModal?.open) {
           window.TinySuccessModal.open({
-            title: "Birthday request saved",
+            title: isEdit ? "Birthday plan updated" : "Birthday request saved",
             code,
             manageToken,
+            manageHref: isEdit ? manageHref : window.TinySubmit?.builderEditUrl?.(manageToken) || manageHref,
             whatsappHref: waHref,
             showEdit: true,
             showCancel: true,
             showShare: false,
+            email: payload.email,
+            phone: payload.phone,
           });
         } else {
           openWhatsAppWithMessage(composeWhatsAppMessage(code));
@@ -3620,12 +3793,24 @@
     }
   }
 
+  function packageIncompleteMessage() {
+    const pkg = selectedPackage();
+    if (unavailablePartyTables().length) {
+      return pkg?.id === "simple"
+        ? "That table isn’t free at this time. Please pick another table or start time."
+        : "Those tables aren’t free at this time. Please pick another start time.";
+    }
+    if (!pkg) return "Please choose a package.";
+    if (pkg.id === "simple") return "Please choose a package and pick your tables.";
+    return "Please choose a package.";
+  }
+
   function stepIncompleteMessage(stepId) {
     switch (stepId) {
       case "details":
         return "Please fill out the required details, including email or WhatsApp.";
       case "package":
-        return "Please choose a package and available tables.";
+        return packageIncompleteMessage();
       case "decor":
         return "Please choose a decoration look or build your own.";
       case "cakes":
@@ -3661,7 +3846,7 @@
   }
 
   function canVisitStep(stepId) {
-    if (staffRequestId) return true;
+    if (staffRequestId || editManageToken) return true;
     const target = flowIndex(stepId);
     if (target < 0) return false;
     for (let i = 0; i < target; i += 1) {
@@ -3853,8 +4038,18 @@
     areas.dataset.bound = "1";
     areas.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-area]");
-      if (!btn) return;
-      partyState.tableArea = btn.dataset.area;
+      if (!btn || btn.disabled) return;
+      const area = btn.dataset.area === "terrace" ? "terrace" : "indoor";
+      const indoorMax = window.TinyReserveMap?.INDOOR_MAX || 8;
+      if (area === "indoor" && totalGuests() > indoorMax) {
+        const status = document.getElementById("party-tables-status");
+        if (status) {
+          status.textContent = `Indoor is limited to ${indoorMax} guests. Choose terrace tables or reduce your party size.`;
+          status.className = "form-status is-error";
+        }
+        return;
+      }
+      partyState.tableArea = area;
       partyState.tableIds = [];
       renderPartyTables();
       renderSummary();
@@ -4146,6 +4341,174 @@
     return createClient(cfg.url || "", cfg.anonKey || "");
   }
 
+  function fillContactFields(email, phone) {
+    const emailEl = document.getElementById("contact-email");
+    if (emailEl && email) emailEl.value = email;
+    const raw = String(phone || "").replace(/\s+/g, "");
+    if (!raw) return;
+    const digits = raw.replace(/^\+/, "");
+    let dial = "62";
+    let national = digits;
+    if (digits.startsWith("62") && digits.length > 4) {
+      dial = "62";
+      national = digits.slice(2);
+    } else if (digits.length > 8) {
+      dial = digits.slice(0, digits.length - 9);
+      national = digits.slice(dial.length);
+      if (!dial) {
+        dial = "62";
+        national = digits;
+      }
+    }
+    const dialHidden = document.getElementById("contact-dial");
+    const dialSearch = document.getElementById("contact-dial-search");
+    const phoneEl = document.getElementById("contact-phone");
+    if (dialHidden) dialHidden.value = dial;
+    if (dialSearch) dialSearch.value = `+${dial}`;
+    if (phoneEl) phoneEl.value = national.replace(/^0+/, "");
+  }
+
+  function loadVerifiedContact(token) {
+    try {
+      const raw = sessionStorage.getItem(`tiny-verified-${token}`);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function saveVerifiedContact(token, email, phone) {
+    try {
+      sessionStorage.setItem(
+        `tiny-verified-${token}`,
+        JSON.stringify({ email: email || "", phone: phone || "", at: Date.now() })
+      );
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  async function hydrateGuestEdit(token) {
+    if (!window.TinySubmit?.manageRequest) throw new Error("Managing is not configured yet.");
+    const result = await window.TinySubmit.manageRequest({
+      action: "get",
+      manageToken: token,
+    });
+    const booking = result.booking;
+    if (!booking || booking.source !== "party_builder") {
+      throw new Error("Birthday booking not found.");
+    }
+    const verified = loadVerifiedContact(token);
+    editVerifiedEmail = verified?.email || booking.email || "";
+    editVerifiedPhone = verified?.phone || booking.phone || "";
+    editPublicCode = booking.publicCode || "";
+    if (!editVerifiedEmail && !editVerifiedPhone) {
+      throw new Error("Confirm your email and WhatsApp on the booking page first, then tap Edit again.");
+    }
+
+    const party = booking.party || {};
+    const reservation = booking.reservation || {};
+    const decor = booking.decor || {};
+    const addons = booking.addons || {};
+    const cake = booking.cake || {};
+    const pkgId = inferPackageId(
+      { package_name: booking.packageName, child_name: booking.childName },
+      {
+        package: booking.package,
+        decor,
+      }
+    );
+    const pkg = partyData.packages.find((p) => p.id === pkgId);
+
+    partyState.packageId = pkgId;
+    partyState.packageChosen = true;
+    partyState.decorPackageId = decor.packageId || pkg?.decorId || "simple";
+    partyState.decorThemeId = decor.themeId || "";
+    partyState.decorReviewed = true;
+    partyState.masterclassId = addons.masterclassId || "";
+    partyState.masterclassReviewed = true;
+    partyState.entertainmentReviewed = true;
+    partyState.foodReviewed = true;
+    partyState.extras = Array.isArray(addons.extras)
+      ? addons.extras.map((item) => (typeof item === "string" ? item : item?.id)).filter(Boolean)
+      : [];
+    partyState.tableIds = Array.isArray(reservation.tableIds) ? reservation.tableIds.map(String) : [];
+    editOwnTableIds = partyState.tableIds.slice();
+    partyState.tableArea = reservation.area || partyTables()[0]?.area || "indoor";
+    if (party.day) partyState.day = party.day;
+
+    const setVal = (fieldId, value) => {
+      const el = document.getElementById(fieldId);
+      if (el && value != null && value !== "") el.value = value;
+    };
+    setVal("party-date", booking.partyDate || party.date || "");
+    setPartyTimeValue(String(booking.partyTime || party.time || "").slice(0, 5));
+    setVal("child-name", booking.childName || party.childName || "");
+    setVal("child-age", booking.childAge || party.childAge || "");
+    setVal("guest-kids", booking.guestKids ?? party.guestKids ?? 0);
+    setVal("guest-adults", booking.guestAdults ?? party.guestAdults ?? 0);
+    setVal("food-notes", party.foodNotes || "");
+    setVal("party-notes", party.notes || "");
+    fillContactFields(editVerifiedEmail || booking.email, editVerifiedPhone || booking.phone);
+    saveVerifiedContact(token, editVerifiedEmail || booking.email, editVerifiedPhone || booking.phone);
+
+    if (cake.size) cakeState.size = cake.size;
+    cakeState.sponges = Array.isArray(cake.sponges) ? cake.sponges.slice() : [];
+    if (cake.sugarSponge) {
+      cakeState.sugarSponge = String(cake.sugarSponge)
+        .split("+")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    cakeState.mode = cake.mode || cakeState.mode;
+    cakeState.design = cake.design || "";
+    cakeState.theme = cake.theme || "";
+    cakeState.addons = Array.isArray(cake.diet)
+      ? cake.diet.filter((d) => d && d !== DIET_NONE)
+      : [];
+    const themeEl = document.getElementById("cake-theme");
+    if (themeEl && cake.theme) themeEl.value = cake.theme;
+    const designRequest = document.getElementById("decor-design-request");
+    if (designRequest && decor.designRequest) designRequest.value = decor.designRequest;
+    if (decor.backdropName) {
+      const nameEl = document.getElementById("backdrop-name");
+      if (nameEl) {
+        nameEl.value = decor.backdropName;
+        backdropState.nameTouched = true;
+      }
+    }
+    (decor.balloonColours || []).forEach((c) => {
+      if (c.id && c.hex) backdropState.colours[c.id] = c.hex;
+    });
+
+    const sendBtn = document.getElementById("send-whatsapp");
+    if (sendBtn) sendBtn.textContent = "Save changes";
+    const introNote = document.querySelector(".builder-hero__note");
+    if (introNote) {
+      introNote.textContent = `Editing ${editPublicCode || "your birthday plan"}. Jump to any step to change it.`;
+    }
+
+    resetBackdropForPackage();
+    renderPackages();
+    renderPackageHint();
+    renderDecorPackages();
+    renderDecorThemes();
+    updateBackdropBuilderUI();
+    renderMasterclasses();
+    renderExtras();
+    renderFood();
+    renderSizeOptions();
+    renderSpongeOptions();
+    renderSugarSpongeOptions();
+    renderAddons();
+    renderMode();
+    renderDesignGrid();
+    renderSummary();
+    await loadPartyOccupancy();
+    updateStepProgress();
+  }
+
   async function hydrateStaffRequest(id) {
     const client = await staffClient();
     const { data: sessionData } = await client.auth.getSession();
@@ -4337,6 +4700,7 @@
     renderPackages();
     renderPackageHint();
     initPartyDate();
+    initPartyTime();
     renderDecorPackages();
     renderDecorThemes();
     initBackdrop();
@@ -4380,11 +4744,29 @@
         }
       }
     }
+    if (editManageToken && !staffRequestId) {
+      try {
+        await hydrateGuestEdit(editManageToken);
+      } catch (err) {
+        const lead = document.querySelector(".builder-hero__note");
+        if (lead) {
+          lead.textContent = err?.message || "Could not load this birthday plan for editing.";
+          lead.style.color = "#9b3b2e";
+        }
+      }
+    }
     initWizard();
     if (staffRequestId && staffDecorRestore) {
       goToStep("decor", { fromHistory: true });
       openCustomBuilderModal();
       await applyStaffDecorState();
+    } else if (editManageToken && editPublicCode) {
+      const hashStep = (location.hash || "").replace(/^#/, "");
+      if (BUILDER_FLOW.some((step) => step.id === hashStep)) {
+        goToStep(hashStep, { fromHistory: true });
+      } else {
+        goToStep("details", { fromHistory: true });
+      }
     }
     updateStepProgress();
     checkTerraceGuestLimit();

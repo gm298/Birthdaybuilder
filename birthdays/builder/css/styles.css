@@ -788,6 +788,130 @@ body.steps-pinned .site-header {
   align-items: end;
 }
 
+.time-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 16px;
+  border: 1px solid rgba(100, 124, 110, 0.28);
+  border-radius: 14px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.time-trigger__label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--deep);
+}
+
+.time-trigger__hint {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.field.is-invalid .time-trigger {
+  border-color: #c45c4a;
+  box-shadow: 0 0 0 2px rgba(196, 92, 74, 0.15);
+}
+
+body.time-modal-open {
+  overflow: hidden;
+}
+
+.time-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 350;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.time-modal[hidden] {
+  display: none;
+}
+
+.time-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(51, 65, 58, 0.45);
+  cursor: pointer;
+}
+
+.time-modal__panel {
+  position: relative;
+  z-index: 1;
+  width: min(100%, 520px);
+  max-height: min(80vh, 640px);
+  overflow: auto;
+  padding: 20px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 18px 48px rgba(51, 65, 58, 0.22);
+}
+
+.time-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.time-modal__head h3 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.time-modal__close {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.time-modal .time-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.time-modal .time-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+  padding: 11px 8px;
+  min-height: 52px;
+  border-radius: 12px;
+  border: 1px solid rgba(100, 124, 110, 0.22);
+  background: #fff;
+  color: var(--deep);
+  font: inherit;
+  cursor: pointer;
+}
+
+.time-modal .time-chip.is-active {
+  border-color: var(--sage);
+  background: rgba(100, 124, 110, 0.08);
+}
+
+.time-modal .time-chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
 .field.is-invalid input,
 .field.is-invalid textarea {
   border-color: #c45c4a;

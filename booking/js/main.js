@@ -23,6 +23,10 @@
     verifiedEmail: "",
     verifiedPhone: "",
     busy: false,
+    editArea: "indoor",
+    editSelected: new Set(),
+    editOwnTableIds: [],
+    occupancy: [],
   };
 
   function escapeHtml(value) {
@@ -375,9 +379,19 @@
         <label class="field"><span>Notes</span>
           <textarea name="notes" maxlength="200">${escapeHtml(r.notes || "")}</textarea>
         </label>
-        <p class="field"><span>Table</span><strong>${escapeHtml(r.tableLabel || "—")}</strong>
-          <span style="display:block;margin-top:4px">Table changes aren’t available here — WhatsApp Tiny if you need a different table.</span>
-        </p>
+        <div class="field table-picker">
+          <span class="field__label">Table</span>
+          <p class="field__hint" id="edit-table-label">${escapeHtml(r.tableLabel || "Tap a table on the map")}</p>
+          <div class="plan__tabs" role="tablist" aria-label="Cafe area">
+            <button type="button" class="plan-tab${(r.area || "indoor") !== "terrace" ? " is-active" : ""}" data-area="indoor" aria-selected="${
+              (r.area || "indoor") !== "terrace" ? "true" : "false"
+            }">Indoor</button>
+            <button type="button" class="plan-tab${r.area === "terrace" ? " is-active" : ""}" data-area="terrace" aria-selected="${
+              r.area === "terrace" ? "true" : "false"
+            }">Terrace</button>
+          </div>
+          <div class="plan__canvas" id="edit-floorplan" role="application" aria-label="Clickable table layout"></div>
+        </div>
         <div class="booking-form__actions">
           <button class="btn" type="submit">Save changes</button>
           <button class="btn btn--outline" type="button" id="booking-edit-cancel">Cancel edits</button>
@@ -485,6 +499,178 @@
     return `+${dial}${national}`;
   }
 
+  function editGuestsFromForm(form) {
+    const kids = Math.max(0, Number(form?.querySelector('[name="kids"]')?.value) || 0);
+    const adults = Math.max(0, Number(form?.querySelector('[name="adults"]')?.value) || 0);
+    return Math.max(1, kids + adults);
+  }
+
+  function editSelectedTables() {
+    if (!Map?.findTable) return [];
+    return [...state.editSelected]
+      .map((id) => Map.findTable(id))
+      .filter(Boolean)
+      .sort((a, b) => a.number - b.number);
+  }
+
+  function heldIdsForEdit(time) {
+    if (!Map?.heldTableIds) return new Set();
+    const held = Map.heldTableIds(state.occupancy, time || state.booking?.partyTime);
+    state.editOwnTableIds.forEach((id) => held.delete(String(id)));
+    return held;
+  }
+
+  function updateEditTableLabel() {
+    const label = document.getElementById("edit-table-label");
+    if (!label || !Map?.tableLabel) return;
+    const tables = editSelectedTables();
+    label.textContent = tables.length ? Map.tableLabel(tables) : "Tap a table on the map";
+  }
+
+  function renderEditPlan() {
+    const host = document.getElementById("edit-floorplan");
+    const form = document.getElementById("booking-form");
+    if (!host || !Map?.renderMap || !form) return;
+    const time = String(form.querySelector('[name="time"]')?.value || state.booking?.partyTime || "").slice(0, 5);
+    const guests = editGuestsFromForm(form);
+    Map.renderMap(host, {
+      area: state.editArea,
+      selected: [...state.editSelected],
+      held: [...heldIdsForEdit(time)],
+      guests,
+      interactive: true,
+      base: "../reserve/img/",
+      onPick: toggleEditTable,
+    });
+    updateEditTableLabel();
+  }
+
+  function pruneEditSelection() {
+    const form = document.getElementById("booking-form");
+    if (!form || !Map) return;
+    const guests = editGuestsFromForm(form);
+    const held = heldIdsForEdit(
+      String(form.querySelector('[name="time"]')?.value || state.booking?.partyTime || "").slice(0, 5)
+    );
+    [...state.editSelected].forEach((id) => {
+      if (held.has(id)) state.editSelected.delete(id);
+    });
+    const tables = editSelectedTables();
+    if (tables.length && tables.some((table) => !Map.canTakeTable(table, guests))) {
+      state.editSelected = new Set();
+    }
+  }
+
+  function toggleEditTable(id) {
+    if (!Map) return;
+    const table = Map.findTable(id);
+    if (!table) return;
+    const form = document.getElementById("booking-form");
+    const guests = editGuestsFromForm(form);
+    const time = String(form?.querySelector('[name="time"]')?.value || "").slice(0, 5);
+    const held = heldIdsForEdit(time);
+    if (held.has(id) && !state.editSelected.has(id)) {
+      setMsg("That table is already reserved for this 2-hour slot.", "error");
+      return;
+    }
+    const next = Map.nextSelection(state.editSelected, id, guests, held);
+    if (
+      !held.has(id) &&
+      next.size === state.editSelected.size &&
+      [...next].every((item) => state.editSelected.has(item))
+    ) {
+      if (!Map.canTakeTable(table, guests)) {
+        setMsg("That table is too small for this party.", "error");
+        return;
+      }
+      setMsg("The joined table is already reserved for this slot.", "error");
+      return;
+    }
+    state.editArea = table.area;
+    state.editSelected = next;
+    document.querySelectorAll(".plan-tab").forEach((tab) => {
+      const on = tab.getAttribute("data-area") === state.editArea;
+      tab.classList.toggle("is-active", on);
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    setMsg("");
+    renderEditPlan();
+  }
+
+  async function loadEditOccupancy() {
+    const form = document.getElementById("booking-form");
+    const date = String(form?.querySelector('[name="date"]')?.value || state.booking?.partyDate || "");
+    const cfg = window.TINY_SUPABASE || {};
+    if (!cfg.url || !cfg.anonKey || !date || !Map) {
+      state.occupancy = [];
+      pruneEditSelection();
+      renderEditPlan();
+      return;
+    }
+    try {
+      const res = await fetch(`${cfg.url}/rest/v1/rpc/reservation_occupancy`, {
+        method: "POST",
+        headers: {
+          apikey: cfg.anonKey,
+          Authorization: `Bearer ${cfg.anonKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ target_date: date }),
+      });
+      const data = await res.json();
+      const rows = Array.isArray(data) ? data : [];
+      state.occupancy = Map.withFixedHolds ? Map.withFixedHolds(date, rows) : rows;
+    } catch (_) {
+      state.occupancy = [];
+    }
+    pruneEditSelection();
+    renderEditPlan();
+  }
+
+  function initReservationEditState(booking) {
+    const r = booking?.reservation || {};
+    const ids = (Array.isArray(r.tableIds) ? r.tableIds : []).map(String);
+    state.editOwnTableIds = ids.slice();
+    state.editSelected = new Set(ids);
+    const first = ids[0] && Map?.findTable ? Map.findTable(ids[0]) : null;
+    state.editArea = r.area || first?.area || "indoor";
+    state.occupancy = [];
+  }
+
+  function bindTablePicker() {
+    if (!document.getElementById("edit-floorplan")) return;
+    document.querySelectorAll(".plan-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        const area = tab.getAttribute("data-area") === "terrace" ? "terrace" : "indoor";
+        state.editArea = area;
+        document.querySelectorAll(".plan-tab").forEach((item) => {
+          const on = item.getAttribute("data-area") === area;
+          item.classList.toggle("is-active", on);
+          item.setAttribute("aria-selected", on ? "true" : "false");
+        });
+        if ([...state.editSelected].some((id) => Map?.findTable?.(id)?.area !== area)) {
+          state.editSelected = new Set();
+        }
+        renderEditPlan();
+      });
+    });
+    const form = document.getElementById("booking-form");
+    form?.querySelector('[name="date"]')?.addEventListener("change", () => loadEditOccupancy());
+    form?.querySelector('[name="time"]')?.addEventListener("change", () => {
+      pruneEditSelection();
+      renderEditPlan();
+    });
+    form?.querySelector('[name="kids"]')?.addEventListener("change", () => {
+      pruneEditSelection();
+      renderEditPlan();
+    });
+    form?.querySelector('[name="adults"]')?.addEventListener("change", () => {
+      pruneEditSelection();
+      renderEditPlan();
+    });
+    loadEditOccupancy();
+  }
+
   function bindActions() {
     document.getElementById("booking-unlock")?.addEventListener("click", () => {
       state.verifying = true;
@@ -501,6 +687,14 @@
         render();
         return;
       }
+      if (isBirthday(state.booking)) {
+        const href = window.TinySubmit?.builderEditUrl?.(state.token);
+        if (href) {
+          window.location.href = href;
+          return;
+        }
+      }
+      if (isReservation(state.booking)) initReservationEditState(state.booking);
       state.editing = true;
       render();
     });
@@ -585,6 +779,25 @@
       try {
         let payload;
         if (isReservation(state.booking)) {
+          const tables = editSelectedTables();
+          if (!tables.length) {
+            setMsg("Please tap a table on the floor plan.", "error");
+            state.busy = false;
+            return;
+          }
+          const guests = editGuestsFromForm(form);
+          const seats = tables.reduce((sum, table) => sum + table.seats, 0);
+          if (seats < guests) {
+            setMsg(`That table seats ${seats}. Pick a larger table or join indoor tables 1 and 2.`, "error");
+            state.busy = false;
+            return;
+          }
+          const time = String(data.get("time") || "").slice(0, 5);
+          if (tables.some((table) => heldIdsForEdit(time).has(table.id))) {
+            setMsg("That table is already reserved for this 2-hour slot.", "error");
+            state.busy = false;
+            return;
+          }
           payload = {
             email: state.verifiedEmail,
             phone: state.verifiedPhone,
@@ -595,14 +808,21 @@
               notes: String(data.get("notes") || "").trim(),
               kids: Number(data.get("kids") || 0),
               adults: Number(data.get("adults") || 0),
-              tableIds: state.booking.reservation?.tableIds || [],
-              tableLabel: state.booking.reservation?.tableLabel || "",
-              area: state.booking.reservation?.area || "",
+              tableIds: tables.map((table) => table.id),
+              tableNumbers: tables.map((table) => table.number),
+              tableLabel: Map.tableLabel(tables),
+              area: tables[0]?.area || state.editArea,
               endTime: state.booking.reservation?.endTime || "",
+              slotMinutes: Map.SLOT_MINUTES,
+              graceMinutes: Map.GRACE_MINUTES,
+              occupyBefore: Map.RES_BEFORE,
+              occupyAfter: Map.RES_AFTER,
+              occupyLabel: Map.occupyLabel?.(time, "reservation") || "",
+              holdUntil: Map.graceLabel?.(time) || "",
             },
             party: {
               date: String(data.get("date") || ""),
-              time: String(data.get("time") || "").slice(0, 5),
+              time,
             },
           };
         } else if (isCake(state.booking)) {
@@ -691,6 +911,7 @@
       root.innerHTML = `<p class="booking__status">This booking type can’t be managed online. Please WhatsApp Tiny.</p>${venueHtml(false)}`;
     }
     bindActions();
+    if (state.editing && state.verified && isReservation(booking)) bindTablePicker();
   }
 
   async function boot() {
