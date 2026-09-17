@@ -307,6 +307,8 @@
   };
 
   let currentStepId = "intro";
+  const staffRequestId = new URLSearchParams(window.location.search).get("staffRequest") || "";
+  let staffDecorRestore = null;
 
   const cakeState = {
     filter: "All",
@@ -966,6 +968,27 @@
       renderSummary();
     };
     img.src = url;
+  }
+
+  function loadPanelFromUrl(id, url, name) {
+    return new Promise((resolve) => {
+      if (!url) {
+        resolve();
+        return;
+      }
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        const prev = backdropState.panels[id];
+        if (prev?.url && String(prev.url).startsWith("blob:")) URL.revokeObjectURL(prev.url);
+        backdropState.panels[id] = { name: name || "Print", url, img, file: null };
+        renderBackdropUploads();
+        scheduleBackdropRender();
+        resolve();
+      };
+      img.onerror = () => resolve();
+      img.src = url;
+    });
   }
 
   function renderBackdropUploads() {
@@ -2663,6 +2686,7 @@
   }
 
   function canSelectDecor(id) {
+    if (staffRequestId) return true;
     return decorRank(id) >= decorRank(includedDecorId());
   }
 
@@ -3621,6 +3645,7 @@
   }
 
   function canVisitStep(stepId) {
+    if (staffRequestId) return true;
     const target = flowIndex(stepId);
     if (target < 0) return false;
     for (let i = 0; i < target; i += 1) {
@@ -4086,6 +4111,193 @@
     return fallback;
   }
 
+  function inferPackageId(row, payload) {
+    if (payload.package?.id && partyData.packages.some((p) => p.id === payload.package.id)) {
+      return payload.package.id;
+    }
+    const name = String(payload.package?.name || row.package_name || "").toLowerCase();
+    if (name.includes("terrace") || payload.decor?.packageId === "terrace") return "terrace";
+    if (name.includes("optimal") || name.includes("signature") || payload.decor?.packageId === "optimal") {
+      return "signature";
+    }
+    if (name.includes("simple") || payload.decor?.packageId === "simple") return "simple";
+    return partyData.packages[0]?.id || "signature";
+  }
+
+  async function staffClient() {
+    const cfg = window.TINY_SUPABASE || {};
+    const { createClient } = await import("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm");
+    return createClient(cfg.url || "", cfg.anonKey || "");
+  }
+
+  async function hydrateStaffRequest(id) {
+    const client = await staffClient();
+    const { data: sessionData } = await client.auth.getSession();
+    if (!sessionData.session) throw new Error("Sign in to the staff inbox first.");
+    const { data: row, error } = await client.from("requests").select("*").eq("id", id).maybeSingle();
+    if (error || !row) throw new Error(error?.message || "Request not found.");
+    const payload = row.payload || {};
+    const decor = payload.decor || {};
+    const party = payload.party || {};
+    const pkgId = inferPackageId(row, payload);
+    const pkg = partyData.packages.find((p) => p.id === pkgId);
+    partyState.packageId = pkgId;
+    partyState.packageChosen = true;
+    partyState.decorPackageId = decor.packageId || pkg?.decorId || "optimal";
+    partyState.decorThemeId = decor.themeId || "custom";
+    partyState.decorReviewed = true;
+    partyState.masterclassReviewed = true;
+    partyState.entertainmentReviewed = true;
+    partyState.foodReviewed = true;
+    partyState.tableIds = payload.reservation?.tableIds || [];
+    partyState.tableArea = payload.reservation?.area || "terrace";
+    if (party.day) partyState.day = party.day;
+    const setVal = (fieldId, value) => {
+      const el = document.getElementById(fieldId);
+      if (el && value != null && value !== "") el.value = value;
+    };
+    setVal("party-date", row.party_date || party.date || "");
+    setVal("party-time", String(row.party_time || party.time || "").slice(0, 5));
+    setVal("child-name", row.child_name || party.childName || "");
+    setVal("child-age", row.child_age || party.childAge || "");
+    setVal("guest-kids", row.guest_kids ?? party.guestKids ?? 0);
+    setVal("guest-adults", row.guest_adults ?? party.guestAdults ?? 0);
+    const copy = document.getElementById("staff-decor-copy");
+    if (copy) copy.textContent = `Editing decoration for ${row.public_code || "this invoice"}`;
+    staffDecorRestore = { row, payload, decor, files: row.files || {} };
+    resetBackdropForPackage();
+    (decor.balloonColours || []).forEach((c) => {
+      if (c.id && c.hex) backdropState.colours[c.id] = c.hex;
+    });
+    renderPackages();
+    renderDecorPackages();
+    renderDecorThemes();
+    updateBackdropBuilderUI();
+    renderSummary();
+  }
+
+  async function applyStaffDecorState() {
+    const restore = staffDecorRestore;
+    if (!restore) return;
+    const decor = restore.decor || {};
+    const nameEl = document.getElementById("backdrop-name");
+    if (nameEl && decor.backdropName) {
+      nameEl.value = decor.backdropName;
+      backdropState.nameTouched = true;
+    }
+    const requestEl = document.getElementById("decor-design-request");
+    if (requestEl && decor.designRequest) requestEl.value = decor.designRequest;
+    (decor.balloonColours || []).forEach((c) => {
+      if (c.id && c.hex) backdropState.colours[c.id] = c.hex;
+    });
+    renderBackdropColours();
+    const prints = restore.files.prints || {};
+    const client = await staffClient();
+    for (const panel of activeBackdropPanels()) {
+      const path = prints[panel.id];
+      if (!path) continue;
+      const { data } = await client.storage.from("request-files").createSignedUrl(path, 3600);
+      if (data?.signedUrl) await loadPanelFromUrl(panel.id, data.signedUrl, panel.label);
+    }
+    scheduleBackdropRender();
+  }
+
+  async function saveStaffDecoration() {
+    const status = document.getElementById("staff-decor-status");
+    const setStatus = (text, kind) => {
+      if (!status) return;
+      status.textContent = text || "";
+      status.className = kind ? `form-status ${kind}` : "form-status";
+    };
+    if (!staffRequestId || !staffDecorRestore?.row) {
+      setStatus("No invoice loaded.", "is-error");
+      return;
+    }
+    setStatus("Saving decoration…");
+    try {
+      const client = await staffClient();
+      const { data: sessionData } = await client.auth.getSession();
+      if (!sessionData.session) throw new Error("Sign in to the staff inbox first.");
+      const row = staffDecorRestore.row;
+      const payload = { ...(staffDecorRestore.payload || {}) };
+      const files = { ...(row.files || {}) };
+      const cfg = getBackdropConfig();
+      if (partyState.decorThemeId === "custom" && cfg.mode === "full") {
+        await renderBackdropPreview();
+      }
+      const canvas = document.getElementById("backdrop-canvas");
+      if (partyState.decorThemeId === "custom" && cfg.mode === "full" && canvas && !canvas.hidden) {
+        const blob = window.TinySubmit?.canvasToBlob
+          ? await window.TinySubmit.canvasToBlob(canvas, "image/jpeg", 0.85)
+          : null;
+        if (blob) {
+          const path = `${row.id}/backdrop.jpg`;
+          const { error } = await client.storage.from("request-files").upload(path, blob, {
+            contentType: "image/jpeg",
+            upsert: true,
+          });
+          if (error) throw error;
+          files.backdropPng = path;
+        }
+      }
+      const prints = { ...(files.prints || {}) };
+      for (const panel of activeBackdropPanels()) {
+        const slot = backdropState.panels[panel.id];
+        if (!slot?.file) continue;
+        const compressed = window.TinySubmit?.compressImage ? await window.TinySubmit.compressImage(slot.file) : slot.file;
+        const path = `${row.id}/print-${panel.id}.jpg`;
+        const { error } = await client.storage.from("request-files").upload(path, compressed, {
+          contentType: compressed.type || "image/jpeg",
+          upsert: true,
+        });
+        if (error) throw error;
+        prints[panel.id] = path;
+      }
+      if (Object.keys(prints).length) files.prints = prints;
+      payload.decor = {
+        ...(payload.decor || {}),
+        packageId: partyState.decorPackageId || "",
+        packageLabel: decorPackageLabel(),
+        themeId: partyState.decorThemeId || "",
+        themeLabel: decorThemeLabel(),
+        designRequest: designRequestValue(),
+        backdropMode: cfg.mode || "",
+        backdropName: backdropNameValue(),
+        balloonColours: activeBackdropColours().map((c) => ({
+          id: c.id,
+          label: c.label,
+          hex: backdropState.colours[c.id],
+          original: c.original,
+        })),
+        prints: activeBackdropPanels()
+          .filter((p) => backdropState.panels[p.id])
+          .map((p) => ({
+            panelId: p.id,
+            originalName: backdropState.panels[p.id]?.name || "",
+          })),
+      };
+      const { error: saveError } = await client.from("requests").update({ payload, files }).eq("id", row.id);
+      if (saveError) throw saveError;
+      staffDecorRestore = { ...staffDecorRestore, payload, files, row: { ...row, payload, files } };
+      setStatus("Decoration saved to invoice.", "is-success");
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: "tiny-staff-decor-saved", id: row.id }, window.location.origin);
+      }
+    } catch (err) {
+      setStatus(err.message || "Could not save decoration.", "is-error");
+    }
+  }
+
+  function initStaffDecorBar() {
+    if (!staffRequestId) return;
+    document.body.classList.add("is-staff-edit");
+    const bar = document.getElementById("staff-decor-bar");
+    if (bar) bar.hidden = false;
+    document.getElementById("staff-decor-save")?.addEventListener("click", () => {
+      saveStaffDecoration();
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", async () => {
     prefixImgStrings(DEFAULT_PARTY);
     prefixImgStrings(TERRACE_BACKDROP);
@@ -4140,7 +4352,24 @@
     initStickySteps();
     initStepChips();
     initNextStep();
+    if (staffRequestId) {
+      initStaffDecorBar();
+      try {
+        await hydrateStaffRequest(staffRequestId);
+      } catch (err) {
+        const status = document.getElementById("staff-decor-status");
+        if (status) {
+          status.textContent = err.message || "Could not load this quotation.";
+          status.className = "form-status is-error";
+        }
+      }
+    }
     initWizard();
+    if (staffRequestId && staffDecorRestore) {
+      goToStep("decor", { fromHistory: true });
+      openCustomBuilderModal();
+      await applyStaffDecorState();
+    }
     updateStepProgress();
     checkTerraceGuestLimit();
   });

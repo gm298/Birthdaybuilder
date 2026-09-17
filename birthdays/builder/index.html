@@ -15,12 +15,22 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../cakes/css/styles.css?v=20260831f">
-  <link rel="stylesheet" href="css/styles.css?v=20260917a">
+  <link rel="stylesheet" href="css/styles.css?v=20260917b">
   <link rel="stylesheet" href="../../shared/chrome.css?v=20260916g">
   <script src="../../shared/analytics.js?v=20260905a"></script>
 </head>
 <body data-page="builder" class="is-wizard" data-builder-step="intro">
   <div id="site-chrome-header"></div>
+  <div class="staff-decor-bar" id="staff-decor-bar" hidden>
+    <div>
+      <p class="staff-decor-bar__kicker">Staff invoicing</p>
+      <p id="staff-decor-copy">Editing decoration from the quotation</p>
+    </div>
+    <div class="staff-decor-bar__actions">
+      <p class="form-status" id="staff-decor-status" role="status"></p>
+      <button type="button" class="btn" id="staff-decor-save">Save decoration to invoice</button>
+    </div>
+  </div>
 
   <main>
     <section class="builder-page builder-hero is-active" id="intro" aria-label="Welcome to the birthday builder">
@@ -430,6 +440,6 @@
   <script src="../../shared/supabase-config.js?v=20260910a" defer></script>
   <script src="../../shared/submit-request.js?v=20260910b" defer></script>
   <script src="../../shared/reserve-tables.js?v=20260917a" defer></script>
-  <script src="js/main.js?v=20260916h" defer></script>
+  <script src="js/main.js?v=20260917b" defer></script>
 </body>
 </html>

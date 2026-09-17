@@ -2496,3 +2496,54 @@ body.steps-pinned .site-header {
   text-align: center;
 }
 
+.staff-decor-bar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 20px;
+  background: #3d4f45;
+  color: #fffaf6;
+}
+
+.staff-decor-bar[hidden] {
+  display: none !important;
+}
+
+.staff-decor-bar__kicker {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+
+.staff-decor-bar p {
+  margin: 0;
+}
+
+.staff-decor-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.staff-decor-bar .form-status {
+  color: #fffaf6;
+}
+
+body.is-staff-edit #site-chrome-header,
+body.is-staff-edit .builder-hero,
+body.is-staff-edit #steps-chrome,
+body.is-staff-edit #next-step,
+body.is-staff-edit #site-chrome-footer {
+  display: none !important;
+}
+
+body.is-staff-edit #decor {
+  padding-top: 24px;
+}
+

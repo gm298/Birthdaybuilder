@@ -193,6 +193,7 @@ function relevantSnapshot(row: RequestRow | null | undefined) {
     tableIds: reservation.tableIds || [],
     endTime: reservation.endTime,
     notes: reservation.notes || row.payload?.event?.notes || row.payload?.party?.notes,
+    purpose: reservation.purpose || "",
     location: row.payload?.event?.location || reservation.area,
     eventPayment: row.payload?.event?.payment,
     guests: row.payload?.event?.guests || row.payload?.party?.guests,

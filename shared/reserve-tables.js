@@ -227,6 +227,7 @@
     const held = new Set(opts.held || []);
     const guests = Number(opts.guests) || 1;
     const interactive = Boolean(opts.interactive);
+    const ignoreCapacity = Boolean(opts.ignoreCapacity);
     host.innerHTML = "";
     const wrap = document.createElement("div");
     wrap.className = "plan-map";
@@ -245,17 +246,23 @@
       btn.style.height = `${table.h}%`;
       const isHeld = held.has(table.id);
       const isSelected = selected.has(table.id);
-      const tooSmall = !isSelected && !canTakeTable(table, guests);
+      const tooSmall = !ignoreCapacity && !isSelected && !canTakeTable(table, guests);
+      const kind = typeof opts.heldKind === "function" ? opts.heldKind(table.id) : "";
       btn.classList.toggle("is-selected", isSelected);
       btn.classList.toggle("is-held", isHeld && !isSelected);
       btn.classList.toggle("is-small", tooSmall && !isHeld);
+      if (isHeld && kind) btn.classList.add(`is-held--${kind}`);
       btn.disabled = !interactive || (tooSmall && !isHeld && !isSelected);
       btn.setAttribute("aria-pressed", isSelected ? "true" : "false");
+      const heldText =
+        (typeof opts.heldLabel === "function" ? opts.heldLabel(table.id) : opts.heldLabel) || "Already reserved";
       btn.setAttribute("aria-label", `${table.name}, ${table.seats} seats`);
-      if (isHeld && !isSelected) {
+      if (isHeld) btn.title = heldText;
+      if (isHeld && !isSelected && opts.heldNote !== false) {
+        btn.title = heldText;
         const note = document.createElement("span");
         note.className = "table-hit__note";
-        note.textContent = "Already reserved";
+        note.textContent = heldText;
         btn.appendChild(note);
       }
       if (interactive) {

@@ -31,4 +31,5 @@ supabase/.temp/
 
 # Google Calendar service account key (never commit)
 google-service-account.json
+google-service-account.json.json
 *-service-account.json

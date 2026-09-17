@@ -21,6 +21,7 @@
     date: "",
     occupancy: [],
     submitting: false,
+    saved: false,
   };
 
   function findTable(id) {
@@ -240,7 +241,7 @@
     const notes = document.getElementById("reserve-notes")?.value.trim() || "";
     const purpose = document.getElementById("reserve-purpose")?.value || "";
     const email = document.getElementById("contact-email")?.value.trim() || "";
-    const phone = window.TinyContact?.readContact?.().phone || document.getElementById("contact-phone")?.value.trim() || "";
+    const phone = window.TinyContact?.readContact?.()?.phone || document.getElementById("contact-phone")?.value.trim() || "";
     return [
       "Hi Tiny! I’d like to reserve a table.",
       code ? `Request: ${code}` : null,
@@ -448,9 +449,11 @@
     const back = document.getElementById("wizard-back");
     const next = document.getElementById("wizard-next");
     const submit = document.getElementById("wizard-submit");
+    const wa = document.getElementById("wa-open");
     if (back) back.hidden = state.step === 1;
     if (next) next.hidden = state.step === 4;
-    if (submit) submit.hidden = state.step !== 4;
+    if (submit) submit.hidden = state.step !== 4 || state.saved;
+    if (wa) wa.hidden = !(state.saved && state.step === 4);
     if (state.step === 3) renderPlan();
     if (state.step === 4) renderSummary();
     if (!options?.silent) {
@@ -465,7 +468,7 @@
     const purpose = document.getElementById("reserve-purpose")?.value || "—";
     const notes = document.getElementById("reserve-notes")?.value.trim() || "—";
     const email = document.getElementById("contact-email")?.value.trim() || "";
-    const phone = window.TinyContact?.readContact?.().phone || document.getElementById("contact-phone")?.value.trim() || "";
+    const phone = window.TinyContact?.readContact?.()?.phone || document.getElementById("contact-phone")?.value.trim() || "";
     host.innerHTML = `
       <div class="summary-block">
         <p class="summary-cafe">${CAFE.name}</p>
@@ -515,6 +518,7 @@
     window.TinyContact?.initDialCombobox?.();
     state.selected = new Set();
     state.area = "indoor";
+    state.saved = false;
     setGuests(0, 2);
     setDate(baliNowParts().date);
     setStep(1);

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/staff.css?v=20260917f">
+  <link rel="stylesheet" href="css/staff.css?v=20260917n">
 </head>
 <body>
   <div class="staff-shell">
@@ -47,6 +47,8 @@
         <a href="#/timeline" data-view="timeline">Timeline</a>
         <a href="#/tables" data-view="tables">Tables</a>
         <a href="#/events" data-view="events">Events</a>
+        <a href="#/payments" data-view="payments">Payments</a>
+        <a href="#/customers" data-view="customers">Customer details</a>
       </nav>
 
       <p class="muted calendar-sync" id="calendar-sync-note">Confirmed bookings sync to the Tiny Google Calendar.</p>
@@ -85,6 +87,7 @@
               <option value="quoted">Quoted</option>
               <option value="booked">Confirmed</option>
               <option value="cancelled">Cancelled</option>
+              <option value="noshow">No-show</option>
               <option value="rejected">Rejected</option>
               <option value="closed">Finished</option>
             </select>
@@ -94,6 +97,10 @@
           <p class="muted" id="res-policy">Reservations occupy 3 hours (30 minutes before, 2 hours dining, 30 minutes after) and cancel if the guest has not arrived after 15 minutes. Birthday parties occupy 4 hours (1 hour prep + 3 hours from start). Tables 18 and 19 are held every Saturday 14:00–17:00 for cooking class.</p>
           <div class="stat-grid" id="stat-grid"></div>
           <div class="booking-list" id="booking-list"></div>
+          <section class="noshow-section" id="noshow-section" hidden>
+            <p class="date-label undated-label">No-shows</p>
+            <div class="booking-list" id="noshow-list"></div>
+          </section>
           <p class="status" id="overview-status" role="status"></p>
         </div>
         <div id="calendar-view" hidden>
@@ -125,14 +132,85 @@
         <div id="tables-view" hidden>
           <div class="tables-toolbar">
             <p class="muted" id="tables-count"></p>
-            <label class="filter tables-time">
+            <label class="filter tables-time" id="tables-time-wrap" hidden>
               <span>Time</span>
-              <input type="range" id="tables-slider" min="480" max="1260" step="15">
+              <input type="range" id="tables-slider" min="480" max="1260" step="30">
               <strong id="tables-time-label">14:00</strong>
             </label>
+            <button class="btn btn--outline" type="button" id="tables-view-toggle">View layout</button>
             <button class="btn" type="button" id="block-tables">Block tables</button>
           </div>
-          <div class="staff-plans tables-floor" id="tables-floor"></div>
+          <div id="tables-floor"></div>
+        </div>
+        <div id="customers-view" hidden>
+          <div class="member-stats" id="customers-stats"></div>
+          <div class="member-table-wrap table-wrap">
+            <table class="member-table" id="customers-table">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Customer Name</th>
+                  <th>Country Code</th>
+                  <th>Phone Number</th>
+                  <th>Email</th>
+                  <th>Birthday date</th>
+                  <th>Usage type</th>
+                  <th></th>
+                </tr>
+                <tr class="member-table__filters">
+                  <th></th>
+                  <th><input type="search" id="customers-filter-name" placeholder="Search…" aria-label="Search customer name"></th>
+                  <th>
+                    <select id="customers-filter-country" aria-label="Country code">
+                      <option value="">All codes</option>
+                    </select>
+                  </th>
+                  <th><input type="search" id="customers-filter-phone" placeholder="Search…" aria-label="Search phone"></th>
+                  <th><input type="search" id="customers-filter-email" placeholder="Search…" aria-label="Search email"></th>
+                  <th></th>
+                  <th>
+                    <select id="customers-filter-type" aria-label="Usage type">
+                      <option value="all">All types</option>
+                      <option value="birthday">Birthday</option>
+                      <option value="reservation">Reservation</option>
+                      <option value="event">Event booking</option>
+                    </select>
+                  </th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="customers-list"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="payments-view" hidden>
+          <div class="tables-toolbar">
+            <p class="muted" id="payments-count"></p>
+            <label class="filter">
+              <span>Payment</span>
+              <select id="payments-filter" aria-label="Payment status">
+                <option value="all">All birthdays</option>
+                <option value="pending">Payment pending</option>
+                <option value="paid">Paid</option>
+              </select>
+            </label>
+          </div>
+          <div class="member-table-wrap table-wrap">
+            <table class="member-table">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Child / guest</th>
+                  <th>Date</th>
+                  <th>Total</th>
+                  <th>Status</th>
+                  <th>Payment</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="payments-list"></tbody>
+            </table>
+          </div>
         </div>
         <div id="events-view" hidden>
           <div class="tables-toolbar">
@@ -263,8 +341,8 @@
     </div>
   </div>
   <script src="../shared/supabase-config.js?v=20260910a"></script>
-  <script src="../shared/reserve-tables.js?v=20260917d"></script>
+  <script src="../shared/reserve-tables.js?v=20260917f"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js"></script>
-  <script type="module" src="js/app.js?v=20260917f"></script>
+  <script type="module" src="js/app.js?v=20260917n"></script>
 </body>
 </html>

@@ -4,11 +4,12 @@ const cfg = window.TINY_SUPABASE || {};
 const supabase = createClient(cfg.url || "", cfg.anonKey || "");
 const TZ = "Asia/Makassar";
 const BIRTHDAY_SOURCES = ["party_builder", "cake", "pdf_quote"];
-const ALL_STATUSES = ["new", "contacted", "quoted", "booked", "cancelled", "rejected", "closed"];
+const ALL_STATUSES = ["new", "contacted", "quoted", "booked", "cancelled", "noshow", "rejected", "closed"];
 const EVENT_STATUSES = ["booked", "cancelled", "closed"];
 const PENDING_STATUSES = ["new", "contacted", "quoted"];
+const INACTIVE_STATUSES = ["cancelled", "rejected", "closed", "noshow"];
 const REQUEST_SELECT =
-  "id, created_at, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload, files, google_event_id";
+  "id, created_at, source, status, public_code, email, phone, contact_name, child_name, child_age, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload, files, google_event_id";
 
 const loginCard = document.getElementById("login-card");
 const app = document.getElementById("app");
@@ -21,7 +22,7 @@ const pageTitle = document.getElementById("page-title");
 const blockModal = document.getElementById("block-modal");
 const eventModal = document.getElementById("event-modal");
 
-const VIEWS = ["overview", "calendar", "day", "timeline", "tables", "events"];
+const VIEWS = ["overview", "calendar", "day", "timeline", "tables", "events", "payments", "customers"];
 const STAFF_DAY_START = 8 * 60;
 const STAFF_DAY_END = 21 * 60;
 const BANK = {
@@ -30,7 +31,10 @@ const BANK = {
   accountNumber: "",
 };
 const PAYMENT_METHODS = ["Permata EDC", "Permata QRIS", "Bank Transfer", "Cash"];
+const RESERVE_PURPOSES = ["Family meal", "Friends", "Reunion", "Birthday", "Business", "Other"];
 let invoiceSelectedTables = new Set();
+let reservationSelectedTables = new Set();
+let partyCatalog = null;
 
 const state = {
   rows: [],
@@ -42,6 +46,12 @@ const state = {
   filters: { type: "all", status: "all" },
   overviewStatus: "all",
   tableMinutes: 14 * 60,
+  tablesMode: "grid",
+  tablesArea: "terrace",
+  tablesFocusId: "",
+  customerQuery: "",
+  customerFilters: { name: "", country: "", phone: "", email: "", type: "all" },
+  paymentFilter: "all",
   editingEventId: null,
 };
 
@@ -104,6 +114,33 @@ function formatLongDate(iso) {
   });
 }
 
+function layoutImageBase() {
+  return new URL("../../reserve/img/", import.meta.url).href;
+}
+
+function layoutImageSrc(area) {
+  const file = area === "terrace" ? "layout-terrace.png" : "layout-indoor.png";
+  return new URL(file, layoutImageBase()).href;
+}
+
+function paintLayoutMap(host, opts) {
+  const area = opts.area === "indoor" ? "indoor" : "terrace";
+  const src = opts.src || layoutImageSrc(area);
+  const Map = window.TinyReserveMap;
+  if (host && Map?.renderMap) {
+    try {
+      Map.renderMap(host, { ...opts, area, src, base: layoutImageBase() });
+    } catch (err) {
+      console.error(err);
+    }
+  }
+  if (host && !host.querySelector("img")) {
+    host.innerHTML = `<div class="plan-map"><img src="${escapeHtml(src)}" alt="${
+      area === "terrace" ? "Terrace" : "Indoor"
+    } table layout"></div>`;
+  }
+}
+
 function timeLabel(value) {
   return String(value || "").slice(0, 5) || "—";
 }
@@ -131,7 +168,7 @@ function sourceLabel(source) {
 
 function typeLabel(type) {
   if (type === "reservation") return "Reservation";
-  if (type === "event") return "Event";
+  if (type === "event") return "Event booking";
   return "Birthday";
 }
 
@@ -169,7 +206,7 @@ function visualKind(row) {
 function visualClass(row) {
   const kind = visualKind(row);
   if (row?.synthetic) return `is-${kind} is-confirmed`;
-  if (row.status === "cancelled" || row.status === "rejected") return `is-${kind} is-cancelled`;
+  if (row.status === "cancelled" || row.status === "rejected" || row.status === "noshow") return `is-${kind} is-cancelled`;
   if (row.status === "booked" || row.status === "closed") return `is-${kind} is-confirmed`;
   return `is-${kind} is-pending`;
 }
@@ -187,6 +224,7 @@ function reservationStatusLabel(status) {
   if (status === "contacted") return "Contacted";
   if (status === "quoted") return "Quoted";
   if (status === "cancelled") return "Cancelled";
+  if (status === "noshow") return "No-show";
   if (status === "rejected") return "Rejected";
   if (status === "closed") return "Finished";
   return status || "—";
@@ -199,6 +237,7 @@ function statusLabel(status) {
 function statusClass(status) {
   if (status === "booked") return "booked";
   if (status === "cancelled") return "cancelled";
+  if (status === "noshow") return "noshow";
   if (status === "rejected") return "rejected";
   if (status === "closed") return "closed";
   if (status === "contacted") return "contacted";
@@ -282,6 +321,64 @@ async function expireNoShows() {
   expired.forEach((row) => {
     row.status = "cancelled";
   });
+}
+
+function isPastConfirmedReservation(row) {
+  if (row.source !== "reservation") return false;
+  if (row.status !== "booked") return false;
+  if (!row.party_date) return false;
+  return row.party_date < todayIso();
+}
+
+async function closeFinishedReservations() {
+  const due = state.rows.filter(isPastConfirmedReservation);
+  if (!due.length) return;
+  const { data: sessionData } = await supabase.auth.getSession();
+  const uid = sessionData.session?.user?.id || null;
+  const nowIso = new Date().toISOString();
+  await Promise.all(
+    due.map((row) =>
+      supabase
+        .from("requests")
+        .update({
+          status: "closed",
+          status_changed_at: nowIso,
+          status_changed_by: uid,
+        })
+        .eq("id", row.id)
+        .eq("status", "booked")
+    )
+  );
+  due.forEach((row) => {
+    row.status = "closed";
+  });
+}
+
+function canMarkNoShow(row) {
+  if (row.source !== "reservation" || row.status !== "booked") return false;
+  if (!row.party_date || !row.party_time) return false;
+  const now = baliNowParts();
+  const start = window.TinyReserveMap?.timeToMinutes?.(row.party_time);
+  if (start == null) return false;
+  if (row.party_date < now.date) return true;
+  if (row.party_date > now.date) return false;
+  return now.minutes >= start;
+}
+
+async function markNoShow(id) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const { error } = await supabase
+    .from("requests")
+    .update({
+      status: "noshow",
+      status_changed_at: new Date().toISOString(),
+      status_changed_by: sessionData.session?.user?.id || null,
+    })
+    .eq("id", id)
+    .eq("status", "booked");
+  if (error) throw error;
+  const row = state.rows.find((item) => item.id === id);
+  if (row) row.status = "noshow";
 }
 
 function cookingRow(iso) {
@@ -418,11 +515,18 @@ function overviewUndated(pred) {
 }
 
 function overviewRows() {
-  return overviewDated((row) => matchesType(row) && matchesOverviewStatus(row));
+  return overviewDated((row) => matchesType(row) && matchesOverviewStatus(row) && row.status !== "noshow");
 }
 
 function undatedRows() {
-  return overviewUndated((row) => matchesType(row) && matchesOverviewStatus(row));
+  return overviewUndated((row) => matchesType(row) && matchesOverviewStatus(row) && row.status !== "noshow");
+}
+
+function noshowRows() {
+  if (state.overviewStatus !== "all" && state.overviewStatus !== "noshow") return [];
+  return overviewDated((row) => matchesType(row) && row.status === "noshow").concat(
+    overviewUndated((row) => matchesType(row) && row.status === "noshow")
+  );
 }
 
 function parseHash() {
@@ -435,6 +539,8 @@ function parseHash() {
   if (payment) return { view: "payment", id: payment[1] };
   const cooking = hash.match(/^cooking\/(\d{4}-\d{2}-\d{2})/);
   if (cooking) return { view: "cooking", date: cooking[1] };
+  const customer = hash.match(/^customer\/(.+)$/i);
+  if (customer) return { view: "customer", id: decodeURIComponent(customer[1]) };
   const day = hash.match(/^day\/(\d{4}-\d{2}-\d{2})/);
   if (day) return { view: "day", date: day[1] };
   const parts = hash.split("/").filter(Boolean);
@@ -499,19 +605,32 @@ async function loadRows() {
   if (error) throw error;
   state.rows = data || [];
   await expireNoShows();
+  await closeFinishedReservations();
 }
 
 function renderNav(view) {
   if (viewNav) {
-    viewNav.hidden = view === "detail" || view === "cooking" || view === "invoice" || view === "payment";
+    viewNav.hidden =
+      view === "detail" ||
+      view === "cooking" ||
+      view === "invoice" ||
+      view === "payment" ||
+      view === "customer";
     viewNav.querySelectorAll("a").forEach((link) => {
       const target = link.dataset.view === "calendar" ? "calendar" : link.dataset.view;
       link.href = `#/${target}`;
       link.classList.toggle("is-active", link.dataset.view === (view === "day" ? "calendar" : view));
     });
   }
-  if (pageTitle && !["detail", "cooking", "invoice", "payment"].includes(view)) {
-    pageTitle.textContent = view === "events" ? "Events" : "Inbox";
+  if (pageTitle && !["detail", "cooking", "invoice", "payment", "customer"].includes(view)) {
+    pageTitle.textContent =
+      view === "events"
+        ? "Events"
+        : view === "customers"
+          ? "Customer details"
+          : view === "payments"
+            ? "Payments"
+            : "Inbox";
   }
 }
 
@@ -525,9 +644,13 @@ function syncFilterInputs() {
   const label = document.getElementById("selected-date-label");
   const onOverview = state.view === "overview";
   const onCalendar = state.view === "calendar";
+  const onCustomers = state.view === "customers";
+  const onPayments = state.view === "payments";
+  const toolbar = document.querySelector(".toolbar--inbox");
+  if (toolbar) toolbar.hidden = onCustomers || onPayments;
   if (modeWrap) modeWrap.hidden = !onOverview;
   if (modeInput) modeInput.value = state.dateMode;
-  if (dateWrap) dateWrap.hidden = onCalendar || (onOverview && state.dateMode !== "day");
+  if (dateWrap) dateWrap.hidden = onCalendar || onCustomers || onPayments || (onOverview && state.dateMode !== "day");
   if (dateInput) dateInput.value = state.selectedDate;
   if (typeInput) typeInput.value = state.filters.type;
   if (statusInput) statusInput.value = onOverview ? state.overviewStatus : state.filters.status;
@@ -543,7 +666,8 @@ function bookingCard(row, opts = {}) {
   const dateLine = opts.showDate
     ? `<div class="muted">${escapeHtml(row.party_date ? formatShortDate(row.party_date) : "No date")}</div>`
     : "";
-  return `<button class="booking-card" type="button" data-open="${escapeHtml(row.synthetic ? `cooking/${row.party_date}` : `request/${row.id}`)}">
+  const showNoShow = opts.allowNoShow && canMarkNoShow(row);
+  const card = `<button class="booking-card" type="button" data-open="${escapeHtml(row.synthetic ? `cooking/${row.party_date}` : `request/${row.id}`)}">
     <div>
       <div class="code">${escapeHtml(row.public_code)}</div>
       <h3>${escapeHtml(displayName(row))}</h3>
@@ -558,6 +682,10 @@ function bookingCard(row, opts = {}) {
       <div class="muted">${escapeHtml(displayGuests(row))}</div>
     </div>
   </button>`;
+  if (!showNoShow) return card;
+  return `<div class="booking-card-wrap">${card}<button class="btn btn--outline" type="button" data-noshow="${escapeHtml(
+    row.id
+  )}">No-show</button></div>`;
 }
 
 function renderOverview() {
@@ -572,6 +700,7 @@ function renderOverview() {
     ["booked", "booked", "Confirmed", countBy(statPool, (r) => r.status === "booked")],
     ["new", "pending", "New booking", countBy(statPool, (r) => PENDING_STATUSES.includes(r.status))],
     ["cancelled", "cancelled", "Cancelled", countBy(statPool, (r) => r.status === "cancelled")],
+    ["noshow", "noshow", "No-show", countBy(statPool, (r) => r.status === "noshow")],
     ["rejected", "rejected", "Rejected", countBy(statPool, (r) => r.status === "rejected")],
     ["closed", "closed", "Finished", countBy(statPool, (r) => r.status === "closed")],
     ["total", "all", "Total", statPool.length],
@@ -608,7 +737,7 @@ function renderOverview() {
       .map(
         (group) =>
           `<p class="date-label undated-label">${escapeHtml(formatLongDate(group.date))}</p>${group.rows
-            .map((row) => bookingCard(row, { showDate: true }))
+            .map((row) => bookingCard(row, { showDate: true, allowNoShow: true }))
             .join("")}`
       )
       .join("");
@@ -616,15 +745,22 @@ function renderOverview() {
     body = dated
       .slice()
       .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)))
-      .map((row) => bookingCard(row))
+      .map((row) => bookingCard(row, { allowNoShow: true }))
       .join("");
   }
+  const missed = noshowRows();
   list.innerHTML = [
-    body || (undated.length ? "" : `<p class="muted">${emptyText}</p>`),
+    body || (undated.length || missed.length ? "" : `<p class="muted">${emptyText}</p>`),
     undated.length
-      ? `<p class="date-label undated-label">No date yet</p>${undated.map((row) => bookingCard(row, { showDate })).join("")}`
+      ? `<p class="date-label undated-label">No date yet</p>${undated.map((row) => bookingCard(row, { showDate, allowNoShow: true })).join("")}`
       : "",
   ].join("");
+  const noshowSection = document.getElementById("noshow-section");
+  const noshowList = document.getElementById("noshow-list");
+  if (noshowSection && noshowList) {
+    noshowSection.hidden = !missed.length;
+    noshowList.innerHTML = missed.map((row) => bookingCard(row, { showDate: true })).join("");
+  }
   const suffix =
     state.dateMode === "upcoming" ? " from today" : state.dateMode === "all" ? "" : "";
   document.getElementById("overview-status").textContent = `${visible.length} booking${
@@ -800,22 +936,41 @@ function renderTimeline() {
   );
 }
 
+function tableRowsOnDate(iso) {
+  return rowsOnDate(iso).filter((row) => row.synthetic || !INACTIVE_STATUSES.includes(row.status));
+}
+
 function occupiedAtTime(iso, minutes) {
-  return rowsOnDate(iso).filter((row) => {
+  return tableRowsOnDate(iso).filter((row) => {
     const range = rowOccupy(row);
     if (!range) return false;
     return minutes >= range.start && minutes < range.end;
   });
 }
 
-function renderTables() {
-  syncFilterInputs();
+function snapTableMinutes(value) {
+  const stepped = Math.round(Number(value) / 30) * 30;
+  return Math.min(STAFF_DAY_END, Math.max(STAFF_DAY_START, stepped));
+}
+
+function bookingTableIds(row) {
+  return row?.payload?.reservation?.tableIds || [];
+}
+
+function bookingArea(row) {
+  const first = bookingTableIds(row)[0];
+  return window.TinyReserveMap?.findTable?.(first)?.area || row?.payload?.reservation?.area || "terrace";
+}
+
+function layoutBookingKind(row) {
+  if (row?.synthetic) return "cooking";
+  return eventType(row);
+}
+
+function renderTablesLayout() {
   const slider = document.getElementById("tables-slider");
-  if (slider && !slider.dataset.ready) {
-    slider.value = String(state.tableMinutes);
-    slider.dataset.ready = "1";
-  }
-  if (slider) state.tableMinutes = Number(slider.value) || state.tableMinutes;
+  state.tableMinutes = snapTableMinutes(slider ? slider.value : state.tableMinutes);
+  if (slider) slider.value = String(state.tableMinutes);
   const timeText = minutesToTime(state.tableMinutes);
   const label = document.getElementById("tables-time-label");
   if (label) label.textContent = timeText;
@@ -823,45 +978,638 @@ function renderTables() {
   const held = new Set();
   const byTable = new Map();
   active.forEach((row) => {
-    (row.payload?.reservation?.tableIds || []).forEach((id) => {
+    bookingTableIds(row).forEach((id) => {
       held.add(id);
       if (!byTable.has(id)) byTable.set(id, row);
     });
   });
+  if (!active.some((row) => String(row.id) === String(state.tablesFocusId))) {
+    state.tablesFocusId = active[0] ? String(active[0].id) : "";
+  }
+  const focused = active.find((row) => String(row.id) === String(state.tablesFocusId)) || null;
+  const area = state.tablesArea === "indoor" ? "indoor" : "terrace";
+  const selected = focused ? bookingTableIds(focused).filter((id) => String(id).startsWith(area === "indoor" ? "in-" : "tr-")) : [];
   document.getElementById("tables-count").textContent = `${active.length} booking${
     active.length === 1 ? "" : "s"
-  } at ${timeText} · drag the time to see booked and blocked tables`;
+  } at ${timeText} · ${formatLongDate(state.selectedDate)}`;
   const floor = document.getElementById("tables-floor");
-  floor.innerHTML = `<section><h3>Indoor</h3><div class="staff-plan" id="tables-indoor"></div></section>
-    <section><h3>Terrace</h3><div class="staff-plan" id="tables-terrace"></div></section>`;
-  const Map = window.TinyReserveMap;
+  floor.className = "layout-plan";
+  const list = active.length
+    ? active
+        .map((row) => {
+          const kind = layoutBookingKind(row);
+          const on = String(row.id) === String(state.tablesFocusId);
+          return `<button class="layout-booking is-${kind}${on ? " is-active" : ""}" type="button" data-tables-focus="${escapeHtml(
+            String(row.id)
+          )}">
+            <span class="badge badge--${kind === "cooking" ? "event" : kind}">${escapeHtml(
+              kind === "cooking" ? "Cooking class" : typeLabel(kind)
+            )}</span>
+            <strong>${escapeHtml(displayName(row))}</strong>
+            <span>${escapeHtml(tableText(row))}</span>
+            <span>${escapeHtml(slotRange(row))} · ${escapeHtml(statusLabel(row.status))}</span>
+          </button>`;
+        })
+        .join("")
+    : `<p class="muted">No bookings at ${escapeHtml(timeText)}.</p>`;
+  const focusMeta = focused
+    ? `<div class="picked">
+        <h3>${escapeHtml(tableText(focused))}</h3>
+        <p>${escapeHtml(displayName(focused))} · ${escapeHtml(
+          layoutBookingKind(focused) === "cooking" ? "Cooking class" : typeLabel(layoutBookingKind(focused))
+        )}</p>
+      </div>
+      <dl class="picked__meta">
+        <div><dt>Guests</dt><dd>${escapeHtml(displayGuests(focused))}</dd></div>
+        <div><dt>Slot</dt><dd>${escapeHtml(slotRange(focused))}</dd></div>
+        <div><dt>Status</dt><dd>${escapeHtml(statusLabel(focused.status))}</dd></div>
+      </dl>
+      <button class="btn" type="button" data-open="${escapeHtml(openTarget(focused).slice(2))}">Open details</button>`
+    : `<div class="picked">
+        <h3>No booking selected</h3>
+        <p>Tap a colour-coded table, or pick a booking from the list.</p>
+      </div>`;
+  floor.innerHTML = `<div class="plan__head">
+      <div>
+        <h3>Floor plan</h3>
+        <p class="muted">Occupied tables at ${escapeHtml(timeText)} are colour-coded. Click a table or a booking to inspect it.</p>
+      </div>
+      <div class="plan__tabs" role="tablist" aria-label="Cafe area">
+        <button type="button" class="plan-tab${area === "indoor" ? " is-active" : ""}" data-tables-area="indoor">Indoor</button>
+        <button type="button" class="plan-tab${area === "terrace" ? " is-active" : ""}" data-tables-area="terrace">Terrace</button>
+      </div>
+    </div>
+    <div class="plan__legend">
+      <span><i class="swatch swatch--reservation"></i> Reservation</span>
+      <span><i class="swatch swatch--birthday"></i> Birthday</span>
+      <span><i class="swatch swatch--event"></i> Event</span>
+      <span><i class="swatch swatch--cooking"></i> Cooking class</span>
+    </div>
+    <div class="plan__stage">
+      <div class="plan__canvas" id="tables-canvas"></div>
+      <aside class="plan__side">
+        ${focusMeta}
+        <div class="layout-bookings">${list}</div>
+      </aside>
+    </div>`;
   const pick = (tableId) => {
     const row = byTable.get(tableId);
     if (row) {
-      go(openTarget(row).slice(2));
+      state.tablesFocusId = String(row.id);
+      state.tablesArea = bookingArea(row);
+      renderTablesLayout();
       return;
     }
     const end = minutesToTime(Math.min(STAFF_DAY_END, state.tableMinutes + 120));
     openBlockModal({ tableIds: [tableId], start: timeText, end, date: state.selectedDate });
   };
-  Map?.renderMap?.(document.getElementById("tables-indoor"), {
+    paintLayoutMap(document.getElementById("tables-canvas"), {
+    area,
+    selected,
+    held: [...held],
+    guests: 1,
+    interactive: true,
+    ignoreCapacity: true,
+    heldNote: false,
+    src: layoutImageSrc(area),
+    heldKind: (id) => layoutBookingKind(byTable.get(id)),
+    heldLabel: (id) => {
+      const row = byTable.get(id);
+      return row ? `${displayName(row)} · ${typeLabel(eventType(row))}` : "Already reserved";
+    },
+    onPick: pick,
+  });
+}
+
+function renderTablesGrid() {
+  const Map = window.TinyReserveMap;
+  const tables = Map?.TABLES || [];
+  const { dayStart, span, slots } = hourMarks();
+  const rows = tableRowsOnDate(state.selectedDate);
+  const hourLines = slots
+    .map((slot) => {
+      const left = ((slot.minutes - dayStart) / span) * 100;
+      return `<span class="pms__hourline" style="left:${left}%"></span>`;
+    })
+    .join("");
+  const hourLabels = slots
+    .map((slot) => {
+      const left = ((slot.minutes - dayStart) / span) * 100;
+      return `<span class="pms__hour" style="left:${left}%">${escapeHtml(slot.label)}</span>`;
+    })
+    .join("");
+  const floor = document.getElementById("tables-floor");
+  floor.className = "pms";
+  floor.innerHTML = `<div class="pms__hours">
+      <div class="pms__label">Table</div>
+      <div class="pms__track pms__track--hours">${hourLines}${hourLabels}</div>
+    </div>${tables
+      .map((table) => {
+        const items = rows
+          .filter((row) => (row.payload?.reservation?.tableIds || []).includes(table.id))
+          .map((row) => {
+            const box = clampOccupy(rowOccupy(row) || { start: dayStart, end: dayStart + 60 }, dayStart, span);
+            return `<button class="pms__item ${visualClass(row)}" type="button" data-open="${escapeHtml(
+              openTarget(row).slice(2)
+            )}" style="left:${box.left}%;width:${box.width}%">${escapeHtml(timeLabel(row.party_time))} ${escapeHtml(
+              displayName(row)
+            )}</button>`;
+          })
+          .join("");
+        return `<div class="pms__row">
+        <div class="pms__label">${table.area === "indoor" ? "In" : "Tr"} ${table.number}</div>
+        <div class="pms__track" data-table="${escapeHtml(table.id)}">${hourLines}${items}</div>
+      </div>`;
+      })
+      .join("")}`;
+  document.getElementById("tables-count").textContent = `${rows.length} booking${
+    rows.length === 1 ? "" : "s"
+  } on ${formatLongDate(state.selectedDate)}`;
+}
+
+function renderTables() {
+  syncFilterInputs();
+  const timeWrap = document.getElementById("tables-time-wrap");
+  const toolbar = document.querySelector("#tables-view .tables-toolbar");
+  if (timeWrap) timeWrap.hidden = state.tablesMode !== "layout";
+  if (toolbar) toolbar.classList.toggle("tables-toolbar--layout", state.tablesMode === "layout");
+  const toggle = document.getElementById("tables-view-toggle");
+  if (toggle) toggle.textContent = state.tablesMode === "layout" ? "View grid" : "View layout";
+  if (state.tablesMode === "layout") renderTablesLayout();
+  else renderTablesGrid();
+}
+
+function guestKey(row) {
+  const phone = String(row.phone || "").replace(/\D/g, "");
+  const email = String(row.email || "").trim().toLowerCase();
+  if (phone) return `p:${phone}`;
+  if (email) return `e:${email}`;
+  return `id:${row.id}`;
+}
+
+function customerName(row) {
+  return (
+    row.contact_name ||
+    row.payload?.reservation?.name ||
+    row.payload?.event?.name ||
+    row.child_name ||
+    "Guest"
+  );
+}
+
+function splitPhone(raw) {
+  let digits = String(raw || "").replace(/\D/g, "");
+  if (!digits) return { code: "", national: "" };
+  if (digits.startsWith("0")) digits = `62${digits.slice(1)}`;
+  else if (/^8\d{7,12}$/.test(digits)) digits = `62${digits}`;
+  const codes = [
+    "971", "966", "886", "852", "353", "351", "234", "254", "972", "974", "973", "968", "965", "961",
+    "62", "61", "65", "60", "66", "63", "81", "82", "84", "86", "91", "92", "94", "44", "49", "33",
+    "31", "32", "34", "39", "41", "43", "45", "46", "47", "48", "36", "30", "90", "27", "20", "64", "1", "7",
+  ].sort((a, b) => b.length - a.length);
+  const code = codes.find((item) => digits.startsWith(item));
+  if (!code) return { code: "", national: digits };
+  return { code: `+${code}`, national: digits.slice(code.length) };
+}
+
+function isCompletedVisit(row) {
+  if (row.status === "closed") return true;
+  return row.status === "booked" && Boolean(row.party_date) && row.party_date < todayIso();
+}
+
+function isPaidInFull(row) {
+  const payment = row.payload?.payment || {};
+  return payment.deposit?.status === "paid" && payment.balance?.status === "paid";
+}
+
+function customerRecords() {
+  const groups = new Map();
+  state.rows
+    .slice()
+    .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")))
+    .forEach((row) => {
+      const key = guestKey(row);
+      if (!groups.has(key)) {
+        const phoneParts = splitPhone(row.phone);
+        groups.set(key, {
+          key,
+          name: customerName(row),
+          phone: row.phone || "",
+          email: row.email || "",
+          countryCode: phoneParts.code,
+          nationalPhone: phoneParts.national,
+          types: new Set(),
+          birthdayDate: "",
+          visits: [],
+        });
+      }
+      const guest = groups.get(key);
+      if (!guest.name || guest.name === "Guest") guest.name = customerName(row);
+      if (!guest.phone && row.phone) {
+        guest.phone = row.phone;
+        const phoneParts = splitPhone(row.phone);
+        guest.countryCode = phoneParts.code;
+        guest.nationalPhone = phoneParts.national;
+      }
+      if (!guest.email && row.email) guest.email = row.email;
+      guest.types.add(eventType(row));
+      if (eventType(row) === "birthday" && row.party_date && row.party_date > (guest.birthdayDate || "")) {
+        guest.birthdayDate = row.party_date;
+      }
+      guest.visits.push(row);
+    });
+  return [...groups.values()];
+}
+
+function usageTypesLabel(guest) {
+  return ["birthday", "reservation", "event"]
+    .filter((type) => guest.types.has(type))
+    .map(typeLabel)
+    .join(", ");
+}
+
+function renderCustomers() {
+  syncFilterInputs();
+  const filters = state.customerFilters;
+  const guests = customerRecords().filter((guest) => {
+    if (filters.name && !String(guest.name || "").toLowerCase().includes(filters.name.toLowerCase())) return false;
+    if (filters.country && guest.countryCode !== filters.country) return false;
+    if (filters.phone && !`${guest.nationalPhone} ${guest.phone}`.includes(filters.phone.replace(/\s/g, ""))) return false;
+    if (filters.email && !String(guest.email || "").toLowerCase().includes(filters.email.toLowerCase())) return false;
+    if (filters.type !== "all" && !guest.types.has(filters.type)) return false;
+    return true;
+  });
+  const allGuests = customerRecords();
+  const completed = state.rows.filter(isCompletedVisit).length;
+  const stats = document.getElementById("customers-stats");
+  if (stats) {
+    stats.innerHTML = `<article class="member-stat">
+        <div><span>Total members</span><strong>${allGuests.length}</strong></div>
+      </article>
+      <article class="member-stat">
+        <div><span>No. completed</span><strong>${completed}</strong></div>
+      </article>`;
+  }
+  const countrySelect = document.getElementById("customers-filter-country");
+  if (countrySelect) {
+    const current = filters.country;
+    const codes = [...new Set(allGuests.map((guest) => guest.countryCode).filter(Boolean))].sort();
+    countrySelect.innerHTML = `<option value="">All codes</option>${codes
+      .map((code) => `<option value="${escapeHtml(code)}"${code === current ? " selected" : ""}>${escapeHtml(code)}</option>`)
+      .join("")}`;
+  }
+  const list = document.getElementById("customers-list");
+  if (!list) return;
+  list.innerHTML = guests.length
+    ? guests
+        .map((guest, index) => {
+          const types = usageTypesLabel(guest) || "—";
+          return `<tr class="member-row" data-customer="${escapeHtml(guest.key)}">
+            <td>${index + 1}</td>
+            <td>${escapeHtml(guest.name || "Guest")}</td>
+            <td>${escapeHtml(guest.countryCode || "—")}</td>
+            <td>${escapeHtml(guest.nationalPhone || guest.phone || "—")}</td>
+            <td>${escapeHtml(guest.email || "—")}</td>
+            <td>${escapeHtml(guest.birthdayDate ? formatShortDate(guest.birthdayDate) : "—")}</td>
+            <td><span class="usage-pill">${escapeHtml(types)}</span></td>
+            <td class="member-actions">
+              <button class="btn btn--outline" type="button" data-delete-customer="${escapeHtml(guest.key)}">Delete</button>
+            </td>
+          </tr>`;
+        })
+        .join("")
+    : `<tr><td colspan="8" class="muted">No matching guests.</td></tr>`;
+}
+
+function visitGroupLabel(type) {
+  if (type === "reservation") return "Reservations";
+  if (type === "event") return "Event bookings";
+  return "Birthdays";
+}
+
+function loadCustomer(key) {
+  inboxViews.hidden = true;
+  if (viewNav) viewNav.hidden = true;
+  detailView.hidden = false;
+  const guest = customerRecords().find((item) => item.key === key);
+  if (!guest) {
+    detailView.innerHTML = `<p class="status is-error">Guest not found.</p>
+      <button class="btn btn--outline back" type="button" id="back-list">Back</button>`;
+    document.getElementById("back-list")?.addEventListener("click", () => go("customers"));
+    return;
+  }
+  const waDigits = String(guest.phone || "").replace(/\D/g, "");
+  const wa = waDigits ? `https://wa.me/${waDigits}` : "";
+  const groups = ["birthday", "reservation", "event"].map((type) => ({
+    type,
+    rows: guest.visits.filter((row) => eventType(row) === type),
+  }));
+  pageTitle.textContent = guest.name || "Customer";
+  detailView.innerHTML = `
+    <button class="btn btn--outline back" type="button" id="back-list">Back</button>
+    <article class="detail">
+      <h2>${escapeHtml(guest.name || "Guest")}</h2>
+      <p class="muted">${escapeHtml([guest.countryCode, guest.nationalPhone || guest.phone, guest.email].filter(Boolean).join(" · ") || "No contact")}</p>
+      <div class="contact-actions">
+        ${guest.email ? `<a class="btn" href="mailto:${escapeHtml(guest.email)}">Email</a>` : ""}
+        ${wa ? `<a class="btn" href="${escapeHtml(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
+        <button class="btn btn--outline" type="button" id="delete-customer">Delete customer</button>
+      </div>
+      ${groups
+        .map((group) => {
+          if (!group.rows.length) return "";
+          return `<section>
+            <h3>${escapeHtml(visitGroupLabel(group.type))}</h3>
+            <ul class="customer-history">
+              ${group.rows
+                .map(
+                  (row) => `<li>
+                    <a href="${escapeHtml(openTarget(row))}">
+                      <strong>${escapeHtml(row.public_code || displayName(row))}</strong>
+                      <span>${escapeHtml(row.party_date ? formatShortDate(row.party_date) : "No date")} · ${escapeHtml(
+                        timeLabel(row.party_time)
+                      )} · ${escapeHtml(statusLabel(row.status))}</span>
+                    </a>
+                  </li>`
+                )
+                .join("")}
+            </ul>
+          </section>`;
+        })
+        .join("")}
+    </article>
+  `;
+  document.getElementById("back-list")?.addEventListener("click", () => go("customers"));
+  document.getElementById("delete-customer")?.addEventListener("click", () => {
+    deleteCustomer(guest.key).catch((err) => window.alert(err.message || "Could not delete customer."));
+  });
+}
+
+async function deleteCustomer(key) {
+  const guest = customerRecords().find((item) => item.key === key);
+  if (!guest) {
+    window.alert("Guest not found.");
+    return;
+  }
+  const count = guest.visits.length;
+  const label = guest.name || "this guest";
+  if (
+    !window.confirm(
+      `Delete ${label} and ${count} booking${count === 1 ? "" : "s"}? This cannot be undone.`
+    )
+  ) {
+    return;
+  }
+  const ids = guest.visits.map((row) => row.id).filter(Boolean);
+  if (!ids.length) return;
+  const { error } = await supabase.from("requests").delete().in("id", ids);
+  if (error) throw error;
+  await loadRows();
+  showInbox("customers");
+  if (location.hash !== "#/customers") go("customers");
+}
+
+function reservationEditorHtml(row, reservation) {
+  const purpose = reservation.purpose || "";
+  const purposes =
+    purpose && !RESERVE_PURPOSES.includes(purpose) ? [purpose, ...RESERVE_PURPOSES] : RESERVE_PURPOSES;
+  const kids = row.guest_kids ?? reservation.kids ?? 0;
+  const adults = row.guest_adults ?? reservation.adults ?? 0;
+  const time = String(row.party_time || "").slice(0, 5);
+  return `<section>
+          <h3>Reservation</h3>
+          <p class="muted">Change any detail and save. Confirmed bookings update Google Calendar.</p>
+          <label class="field"><span>Guest / name</span><input id="reserve-edit-name" value="${escapeHtml(
+            row.contact_name || reservation.name || ""
+          )}"></label>
+          <div class="field-row">
+            <label class="field"><span>Email</span><input type="email" id="reserve-edit-email" value="${escapeHtml(
+              row.email || ""
+            )}"></label>
+            <label class="field"><span>WhatsApp</span><input type="tel" id="reserve-edit-phone" value="${escapeHtml(
+              row.phone || ""
+            )}"></label>
+          </div>
+          <div class="field-row">
+            <label class="field"><span>Date</span><input type="date" id="reserve-edit-date" value="${escapeHtml(
+              row.party_date || ""
+            )}"></label>
+            <label class="field"><span>Time</span><input type="time" id="reserve-edit-time" value="${escapeHtml(
+              time
+            )}"></label>
+          </div>
+          <p class="muted">Held ${escapeHtml(slotRange(row))} (30 min before and after). Arrive by ${escapeHtml(
+            arriveBy(row)
+          )} or the table is released.</p>
+          <div class="field-row">
+            <label class="field"><span>Kids</span><input type="number" min="0" id="reserve-edit-kids" value="${escapeHtml(
+              kids
+            )}"></label>
+            <label class="field"><span>Adults</span><input type="number" min="0" id="reserve-edit-adults" value="${escapeHtml(
+              adults
+            )}"></label>
+          </div>
+          <label class="field"><span>Purpose</span>
+            <select id="reserve-edit-purpose">
+              <option value="">Select reservation purpose</option>
+              ${purposes
+                .map(
+                  (item) =>
+                    `<option value="${escapeHtml(item)}"${item === purpose ? " selected" : ""}>${escapeHtml(
+                      item
+                    )}</option>`
+                )
+                .join("")}
+            </select>
+          </label>
+          <label class="field"><span>Notes</span><textarea id="reserve-edit-notes" rows="3" maxlength="120">${escapeHtml(
+            reservation.notes || ""
+          )}</textarea></label>
+          <h3>Tables</h3>
+          <p class="muted">Click tables to assign this reservation. Selected tables stay highlighted.</p>
+          <p class="muted" id="reserve-table-label"></p>
+          <div class="staff-plans tables-floor">
+            <div><h3>Indoor</h3><div class="staff-plan" id="reserve-indoor"></div></div>
+            <div><h3>Terrace</h3><div class="staff-plan" id="reserve-terrace"></div></div>
+          </div>
+          <button class="btn" type="button" id="save-reservation">Save reservation</button>
+          <p class="status" id="reserve-status"></p>
+        </section>`;
+}
+
+function renderReservationMaps() {
+  const pick = (id) => {
+    if (reservationSelectedTables.has(id)) reservationSelectedTables.delete(id);
+    else reservationSelectedTables.add(id);
+    renderReservationMaps();
+  };
+  paintLayoutMap(document.getElementById("reserve-indoor"), {
     area: "indoor",
-    selected: [],
-    held: [...held],
+    selected: [...reservationSelectedTables].filter((id) => String(id).startsWith("in-")),
+    held: [],
     guests: 1,
     interactive: true,
-    base: "../reserve/img/",
+    ignoreCapacity: true,
     onPick: pick,
   });
-  Map?.renderMap?.(document.getElementById("tables-terrace"), {
+  paintLayoutMap(document.getElementById("reserve-terrace"), {
     area: "terrace",
-    selected: [],
-    held: [...held],
+    selected: [...reservationSelectedTables].filter((id) => String(id).startsWith("tr-")),
+    held: [],
     guests: 1,
     interactive: true,
-    base: "../reserve/img/",
+    ignoreCapacity: true,
     onPick: pick,
   });
+  const Map = window.TinyReserveMap;
+  const summary = document.getElementById("reserve-table-label");
+  if (summary) {
+    const tables = [...reservationSelectedTables].map((id) => Map?.findTable?.(id)).filter(Boolean);
+    summary.textContent = tables.length
+      ? Map.tableLabel(tables)
+      : "No tables assigned yet. Click a table on the plan to assign it.";
+  }
+}
+
+async function persistReservation(row) {
+  const statusEl = document.getElementById("reserve-status");
+  const name = document.getElementById("reserve-edit-name")?.value.trim() || "";
+  const email = document.getElementById("reserve-edit-email")?.value.trim() || "";
+  const phone = document.getElementById("reserve-edit-phone")?.value.trim() || "";
+  const date = document.getElementById("reserve-edit-date")?.value || "";
+  let time = document.getElementById("reserve-edit-time")?.value || "";
+  const kids = Number(document.getElementById("reserve-edit-kids")?.value) || 0;
+  const adults = Number(document.getElementById("reserve-edit-adults")?.value) || 0;
+  const purpose = document.getElementById("reserve-edit-purpose")?.value || "";
+  const notes = document.getElementById("reserve-edit-notes")?.value.trim() || "";
+  if (!name || !date || !time) {
+    if (statusEl) {
+      statusEl.textContent = "Name, date and time are required.";
+      statusEl.className = "status is-error";
+    }
+    return;
+  }
+  if (time.length === 5) time = `${time}:00`;
+  const Map = window.TinyReserveMap;
+  const tableIds = [...reservationSelectedTables];
+  const tables = tableIds.map((id) => Map?.findTable?.(id)).filter(Boolean);
+  const tableLabel = tables.length ? Map.tableLabel(tables) : "";
+  const area = tables[0]?.area || row.payload?.reservation?.area || "";
+  const timeText = timeLabel(time);
+  const reservation = {
+    ...(row.payload?.reservation || {}),
+    name,
+    purpose,
+    notes,
+    guests: kids + adults,
+    kids,
+    adults,
+    area,
+    tableIds,
+    tableNumbers: tables.map((table) => table.number),
+    tableLabel,
+    slotMinutes: Map?.SLOT_MINUTES,
+    graceMinutes: Map?.GRACE_MINUTES,
+    occupyBefore: Map?.RES_BEFORE,
+    occupyAfter: Map?.RES_AFTER,
+    occupyLabel: Map?.occupyLabel?.(timeText, "reservation") || "",
+    holdUntil: Map?.graceLabel?.(timeText) || "",
+  };
+  const payload = {
+    ...(row.payload || {}),
+    party: {
+      ...(row.payload?.party || {}),
+      date,
+      time: timeText,
+      guestAdults: adults,
+      guestKids: kids,
+    },
+    reservation,
+  };
+  if (statusEl) {
+    statusEl.textContent = "Saving…";
+    statusEl.className = "status";
+  }
+  const { error } = await supabase
+    .from("requests")
+    .update({
+      contact_name: name,
+      email: email || null,
+      phone: phone || null,
+      party_date: date,
+      party_time: time,
+      guest_kids: kids,
+      guest_adults: adults,
+      package_name: tableLabel || row.package_name,
+      staff_notes: document.getElementById("staff-notes")?.value ?? row.staff_notes ?? "",
+      payload,
+    })
+    .eq("id", row.id)
+    .eq("source", "reservation");
+  if (error) {
+    if (statusEl) {
+      statusEl.textContent = error.message;
+      statusEl.className = "status is-error";
+    }
+    return;
+  }
+  await loadRows();
+  await loadDetail(row.id);
+  const saved = document.getElementById("reserve-status");
+  const currentStatus = document.getElementById("status-select")?.value || row.status;
+  if (saved) {
+    saved.textContent =
+      currentStatus === "booked"
+        ? "Reservation saved. Confirmed booking updated in Google Calendar."
+        : "Reservation saved.";
+    saved.className = "status is-success";
+  }
+}
+
+function birthdayPaymentRows() {
+  return state.rows
+    .filter((row) => eventType(row) === "birthday")
+    .slice()
+    .sort((a, b) => String(b.party_date || b.created_at || "").localeCompare(String(a.party_date || a.created_at || "")));
+}
+
+function renderPayments() {
+  syncFilterInputs();
+  const filter = document.getElementById("payments-filter");
+  if (filter) filter.value = state.paymentFilter;
+  const rows = birthdayPaymentRows().filter((row) => {
+    if (state.paymentFilter === "paid") return isPaidInFull(row);
+    if (state.paymentFilter === "pending") return !isPaidInFull(row);
+    return true;
+  });
+  const count = document.getElementById("payments-count");
+  if (count) {
+    count.textContent = `${rows.length} birthday${rows.length === 1 ? "" : "s"}`;
+  }
+  const list = document.getElementById("payments-list");
+  if (!list) return;
+  list.innerHTML = rows.length
+    ? rows
+        .map((row, index) => {
+          const amounts = paymentAmounts(row);
+          const paid = isPaidInFull(row);
+          return `<tr>
+            <td>${index + 1}</td>
+            <td>${escapeHtml(displayName(row))}</td>
+            <td>${escapeHtml(row.party_date ? formatShortDate(row.party_date) : "—")}</td>
+            <td>${escapeHtml(formatIdr(amounts.total))}</td>
+            <td>${escapeHtml(statusLabel(row.status))}</td>
+            <td><span class="usage-pill${paid ? " usage-pill--paid" : " usage-pill--pending"}">${
+              paid ? "Paid" : "Payment pending"
+            }</span></td>
+            <td class="member-actions">
+              <a class="btn btn--outline" href="#/payment/${escapeHtml(row.id)}">Track</a>
+              <a class="btn" href="#/invoice/${escapeHtml(row.id)}">Invoice</a>
+            </td>
+          </tr>`;
+        })
+        .join("")
+    : `<tr><td colspan="7" class="muted">No matching birthdays.</td></tr>`;
 }
 
 function fillBlockTableList(selected = []) {
@@ -1206,15 +1954,130 @@ function quoteTotalsFromLines(lines) {
   return { subtotal, service, tax, total, dp30: Math.round(total * 0.3) };
 }
 
+async function loadPartyCatalog() {
+  if (partyCatalog) return partyCatalog;
+  const res = await fetch("../birthdays/builder/data/party.json");
+  if (!res.ok) throw new Error("Could not load birthday add-ons.");
+  partyCatalog = await res.json();
+  return partyCatalog;
+}
+
+function catalogAddItems(catalog, kids = 1) {
+  const extras = catalog?.extras || {};
+  const items = [];
+  const push = (group, item, price, qty = 1) => {
+    if (!item) return;
+    items.push({
+      group,
+      id: item.id,
+      label: item.name,
+      price: Number(price) || 0,
+      qty,
+    });
+  };
+  (extras.entertainment || []).forEach((item) => {
+    if (item.options) {
+      item.options.forEach((opt) => push("Entertainment", opt, opt.priceValue));
+    } else {
+      push("Entertainment", item, item.priceValue);
+    }
+  });
+  (extras.decoration || []).forEach((item) => push("Decoration add-ons", item, item.priceValue));
+  (extras.cake || []).forEach((item) => push("Extra cake", item, item.priceValue));
+  (catalog?.masterclasses || []).forEach((item) =>
+    push("Masterclass", item, item.pricePerKid, Math.max(Number(kids) || 1, item.minKids || 1))
+  );
+  if (catalog?.extraGuest) {
+    push("Extra guests", { id: "extra-guest-wd", name: "Extra guest (weekday)" }, catalog.extraGuest.weekday);
+    push("Extra guests", { id: "extra-guest-we", name: "Extra guest (weekend)" }, catalog.extraGuest.weekend);
+  }
+  return items;
+}
+
+function quoteAddPanelHtml(catalog, kids) {
+  const groups = {};
+  catalogAddItems(catalog, kids).forEach((item) => {
+    if (!groups[item.group]) groups[item.group] = [];
+    groups[item.group].push(item);
+  });
+  const blocks = Object.entries(groups)
+    .map(
+      ([group, items]) => `<div class="quote-add-group">
+        <h4>${escapeHtml(group)}</h4>
+        ${items
+          .map(
+            (item) =>
+              `<button class="btn btn--outline quote-add-choice" type="button" data-add-item data-label="${escapeHtml(
+                item.label
+              )}" data-price="${escapeHtml(item.price)}" data-qty="${escapeHtml(item.qty)}">${escapeHtml(
+                item.label
+              )} · ${item.price ? escapeHtml(formatIdr(item.price)) : "price TBC"}</button>`
+          )
+          .join("")}
+      </div>`
+    )
+    .join("");
+  return `<div class="quote-add-panel" id="quote-add-panel" hidden>
+    <p class="muted">Pick a birthday add-on or entertainment extra, or enter a custom item and price.</p>
+    ${blocks || "<p class='muted'>Catalogue could not be loaded.</p>"}
+    <div class="quote-add-custom">
+      <input type="text" id="custom-item-label" placeholder="Custom item">
+      <input type="number" id="custom-item-price" min="0" step="1000" placeholder="Price">
+      <input type="number" id="custom-item-qty" min="1" step="1" value="1" aria-label="Qty">
+      <button class="btn" type="button" id="custom-item-add">Add custom</button>
+    </div>
+  </div>`;
+}
+
+function insertQuoteLine(line) {
+  const editor = document.getElementById("quote-editor");
+  if (!editor) return;
+  editor.insertAdjacentHTML("beforeend", quoteLineHtml(line));
+  refreshQuoteTotals();
+}
+
+function closeDecorBuilder() {
+  const overlay = document.getElementById("decor-builder-overlay");
+  if (!overlay) return;
+  overlay.hidden = true;
+  const frame = overlay.querySelector("iframe");
+  if (frame) frame.src = "about:blank";
+}
+
+function openDecorBuilder(requestId) {
+  let overlay = document.getElementById("decor-builder-overlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "decor-builder-overlay";
+    overlay.className = "builder-overlay";
+    overlay.innerHTML = `<div class="builder-overlay__bar">
+      <span>Decoration builder</span>
+      <button class="btn btn--outline" type="button" id="close-decor-builder">Close</button>
+    </div>
+    <iframe title="Decoration builder"></iframe>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector("#close-decor-builder")?.addEventListener("click", closeDecorBuilder);
+  }
+  overlay.hidden = false;
+  overlay.querySelector("iframe").src = `../birthdays/builder/index.html?staffRequest=${encodeURIComponent(requestId)}#decor`;
+}
+
+window.addEventListener("message", (event) => {
+  if (event.origin !== location.origin) return;
+  if (event.data?.type !== "tiny-staff-decor-saved") return;
+  closeDecorBuilder();
+  if (event.data.id) loadInvoice(event.data.id);
+});
+
 function quoteLineHtml(line = {}) {
   const qty = Number(line.qty) || 1;
   const price = Number(line.price ?? line.value) || 0;
   return `<div class="quote-line">
-    <input type="text" name="quote-label" value="${escapeHtml(line.label || "")}" placeholder="Item">
-    <input type="number" name="quote-qty" min="1" step="1" value="${qty}" aria-label="Qty">
-    <input type="number" name="quote-price" min="0" step="1000" value="${price}" aria-label="Unit price">
+    <input class="quote-line-item" type="text" name="quote-label" value="${escapeHtml(line.label || "")}" placeholder="Item">
+    <input class="quote-line-qty" type="number" name="quote-qty" min="1" step="1" value="${qty}" aria-label="Qty" placeholder="Qty">
+    <input class="quote-line-price" type="number" name="quote-price" min="0" step="1000" value="${price}" aria-label="Unit price" placeholder="Unit price">
     <span class="quote-line-total">${escapeHtml(formatIdr(qty * price))}</span>
-    <button class="btn btn--outline" type="button" data-remove-line>Remove</button>
+    <button class="btn btn--outline quote-line-remove" type="button" data-remove-line>Remove</button>
   </div>`;
 }
 
@@ -1382,13 +2245,12 @@ function renderCookingDetail(iso) {
       <div class="staff-plan" id="staff-detail-plan"></div>
     </article>
   `;
-  window.TinyReserveMap?.renderMap?.(document.getElementById("staff-detail-plan"), {
+  paintLayoutMap(document.getElementById("staff-detail-plan"), {
     area: "terrace",
     selected: ["tr-18", "tr-19"],
     held: [],
     guests: 1,
     interactive: false,
-    base: "../reserve/img/",
   });
   document.getElementById("back-list")?.addEventListener("click", () => {
     location.hash = backHash();
@@ -1505,21 +2367,21 @@ async function loadDetail(id) {
         ${isEvent ? `<button class="btn btn--outline" type="button" id="delete-event">Remove event</button>` : ""}
       </div>
       <div class="detail-grid">
-        <section>
-          <h3>${isEvent ? "Event" : isReservation ? "Reservation" : "Booking"}</h3>
+        ${
+          isReservation
+            ? reservationEditorHtml(row, reservation)
+            : `<section>
+          <h3>${isEvent ? "Event" : "Booking"}</h3>
           <ul class="kv">
-            <li><span>${isReservation || isEvent ? "Guest / name" : "Child"}</span><span>${escapeHtml(
-              displayName(row)
-            )}${!isReservation && !isEvent && row.child_age ? ` · turning ${escapeHtml(row.child_age)}` : ""}</span></li>
+            <li><span>${isEvent ? "Guest / name" : "Child"}</span><span>${escapeHtml(displayName(row))}${
+                !isEvent && row.child_age ? ` · turning ${escapeHtml(row.child_age)}` : ""
+              }</span></li>
             <li><span>Date</span><span>${escapeHtml(row.party_date || "—")}</span></li>
-            <li><span>Time</span><span>${escapeHtml(isReservation ? dineRange(row) : slotRange(row))}</span></li>
+            <li><span>Time</span><span>${escapeHtml(slotRange(row))}</span></li>
             ${
-              isReservation
-                ? `<li><span>Held</span><span>${escapeHtml(slotRange(row))} (30 min before and after)</span></li>
-                   <li><span>Arrive by</span><span>${escapeHtml(arriveBy(row))} or the table is released</span></li>`
-                : row.source === "party_builder"
-                  ? `<li><span>Held</span><span>${escapeHtml(slotRange(row))} (1h prep + 3h party)</span></li>`
-                  : ""
+              row.source === "party_builder"
+                ? `<li><span>Held</span><span>${escapeHtml(slotRange(row))} (1h prep + 3h party)</span></li>`
+                : ""
             }
             <li><span>Guests</span><span>${escapeHtml(displayGuests(row))}</span></li>
             <li><span>Tables</span><span>${escapeHtml(tableText(row))}</span></li>
@@ -1538,8 +2400,6 @@ async function loadDetail(id) {
                          }`
                        : "Does not repeat"
                    )}</span></li>`
-                : isReservation
-                ? `<li><span>Purpose</span><span>${escapeHtml(reservation.purpose || "—")}</span></li>`
                 : type === "birthday"
                   ? `<li><span>Package</span><span>${escapeHtml(row.package_name || "—")}</span></li>
                      <li><span>Theme / request</span><span>${escapeHtml(
@@ -1556,6 +2416,7 @@ async function loadDetail(id) {
           <div class="staff-plan" id="staff-detail-plan"></div>
         </section>`
             : ""
+        }`
         }
         ${
           isEvent
@@ -1660,8 +2521,12 @@ async function loadDetail(id) {
         }
         <section>
           <h3>Notes</h3>
-          <p>${escapeHtml(reservation.notes || payload.event?.notes || (payload.party && payload.party.foodNotes) || "No food notes")}</p>
-          <p>${escapeHtml((payload.party && payload.party.notes) || "")}</p>
+          ${
+            isReservation
+              ? ""
+              : `<p>${escapeHtml(payload.event?.notes || (payload.party && payload.party.foodNotes) || "No food notes")}</p>
+          <p>${escapeHtml((payload.party && payload.party.notes) || "")}</p>`
+          }
           <label class="field">
             <span>Staff notes</span>
             <textarea id="staff-notes" rows="4">${escapeHtml(row.staff_notes || "")}</textarea>
@@ -1673,14 +2538,25 @@ async function loadDetail(id) {
     </article>
   `;
 
-  if (showLayout && window.TinyReserveMap) {
-    window.TinyReserveMap.renderMap(document.getElementById("staff-detail-plan"), {
+  if (isReservation) {
+    reservationSelectedTables = new Set(tableIds);
+    renderReservationMaps();
+    document.getElementById("save-reservation")?.addEventListener("click", () => {
+      persistReservation(row).catch((err) => {
+        const statusEl = document.getElementById("reserve-status");
+        if (statusEl) {
+          statusEl.textContent = err.message || "Could not save reservation.";
+          statusEl.className = "status is-error";
+        }
+      });
+    });
+  } else if (showLayout && window.TinyReserveMap) {
+    paintLayoutMap(document.getElementById("staff-detail-plan"), {
       area: layoutArea === "terrace" ? "terrace" : "indoor",
       selected: tableIds,
       held: [],
       guests: row.guest_adults || reservation.guests || 1,
       interactive: false,
-      base: "../reserve/img/",
     });
   }
 
@@ -1807,34 +2683,37 @@ async function loadDetail(id) {
 }
 
 function renderInvoiceMaps() {
-  const Map = window.TinyReserveMap;
-  if (!Map) return;
-  const guests =
-    (Number(document.getElementById("invoice-kids")?.value) || 0) +
-    (Number(document.getElementById("invoice-adults")?.value) || 0) || 1;
   const pick = (id) => {
     if (invoiceSelectedTables.has(id)) invoiceSelectedTables.delete(id);
     else invoiceSelectedTables.add(id);
     renderInvoiceMaps();
   };
-  Map.renderMap(document.getElementById("invoice-indoor"), {
+  paintLayoutMap(document.getElementById("invoice-indoor"), {
     area: "indoor",
     selected: [...invoiceSelectedTables].filter((id) => String(id).startsWith("in-")),
     held: [],
-    guests,
+    guests: 1,
     interactive: true,
-    base: "../reserve/img/",
+    ignoreCapacity: true,
     onPick: pick,
   });
-  Map.renderMap(document.getElementById("invoice-terrace"), {
+  paintLayoutMap(document.getElementById("invoice-terrace"), {
     area: "terrace",
     selected: [...invoiceSelectedTables].filter((id) => String(id).startsWith("tr-")),
     held: [],
-    guests,
+    guests: 1,
     interactive: true,
-    base: "../reserve/img/",
+    ignoreCapacity: true,
     onPick: pick,
   });
+  const Map = window.TinyReserveMap;
+  const summary = document.getElementById("invoice-table-label");
+  if (summary) {
+    const tables = [...invoiceSelectedTables].map((id) => Map?.findTable?.(id)).filter(Boolean);
+    summary.textContent = tables.length
+      ? Map.tableLabel(tables)
+      : "No tables assigned yet. Click a table on the plan to assign it.";
+  }
 }
 
 async function uploadStaffFile(requestId, folder, file) {
@@ -1854,15 +2733,6 @@ function readInvoiceForm(row) {
   const Map = window.TinyReserveMap;
   const tableIds = [...invoiceSelectedTables];
   const tables = tableIds.map((id) => Map?.findTable?.(id)).filter(Boolean);
-  const balloonColours = [...document.querySelectorAll("#invoice-colours .colour-row")].map((rowEl, index) => {
-    const hex = rowEl.querySelector('[name="balloon-hex"]')?.value || "#c5dcc8";
-    return {
-      id: rowEl.querySelector('[name="balloon-id"]')?.value || `c${index + 1}`,
-      label: rowEl.querySelector('[name="balloon-label"]')?.value.trim() || `Balloon ${index + 1}`,
-      hex,
-      original: rowEl.querySelector('[name="balloon-original"]')?.value || hex,
-    };
-  });
   const time = document.getElementById("invoice-time")?.value || "";
   return {
     child_name: document.getElementById("invoice-child")?.value.trim() || row.child_name,
@@ -1884,9 +2754,7 @@ function readInvoiceForm(row) {
       notes: document.getElementById("invoice-cake-notes")?.value.trim() || "",
     },
     decor: {
-      backdropName: document.getElementById("invoice-backdrop-name")?.value.trim() || "",
       notes: document.getElementById("invoice-decor-notes")?.value.trim() || "",
-      balloonColours,
     },
     tableIds,
     tableLabel: tables.length ? Map.tableLabel(tables) : row.payload?.reservation?.tableLabel || row.package_name,
@@ -1924,10 +2792,10 @@ async function loadInvoice(id) {
   const files = row.files || {};
   const [cakeUrl, backdropUrl] = await Promise.all([signedUrl(files.cakePhoto), signedUrl(files.backdropPng)]);
   invoiceSelectedTables = new Set(reservation.tableIds || []);
-  const colours = decor.balloonColours?.length ? decor.balloonColours : [{ label: "Balloon 1", hex: "#c5dcc8" }];
   const guests = payload.party?.guests || [];
   const payment = payload.payment || {};
   const amounts = paymentAmounts(row, quote);
+  const catalog = await loadPartyCatalog().catch(() => null);
   pageTitle.textContent = `Invoice · ${row.public_code}`;
   detailView.innerHTML = `
     <button class="btn btn--outline back" type="button" id="back-list">Back</button>
@@ -1951,22 +2819,37 @@ async function loadInvoice(id) {
         <section>
           <h3>Line items</h3>
           <div class="quote-editor" id="quote-editor">
-            ${(quote.lines?.length ? quote.lines : [{ label: "", qty: 1, price: 0 }]).map(quoteLineHtml).join("")}
-            <button class="btn btn--outline" type="button" id="quote-add-line">Add item</button>
-            <div id="quote-totals"></div>
+            ${(quote.lines?.length ? quote.lines : []).map(quoteLineHtml).join("")}
           </div>
+          <button class="btn btn--outline" type="button" id="quote-add-line">Add item</button>
+          ${quoteAddPanelHtml(catalog, row.guest_kids || 1)}
+          <div id="quote-totals"></div>
           <label class="field"><span>Bank</span><input id="invoice-bank" value="${escapeHtml(quote.bank?.bank || BANK.bank)}"></label>
           <label class="field"><span>Account name</span><input id="invoice-account-name" value="${escapeHtml(quote.bank?.accountName || BANK.accountName)}"></label>
           <label class="field"><span>Account number</span><input id="invoice-account-number" value="${escapeHtml(quote.bank?.accountNumber || BANK.accountNumber)}"></label>
         </section>
         <section>
           <h3>Decoration</h3>
-          <label class="field"><span>Name on backdrop</span><input id="invoice-backdrop-name" value="${escapeHtml(decor.backdropName || "")}"></label>
-          <div id="invoice-colours">${colours.map(colourRowHtml).join("")}</div>
-          <button class="btn btn--outline" type="button" id="add-balloon-colour">Add balloon colour</button>
-          <label class="field"><span>Decoration notes</span><textarea id="invoice-decor-notes" rows="3">${escapeHtml(decor.notes || "")}</textarea></label>
-          <label class="field"><span>Replace backdrop image</span><input type="file" id="invoice-backdrop-file" accept="image/jpeg,image/png,image/webp"></label>
+          <ul class="kv">
+            <li><span>Package</span><span>${escapeHtml(decor.packageLabel || "—")}</span></li>
+            <li><span>Look</span><span>${escapeHtml(decor.themeLabel || "—")}</span></li>
+            <li><span>Name on backdrop</span><span>${escapeHtml(decor.backdropName || "—")}</span></li>
+            <li><span>Colours</span><span>${
+              (decor.balloonColours || []).length
+                ? decor.balloonColours
+                    .map(
+                      (c) =>
+                        `<span class="colour-swatch" style="background:${escapeHtml(c.hex || c.original || "#c5dcc8")}"></span>${escapeHtml(
+                          c.label || c.hex || ""
+                        )}`
+                    )
+                    .join("<br>")
+                : "—"
+            }</span></li>
+          </ul>
           ${backdropUrl ? `<img class="hero-img" src="${escapeHtml(backdropUrl)}" alt="Backdrop">` : ""}
+          <label class="field"><span>Decoration notes</span><textarea id="invoice-decor-notes" rows="3">${escapeHtml(decor.notes || "")}</textarea></label>
+          <button class="btn" type="button" id="edit-decoration">Edit decoration</button>
         </section>
         <section>
           <h3>Cake</h3>
@@ -1980,7 +2863,8 @@ async function loadInvoice(id) {
         </section>
         <section>
           <h3>Tables</h3>
-          <p class="muted">Click tables to assign this party.</p>
+          <p class="muted">Click tables to assign this party. Selected tables stay highlighted.</p>
+          <p class="muted" id="invoice-table-label"></p>
           <div class="staff-plans tables-floor">
             <div><h3>Indoor</h3><div class="staff-plan" id="invoice-indoor"></div></div>
             <div><h3>Terrace</h3><div class="staff-plan" id="invoice-terrace"></div></div>
@@ -2020,14 +2904,33 @@ async function loadInvoice(id) {
     refreshQuoteTotals();
   });
   document.getElementById("quote-add-line")?.addEventListener("click", () => {
-    document.getElementById("quote-add-line")?.insertAdjacentHTML("beforebegin", quoteLineHtml());
-    refreshQuoteTotals();
+    const panel = document.getElementById("quote-add-panel");
+    if (panel) panel.hidden = !panel.hidden;
   });
-  document.getElementById("add-balloon-colour")?.addEventListener("click", () => {
-    document.getElementById("invoice-colours")?.insertAdjacentHTML("beforeend", colourRowHtml());
+  document.getElementById("quote-add-panel")?.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-add-item]");
+    if (!btn) return;
+    insertQuoteLine({
+      label: btn.dataset.label || "",
+      price: Number(btn.dataset.price) || 0,
+      qty: Number(btn.dataset.qty) || 1,
+    });
+    document.getElementById("quote-add-panel").hidden = true;
   });
-  document.getElementById("invoice-colours")?.addEventListener("click", (e) => {
-    if (e.target.closest("[data-remove-colour]")) e.target.closest(".colour-row")?.remove();
+  document.getElementById("custom-item-add")?.addEventListener("click", () => {
+    const label = document.getElementById("custom-item-label")?.value.trim() || "";
+    const price = Number(document.getElementById("custom-item-price")?.value) || 0;
+    const qty = Number(document.getElementById("custom-item-qty")?.value) || 1;
+    if (!label) return;
+    insertQuoteLine({ label, price, qty });
+    document.getElementById("custom-item-label").value = "";
+    document.getElementById("custom-item-price").value = "";
+    document.getElementById("custom-item-qty").value = "1";
+    document.getElementById("quote-add-panel").hidden = true;
+  });
+  document.getElementById("edit-decoration")?.addEventListener("click", async () => {
+    const ok = await persistInvoice(false);
+    if (ok) openDecorBuilder(row.id);
   });
   document.getElementById("invoice-guest-add")?.addEventListener("click", () => {
     document.getElementById("invoice-guests")?.insertAdjacentHTML("beforeend", guestRowHtml());
@@ -2040,6 +2943,7 @@ async function loadInvoice(id) {
 
   async function persistInvoice(send) {
     const statusEl = document.getElementById("invoice-status");
+    if (!statusEl) return false;
     statusEl.textContent = "Saving…";
     statusEl.className = "status";
     const form = readInvoiceForm(row);
@@ -2047,7 +2951,7 @@ async function loadInvoice(id) {
       ...payload,
       quote: { ...quote, ...form.quote },
       cake: { ...cake, ...form.cake },
-      decor: { ...decor, ...form.decor, balloonColours: form.decor.balloonColours },
+      decor: { ...decor, notes: form.decor.notes },
       party: { ...(payload.party || {}), guests: form.guests },
       payment: readPaymentForm(form.quote.dp30, Math.max(0, form.quote.total - form.quote.dp30)),
       reservation: {
@@ -2061,11 +2965,10 @@ async function loadInvoice(id) {
     const nextFiles = { ...(row.files || {}) };
     try {
       const cakeFile = document.getElementById("invoice-cake-file")?.files?.[0];
-      const backdropFile = document.getElementById("invoice-backdrop-file")?.files?.[0];
       if (cakeFile) nextFiles.cakePhoto = await uploadStaffFile(row.id, "cake", cakeFile);
-      if (backdropFile) nextFiles.backdropPng = await uploadStaffFile(row.id, "backdrop", backdropFile);
       if (send) {
-        const colours = form.decor.balloonColours
+        const colourList = nextPayload.decor?.balloonColours || [];
+        const colours = colourList
           .map(
             (c) =>
               `<span style="display:inline-block;width:12px;height:12px;background:${escapeHtml(
@@ -2091,7 +2994,7 @@ async function loadInvoice(id) {
             <li class="is-total"><span>Total</span><span>${escapeHtml(formatIdr(form.quote.total))}</span></li>
             <li><span>Deposit 30%</span><span>${escapeHtml(formatIdr(form.quote.dp30))}</span></li>
           </ul>
-          <p><strong>Decoration</strong><br>Backdrop: ${escapeHtml(form.decor.backdropName || "—")}<br>${
+          <p><strong>Decoration</strong><br>Backdrop: ${escapeHtml(nextPayload.decor?.backdropName || "—")}<br>${
             colours || "Balloons: —"
           }<br>${escapeHtml(form.decor.notes || "")}</p>
           ${backdropUrl ? `<img src="${escapeHtml(backdropUrl)}" alt="Backdrop" style="max-width:320px;margin:8px 0">` : ""}
@@ -2156,9 +3059,11 @@ async function loadInvoice(id) {
       if (saveError) throw saveError;
       statusEl.textContent = send ? "Invoice saved and sent." : "Invoice saved.";
       statusEl.className = "status is-success";
+      return true;
     } catch (err) {
       statusEl.textContent = err.message || "Could not save invoice.";
       statusEl.className = "status is-error";
+      return false;
     }
   }
 
@@ -2228,6 +3133,12 @@ function showInbox(view) {
   document.getElementById("timeline-view").hidden = view !== "timeline";
   document.getElementById("tables-view").hidden = view !== "tables";
   document.getElementById("events-view").hidden = view !== "events";
+  const customersView = document.getElementById("customers-view");
+  if (customersView) customersView.hidden = view !== "customers";
+  const paymentsView = document.getElementById("payments-view");
+  if (paymentsView) paymentsView.hidden = view !== "payments";
+  const note = document.getElementById("calendar-sync-note");
+  if (note) note.hidden = view === "customers" || view === "payments";
   renderNav(view);
   if (view === "overview") renderOverview();
   if (view === "calendar") renderCalendar();
@@ -2235,6 +3146,8 @@ function showInbox(view) {
   if (view === "timeline") renderTimeline();
   if (view === "tables") renderTables();
   if (view === "events") renderEvents();
+  if (view === "customers") renderCustomers();
+  if (view === "payments") renderPayments();
 }
 
 async function route() {
@@ -2261,6 +3174,16 @@ async function route() {
   if (parsed.view === "cooking") {
     renderNav(parsed.view);
     renderCookingDetail(parsed.date || state.selectedDate);
+    return;
+  }
+  if (parsed.view === "customer") {
+    try {
+      await loadRows();
+    } catch {
+      /* show whatever is already cached */
+    }
+    renderNav(parsed.view);
+    loadCustomer(parsed.id);
     return;
   }
   try {
@@ -2302,6 +3225,15 @@ signOutBtn?.addEventListener("click", async () => {
 });
 
 document.getElementById("inbox-views")?.addEventListener("click", (e) => {
+  const noshowBtn = e.target.closest("[data-noshow]");
+  if (noshowBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    markNoShow(noshowBtn.dataset.noshow)
+      .then(() => showInbox("overview"))
+      .catch((err) => window.alert(err.message || "Could not mark no-show."));
+    return;
+  }
   const statusCard = e.target.closest("[data-status-filter]");
   if (statusCard) {
     e.preventDefault();
@@ -2316,13 +3248,46 @@ document.getElementById("inbox-views")?.addEventListener("click", (e) => {
     go(open.dataset.open);
     return;
   }
+  const deleteCustomerBtn = e.target.closest("[data-delete-customer]");
+  if (deleteCustomerBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    deleteCustomer(deleteCustomerBtn.dataset.deleteCustomer).catch((err) =>
+      window.alert(err.message || "Could not delete customer.")
+    );
+    return;
+  }
+  const customerRow = e.target.closest("[data-customer]");
+  if (customerRow) {
+    e.preventDefault();
+    go(`customer/${encodeURIComponent(customerRow.dataset.customer)}`);
+    return;
+  }
+  const areaTab = e.target.closest("[data-tables-area]");
+  if (areaTab) {
+    e.preventDefault();
+    state.tablesArea = areaTab.dataset.tablesArea === "indoor" ? "indoor" : "terrace";
+    if (state.view === "tables") renderTables();
+    return;
+  }
+  const focusBtn = e.target.closest("[data-tables-focus]");
+  if (focusBtn) {
+    e.preventDefault();
+    state.tablesFocusId = focusBtn.dataset.tablesFocus || "";
+    const row = occupiedAtTime(state.selectedDate, state.tableMinutes).find(
+      (item) => String(item.id) === String(state.tablesFocusId)
+    );
+    if (row) state.tablesArea = bookingArea(row);
+    if (state.view === "tables") renderTables();
+    return;
+  }
   const cell = e.target.closest("[data-date]");
   if (cell && cell.closest("#cal-grid")) {
     state.selectedDate = cell.dataset.date;
     go(`day/${cell.dataset.date}`);
     return;
   }
-  const track = e.target.closest("[data-table]");
+  const track = e.target.closest(".pms__track[data-table]");
   if (track && !e.target.closest("[data-open]")) {
     const Map = window.TinyReserveMap;
     const { dayStart, span } = hourMarks();
@@ -2382,8 +3347,42 @@ document.getElementById("timeline-next")?.addEventListener("click", () => {
   showInbox("timeline");
 });
 
+document.getElementById("tables-view-toggle")?.addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  state.tablesMode = state.tablesMode === "layout" ? "grid" : "layout";
+  renderTables();
+});
+
+document.getElementById("customers-filter-name")?.addEventListener("input", (e) => {
+  state.customerFilters.name = e.target.value || "";
+  if (state.view === "customers") renderCustomers();
+});
+document.getElementById("customers-filter-country")?.addEventListener("change", (e) => {
+  state.customerFilters.country = e.target.value || "";
+  if (state.view === "customers") renderCustomers();
+});
+document.getElementById("customers-filter-phone")?.addEventListener("input", (e) => {
+  state.customerFilters.phone = e.target.value || "";
+  if (state.view === "customers") renderCustomers();
+});
+document.getElementById("customers-filter-email")?.addEventListener("input", (e) => {
+  state.customerFilters.email = e.target.value || "";
+  if (state.view === "customers") renderCustomers();
+});
+document.getElementById("customers-filter-type")?.addEventListener("change", (e) => {
+  state.customerFilters.type = e.target.value || "all";
+  if (state.view === "customers") renderCustomers();
+});
+document.getElementById("payments-filter")?.addEventListener("change", (e) => {
+  state.paymentFilter = e.target.value || "all";
+  if (state.view === "payments") renderPayments();
+});
+
 document.getElementById("tables-slider")?.addEventListener("input", () => {
-  state.tableMinutes = Number(document.getElementById("tables-slider").value) || state.tableMinutes;
+  const slider = document.getElementById("tables-slider");
+  state.tableMinutes = snapTableMinutes(slider?.value || state.tableMinutes);
+  if (slider) slider.value = String(state.tableMinutes);
   if (state.view === "tables") renderTables();
 });
 

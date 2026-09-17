@@ -73,6 +73,6 @@ Or in Google Calendar: repeating event **Saturday 14:00–17:00**, title `Cookin
 - **Creates / updates** when `status = booked` and `party_date` + `party_time` are set (reservations, birthday parties, events, cake/PDF with a time).
 - **Attaches** the birthday quotation PDF, invoice PDF, and any event pictures to the Google event (via Drive). File links are also added to the event description.
 - **Payment** deposit and balance status (Permata EDC / QRIS, bank transfer, cash) is written into the event title and description when staff save Track payment.
-- **Deletes** the Google event when status becomes `cancelled` or `rejected`, or the row is deleted.
+- **Deletes** the Google event when status becomes `cancelled`, `rejected`, or `noshow`, or the row is deleted.
 - **Keeps** the Google event when status is `closed` (finished).
 - Times match staff occupy windows: reservations 3 hours, birthdays 4 hours, events use the block end time.
