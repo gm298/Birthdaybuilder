@@ -28,3 +28,7 @@ shared/supabase-config.local.js
 
 # Supabase CLI local cache (may include connection strings)
 supabase/.temp/
+
+# Google Calendar service account key (never commit)
+google-service-account.json
+*-service-account.json

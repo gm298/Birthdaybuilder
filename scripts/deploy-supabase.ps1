@@ -43,6 +43,7 @@ $config = @"
     url: "$($env:SUPABASE_URL)",
     anonKey: "$($env:SUPABASE_ANON_KEY)",
     submitUrl: "$($env:SUPABASE_URL)/functions/v1/submit-request",
+    googleCalendarUrl: "$($env:GOOGLE_CALENDAR_SUBSCRIBE_URL)",
   };
 })();
 "@
@@ -65,4 +66,15 @@ npx supabase secrets set RATE_LIMIT_SALT=$env:RATE_LIMIT_SALT --project-ref $env
 Write-Host "Deploying submit-request function…"
 npx supabase functions deploy submit-request --project-ref $env:SUPABASE_PROJECT_REF --no-verify-jwt
 
+Write-Host "Deploying sync-google-calendar function…"
+npx supabase functions deploy sync-google-calendar --project-ref $env:SUPABASE_PROJECT_REF --no-verify-jwt
+
+if ($env:GOOGLE_CALENDAR_ID) {
+  npx supabase secrets set "GOOGLE_CALENDAR_ID=$env:GOOGLE_CALENDAR_ID" --project-ref $env:SUPABASE_PROJECT_REF
+}
+if ($env:CALENDAR_SYNC_SECRET) {
+  npx supabase secrets set "CALENDAR_SYNC_SECRET=$env:CALENDAR_SYNC_SECRET" --project-ref $env:SUPABASE_PROJECT_REF
+}
+
 Write-Host "Done. Staff site: /staff/ - create a user in Auth, then insert into staff_users."
+Write-Host "Google Calendar: see supabase/GOOGLE_CALENDAR.md"

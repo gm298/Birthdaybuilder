@@ -238,6 +238,15 @@ input, select, textarea {
   border-bottom-color: #c45c32;
 }
 
+.calendar-sync {
+  margin: -8px 0 18px;
+}
+
+.calendar-sync a {
+  color: var(--deep);
+  font-weight: 600;
+}
+
 .toolbar--res {
   grid-template-columns: 1fr 220px;
   align-items: center;

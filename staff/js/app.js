@@ -7,7 +7,7 @@ const BIRTHDAY_SOURCES = ["party_builder", "cake", "pdf_quote"];
 const ALL_STATUSES = ["new", "contacted", "quoted", "booked", "cancelled", "rejected", "closed"];
 const EVENT_STATUSES = ["booked", "cancelled", "closed"];
 const REQUEST_SELECT =
-  "id, created_at, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload";
+  "id, created_at, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload, google_event_id";
 
 const loginCard = document.getElementById("login-card");
 const app = document.getElementById("app");
@@ -328,6 +328,18 @@ function showApp(show) {
   loginCard.hidden = show;
   app.hidden = !show;
   signOutBtn.hidden = !show;
+  if (show) renderCalendarNote();
+}
+
+function renderCalendarNote() {
+  const note = document.getElementById("calendar-sync-note");
+  if (!note) return;
+  const url = cfg.googleCalendarUrl || "";
+  note.innerHTML = url
+    ? `Confirmed bookings sync to the Tiny Google Calendar. <a href="${escapeHtml(
+        url
+      )}" target="_blank" rel="noopener">Open Tiny calendar</a>`
+    : "Confirmed bookings sync to the Tiny Google Calendar once it is connected.";
 }
 
 function countBy(rows, pred) {
@@ -821,7 +833,13 @@ async function loadDetail(id) {
         <div>
           <p class="staff-brand">${escapeHtml(typeLabel(type))} · ${escapeHtml(sourceLabel(row.source))}</p>
           <h2>${escapeHtml(row.public_code)}</h2>
-          <p class="muted">Submitted ${escapeHtml(formatWhen(row.created_at))}</p>
+          <p class="muted">Submitted ${escapeHtml(formatWhen(row.created_at))}${
+            row.status === "booked" && row.google_event_id
+              ? " · Synced to Google Calendar"
+              : row.status === "booked"
+                ? " · Waiting to sync to Google Calendar"
+                : ""
+          }</p>
         </div>
         <label class="field" style="margin:0;min-width:160px">
           <span>Status</span>

@@ -4,3 +4,8 @@ project_id = "wvfwnnujxvaukwrtydac"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/submit-request/index.ts"
+
+[functions.sync-google-calendar]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/sync-google-calendar/index.ts"

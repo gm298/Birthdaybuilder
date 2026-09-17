@@ -75,5 +75,7 @@ Static GitHub Pages preview above is unchanged.
 | `reserve/` | Table reservation wizard (saves to Supabase + WhatsApp) |
 | `staff/` | Private request inbox (Supabase Auth) |
 | `shared/` | Chrome, analytics, Supabase client helpers |
-| `supabase/` | Migrations + Edge Function `submit-request` |
+| `supabase/` | Migrations + Edge Functions `submit-request` and `sync-google-calendar` |
 | `wordpress/tiny-birthdays/` | WordPress plugin (block editor + same builders) |
+
+Confirmed bookings can sync to a shared staff Google Calendar. Setup: [`supabase/GOOGLE_CALENDAR.md`](supabase/GOOGLE_CALENDAR.md).
