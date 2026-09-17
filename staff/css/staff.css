@@ -534,7 +534,7 @@ input, select, textarea {
 
 .table-hit--round { border-radius: 50%; }
 .table-hit--square { border-radius: 8px; }
-.table-hit--clover { border-radius: 10px; transform: rotate(45deg); }
+.table-hit--clover { border-radius: 0; clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); }
 .table-hit--lounge,
 .table-hit--rect { border-radius: 14px; }
 .table-hit--pill { border-radius: 999px; }

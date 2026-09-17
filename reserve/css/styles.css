@@ -18,6 +18,7 @@
   --plan-ring: #ecdccb;
   --plan-tree: #6a6a6a;
   --plan-sage: #6f8578;
+  --plan-map-max: calc(100dvh - var(--site-header-h, 80px) - 280px);
 }
 
 *,
@@ -378,27 +379,28 @@ h3 {
 .plan__head {
   display: flex;
   justify-content: space-between;
-  align-items: end;
-  gap: 24px;
-  margin-bottom: 12px;
-  position: sticky;
-  top: var(--site-header-h, 80px);
-  z-index: 3;
-  background: var(--cream);
-  padding: 4px 0 8px;
+  align-items: center;
+  gap: 16px 24px;
+  margin-bottom: 0;
+  position: static;
+  z-index: auto;
+  background: transparent;
+  padding: 0;
 }
 
-.plan__head h2 {
-  margin: 8px 0 10px;
-  font-size: 36px;
+.plan__head h2,
+.plan__head .panel-title {
+  margin: 0;
+  font-size: 22px;
   color: var(--deep);
 }
 
-.plan__head p {
-  margin: 0;
+.plan__head p,
+.plan__head .field__hint {
+  margin: 4px 0 0;
   max-width: 560px;
   color: rgba(51, 65, 58, 0.72);
-  line-height: 1.55;
+  line-height: 1.45;
 }
 
 .plan__tabs {
@@ -469,9 +471,11 @@ h3 {
 
 .plan__stage {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(200px, 240px);
-  gap: 16px;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 220px);
+  gap: 12px;
+  align-items: stretch;
+  min-height: 0;
+  flex: 1;
 }
 
 .plan__canvas {
@@ -483,14 +487,15 @@ h3 {
   display: flex;
   align-items: center;
   justify-content: center;
-  max-height: calc(100dvh - 240px);
+  max-height: var(--plan-map-max);
 }
 
 .plan-map {
   position: relative;
   display: inline-block;
   max-width: 100%;
-  max-height: calc(100dvh - 240px);
+  max-height: var(--plan-map-max);
+  line-height: 0;
   background: var(--white);
 }
 
@@ -499,7 +504,7 @@ h3 {
   width: auto;
   height: auto;
   max-width: 100%;
-  max-height: calc(100dvh - 240px);
+  max-height: var(--plan-map-max);
   object-fit: contain;
 }
 
@@ -522,7 +527,7 @@ h3 {
 
 .table-hit--clover {
   border-radius: 10px;
-  transform: rotate(45deg);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
 
 .table-hit--lounge,
@@ -532,10 +537,6 @@ h3 {
 
 .table-hit--pill {
   border-radius: 999px;
-}
-
-.table-hit--clover .table-hit__note {
-  transform: rotate(-45deg);
 }
 
 .table-hit__note {
@@ -621,7 +622,7 @@ h3 {
   background: var(--white);
   border: 1px solid rgba(100, 124, 110, 0.18);
   border-radius: 10px;
-  padding: 22px;
+  padding: 16px 18px;
 }
 
 .picked h3 {
@@ -925,6 +926,50 @@ h3 {
   border: 1px solid rgba(100, 124, 110, 0.18);
   border-radius: 16px;
   padding: 28px 32px 32px;
+  scroll-margin-top: calc(var(--site-header-h, 80px) + 8px);
+}
+
+.wizard:has([data-panel="3"].is-active) {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 16px;
+  max-height: calc(100dvh - var(--site-header-h, 80px) - 16px);
+  padding: 16px 32px 16px;
+}
+
+.wizard:has([data-panel="3"].is-active) .wizard__top {
+  margin-bottom: 10px;
+}
+
+.wizard:has([data-panel="3"].is-active) .steps {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+}
+
+.wizard:has([data-panel="3"].is-active) #reserve-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.wizard-panel[data-panel="3"].is-active {
+  flex: 1;
+  min-height: 0;
+  gap: 10px;
+  overflow: hidden;
+}
+
+.wizard-panel[data-panel="3"] .plan__head {
+  flex-shrink: 0;
+}
+
+.wizard:has([data-panel="3"].is-active) .wizard__nav {
+  margin-top: 10px;
+}
+
+.wizard:has([data-panel="3"].is-active) .form-status:empty {
+  display: none;
 }
 
 .wizard__top {
@@ -1371,10 +1416,20 @@ h3 {
     grid-template-columns: 1fr;
   }
 
+  :root {
+    --plan-map-max: min(42vh, 320px);
+  }
+
+  .wizard:has([data-panel="3"].is-active) {
+    max-height: none;
+    overflow: visible;
+    padding: 16px;
+  }
+
   .plan-map,
   .plan-map img,
   .plan__canvas {
-    max-height: min(62vh, 420px);
+    max-height: var(--plan-map-max);
   }
 
   .builder {

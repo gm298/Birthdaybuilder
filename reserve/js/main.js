@@ -68,6 +68,30 @@
     `;
   }
 
+  function fitPlanToPage() {
+    if (state.step !== 3) return;
+    const wizard = document.querySelector(".wizard");
+    const head = document.querySelector('[data-panel="3"] .plan__head');
+    const nav = document.querySelector(".wizard__nav");
+    if (!wizard) return;
+    const headerH = document.querySelector(".site-header")?.getBoundingClientRect().height || 80;
+    const topH = document.querySelector(".wizard__top")?.getBoundingClientRect().height || 0;
+    const stepsH = document.querySelector(".steps")?.getBoundingClientRect().height || 0;
+    const headH = head?.getBoundingClientRect().height || 0;
+    const navH = nav?.getBoundingClientRect().height || 0;
+    const status = document.getElementById("form-status");
+    const statusH = status?.textContent ? status.getBoundingClientRect().height : 0;
+    const styles = getComputedStyle(wizard);
+    const pad = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
+    const gaps = 28;
+    const used = headerH + topH + stepsH + headH + navH + statusH + pad + gaps + 16;
+    let mapMax = Math.max(200, Math.floor(window.innerHeight - used));
+    if (window.matchMedia("(max-width: 980px)").matches) {
+      mapMax = Math.min(mapMax, Math.floor(window.innerHeight * 0.42), 320);
+    }
+    document.documentElement.style.setProperty("--plan-map-max", `${mapMax}px`);
+  }
+
   function renderPlan() {
     const host = document.getElementById("floorplan");
     if (!host || !Map) return;
@@ -81,6 +105,7 @@
       onPick: toggleTable,
     });
     renderPicked();
+    fitPlanToPage();
   }
 
   function pruneSelection() {
@@ -431,6 +456,7 @@
     if (!options?.silent) {
       document.getElementById("book")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
+    if (state.step === 3) requestAnimationFrame(fitPlanToPage);
   }
 
   function renderSummary() {
@@ -571,6 +597,7 @@
     renderPlan();
     setStep(1, { silent: true });
     updateNotesCount();
+    window.addEventListener("resize", fitPlanToPage);
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
