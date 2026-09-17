@@ -43,6 +43,7 @@ $config = @"
     url: "$($env:SUPABASE_URL)",
     anonKey: "$($env:SUPABASE_ANON_KEY)",
     submitUrl: "$($env:SUPABASE_URL)/functions/v1/submit-request",
+    manageUrl: "$($env:SUPABASE_URL)/functions/v1/manage-request",
     googleCalendarUrl: "$($env:GOOGLE_CALENDAR_SUBSCRIBE_URL)",
   };
 })();
@@ -55,16 +56,27 @@ if (-not $env:RATE_LIMIT_SALT) {
 }
 
 Write-Host "Linking project $($env:SUPABASE_PROJECT_REF)…"
-npx supabase link --project-ref $env:SUPABASE_PROJECT_REF -p $env:SUPABASE_DB_PASSWORD
+$env:SUPABASE_ACCESS_TOKEN = $env:SUPABASE_ACCESS_TOKEN
+try {
+  npx supabase link --project-ref $env:SUPABASE_PROJECT_REF -p $env:SUPABASE_DB_PASSWORD
+} catch {
+  Write-Host "Warning: supabase link failed (token privileges). Continuing with db password / project-ref flags…"
+}
 
 Write-Host "Pushing database migration…"
-npx supabase db push -p $env:SUPABASE_DB_PASSWORD
+npx supabase db push --yes -p $env:SUPABASE_DB_PASSWORD
 
 Write-Host "Setting function secrets…"
 npx supabase secrets set RATE_LIMIT_SALT=$env:RATE_LIMIT_SALT --project-ref $env:SUPABASE_PROJECT_REF
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "secrets set failed — create a new personal access token at https://supabase.com/dashboard/account/tokens with full access, update SUPABASE_ACCESS_TOKEN in .env.local, then re-run."
+}
 
 Write-Host "Deploying submit-request function…"
 npx supabase functions deploy submit-request --project-ref $env:SUPABASE_PROJECT_REF --no-verify-jwt
+
+Write-Host "Deploying manage-request function…"
+npx supabase functions deploy manage-request --project-ref $env:SUPABASE_PROJECT_REF --no-verify-jwt
 
 Write-Host "Deploying sync-google-calendar function…"
 npx supabase functions deploy sync-google-calendar --project-ref $env:SUPABASE_PROJECT_REF --no-verify-jwt
@@ -75,6 +87,16 @@ if ($env:GOOGLE_CALENDAR_ID) {
 if ($env:CALENDAR_SYNC_SECRET) {
   npx supabase secrets set "CALENDAR_SYNC_SECRET=$env:CALENDAR_SYNC_SECRET" --project-ref $env:SUPABASE_PROJECT_REF
 }
+if ($env:RESEND_API_KEY) {
+  npx supabase secrets set "RESEND_API_KEY=$env:RESEND_API_KEY" --project-ref $env:SUPABASE_PROJECT_REF
+}
+if ($env:BOOKING_FROM_EMAIL) {
+  npx supabase secrets set "BOOKING_FROM_EMAIL=$env:BOOKING_FROM_EMAIL" --project-ref $env:SUPABASE_PROJECT_REF
+}
+if ($env:PUBLIC_SITE_ORIGIN) {
+  npx supabase secrets set "PUBLIC_SITE_ORIGIN=$env:PUBLIC_SITE_ORIGIN" --project-ref $env:SUPABASE_PROJECT_REF
+}
 
 Write-Host "Done. Staff site: /staff/ - create a user in Auth, then insert into staff_users."
 Write-Host "Google Calendar: see supabase/GOOGLE_CALENDAR.md"
+Write-Host "Resend: set RESEND_API_KEY (+ optional BOOKING_FROM_EMAIL, PUBLIC_SITE_ORIGIN) in .env.local"

@@ -22,6 +22,8 @@
     occupancy: [],
     submitting: false,
     saved: false,
+    manageToken: "",
+    publicCode: "",
   };
 
   function findTable(id) {
@@ -237,6 +239,13 @@
     return [salutation, name].filter(Boolean).join(" ");
   }
 
+  function guestNameParts() {
+    return {
+      salutation: document.getElementById("reserve-salutation")?.value || "",
+      name: document.getElementById("reserve-name")?.value.trim() || "",
+    };
+  }
+
   function composeMessage(code) {
     const notes = document.getElementById("reserve-notes")?.value.trim() || "";
     const purpose = document.getElementById("reserve-purpose")?.value || "";
@@ -274,8 +283,8 @@
         guestKids: state.kids,
       },
       reservation: {
-        name: guestName(),
-        salutation: document.getElementById("reserve-salutation")?.value || "",
+        name: guestNameParts().name,
+        salutation: guestNameParts().salutation,
         purpose: document.getElementById("reserve-purpose")?.value || "",
         notes: document.getElementById("reserve-notes")?.value.trim() || "",
         guests: state.guests,
@@ -306,6 +315,10 @@
       if (!document.getElementById("reserve-name")?.value.trim()) return "Please add your name.";
       const contact = window.TinyContact?.validateContact?.();
       if (!contact?.ok) return contact?.message || "Please add an email or WhatsApp number.";
+      const email = contact.email || "";
+      const phone = contact.phone || "";
+      if (!email) return "Please add your email so we can send your reservation link.";
+      if (!phone) return "Please add your WhatsApp number.";
       return "";
     }
     if (step === 3) {
@@ -358,6 +371,7 @@
     if (input) input.value = state.date;
     renderDateChips();
     disablePastTimes();
+    updateTimeTrigger();
     loadOccupancy();
   }
 
@@ -411,8 +425,43 @@
     buttons.forEach((btn) => btn.classList.toggle("is-active", btn.dataset.time === state.time));
   }
 
+  function updateTimeTrigger() {
+    const label = document.getElementById("time-trigger-label");
+    const hint = document.getElementById("time-trigger-hint");
+    if (!label) return;
+    if (state.time) {
+      label.textContent = Map.timeRangeLabel(state.time);
+      if (hint) hint.textContent = `Arrive by ${Map.graceLabel(state.time)}`;
+    } else {
+      label.textContent = "Select time";
+      if (hint) hint.textContent = "Choose an available 2-hour slot";
+    }
+  }
+
+  function openTimeModal() {
+    const modal = document.getElementById("time-modal");
+    const trigger = document.getElementById("time-trigger");
+    if (!modal) return;
+    renderTimes();
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    trigger?.setAttribute("aria-expanded", "true");
+    document.body.classList.add("time-modal-open");
+  }
+
+  function closeTimeModal() {
+    const modal = document.getElementById("time-modal");
+    const trigger = document.getElementById("time-trigger");
+    if (!modal) return;
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    trigger?.setAttribute("aria-expanded", "false");
+    document.body.classList.remove("time-modal-open");
+  }
+
   function renderTimes() {
     const grid = document.getElementById("time-grid");
+    if (!grid) return;
     grid.innerHTML = "";
     Map.timeSlots().forEach((time) => {
       const btn = document.createElement("button");
@@ -427,11 +476,14 @@
         });
         pruneSelection();
         renderPlan();
+        updateTimeTrigger();
         setStatus("");
+        closeTimeModal();
       });
       grid.appendChild(btn);
     });
     disablePastTimes();
+    updateTimeTrigger();
   }
 
   function setStep(step, options) {
@@ -450,10 +502,12 @@
     const next = document.getElementById("wizard-next");
     const submit = document.getElementById("wizard-submit");
     const wa = document.getElementById("wa-open");
-    if (back) back.hidden = state.step === 1;
-    if (next) next.hidden = state.step === 4;
+    const manage = document.getElementById("post-save-actions");
+    if (back) back.hidden = state.step === 1 || state.saved;
+    if (next) next.hidden = state.step === 4 || state.saved;
     if (submit) submit.hidden = state.step !== 4 || state.saved;
     if (wa) wa.hidden = !(state.saved && state.step === 4);
+    if (manage) manage.hidden = !(state.saved && state.step === 4);
     if (state.step === 3) renderPlan();
     if (state.step === 4) renderSummary();
     if (!options?.silent) {
@@ -558,6 +612,14 @@
       setStep(state.step + 1);
     });
 
+    document.getElementById("time-trigger")?.addEventListener("click", openTimeModal);
+    document.querySelectorAll("[data-close-time]").forEach((el) => {
+      el.addEventListener("click", closeTimeModal);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeTimeModal();
+    });
+
     document.getElementById("reserve-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       if (state.submitting) return;
@@ -573,6 +635,7 @@
       state.submitting = true;
       if (submitBtn) submitBtn.disabled = true;
       let code = "";
+      let manageToken = "";
       try {
         if (!window.TinySubmit?.submitRequest) throw new Error("Saving is not configured yet.");
         setStatus("Saving your reservation…");
@@ -582,14 +645,114 @@
           onProgress: setStatus,
         });
         code = result.publicCode || "";
-        setStatus(code ? `Saved as ${code}. Opening WhatsApp…` : "Saved. Opening WhatsApp…", "success");
+        manageToken = result.manageToken || "";
+        window.TinySubmit?.rememberManage?.("reservation", {
+          publicCode: code,
+          manageToken,
+          requestId: result.requestId,
+        });
+        state.saved = true;
+        state.manageToken = manageToken;
+        state.publicCode = code;
+        setStatus(code ? `Saved as ${code}.` : "Saved.", "success");
+        setStep(4);
+        const waHref = `${WA_BASE}?text=${encodeURIComponent(composeMessage(code))}`;
+        const manageHref = manageToken ? window.TinySubmit?.bookingUrl?.(manageToken) || "" : "";
+        if (!manageToken || !manageHref) {
+          setStatus(
+            (code ? `Saved as ${code}. ` : "Saved. ") +
+              "Manage link unavailable — deploy manage_token migration and submit-request, then try again.",
+            "error"
+          );
+        }
+        if (window.TinySuccessModal?.open) {
+          window.TinySuccessModal.open({
+            title: "Reservation saved",
+            code,
+            manageToken,
+            manageHref,
+            whatsappHref: waHref,
+            showEdit: Boolean(manageHref),
+            showCancel: Boolean(manageToken),
+            showShare: Boolean(manageHref),
+            onCancelled: () => {
+              state.saved = true;
+              setStatus("Reservation cancelled.", "success");
+              const manage = document.getElementById("post-save-actions");
+              if (manage) manage.hidden = true;
+              setStep(4);
+            },
+          });
+        }
+        const wa = document.getElementById("wa-open");
+        if (wa) {
+          wa.href = waHref;
+          wa.hidden = false;
+        }
+        wirePostSaveActions(manageHref);
       } catch (err) {
         console.error(err);
-        setStatus(err?.message || "Could not save. Opening WhatsApp…", "error");
+        setStatus(err?.message || "Could not save the reservation.", "error");
       }
-      window.open(`${WA_BASE}?text=${encodeURIComponent(composeMessage(code))}`, "_blank", "noopener,noreferrer");
       state.submitting = false;
       if (submitBtn) submitBtn.disabled = false;
+    });
+
+    document.getElementById("post-save-share")?.addEventListener("click", async () => {
+      const href = state.manageToken ? window.TinySubmit?.bookingUrl?.(state.manageToken) || "" : "";
+      if (!href) {
+        setStatus("Share link unavailable. Save again after manage links are deployed.", "error");
+        return;
+      }
+      const result = (await window.TinySuccessModal?.shareLink?.(href)) || "copied";
+      if (result === "copied") setStatus("Link copied.", "success");
+      else if (result === "shared") setStatus("Shared.", "success");
+      else if (result !== "aborted") setStatus("Copy the link from the prompt.", "success");
+    });
+
+    document.getElementById("post-save-cancel")?.addEventListener("click", async () => {
+      if (!state.manageToken) {
+        setStatus("Cancel unavailable without a manage link.", "error");
+        return;
+      }
+      if (!window.confirm("Cancel this reservation? Tiny will be notified.")) return;
+      try {
+        setStatus("Cancelling…");
+        const contact = window.TinyContact?.readContact?.() || {};
+        await window.TinySubmit.manageRequest({
+          action: "cancel",
+          manageToken: state.manageToken,
+          email: contact.email || "",
+          phone: contact.phone || "",
+        });
+        setStatus("Reservation cancelled.", "success");
+        const manage = document.getElementById("post-save-actions");
+        if (manage) manage.hidden = true;
+      } catch (err) {
+        setStatus(err?.message || "Could not cancel.", "error");
+      }
+    });
+  }
+
+  function wirePostSaveActions(manageHref) {
+    const edit = document.getElementById("post-save-edit");
+    const share = document.getElementById("post-save-share");
+    const cancel = document.getElementById("post-save-cancel");
+    const href = manageHref || (state.manageToken ? window.TinySubmit?.bookingUrl?.(state.manageToken) || "" : "");
+    if (edit) {
+      if (href) {
+        edit.href = href;
+        edit.removeAttribute("aria-disabled");
+        edit.classList.remove("is-disabled");
+      } else {
+        edit.href = "#";
+        edit.setAttribute("aria-disabled", "true");
+        edit.classList.add("is-disabled");
+      }
+    }
+    [share, cancel].forEach((btn) => {
+      if (!btn) return;
+      btn.disabled = !state.manageToken;
     });
   }
 

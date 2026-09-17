@@ -9,8 +9,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20260917a">
-  <link rel="stylesheet" href="../shared/chrome.css?v=20260917a">
+  <link rel="stylesheet" href="css/styles.css?v=20260917d">
+  <link rel="stylesheet" href="../shared/chrome.css?v=20260917d">
 </head>
 <body data-page="reserve">
   <div id="site-chrome-header"></div>
@@ -58,14 +58,17 @@
           </div>
           <div class="field">
             <span class="field__label" id="time-label">Select reservation time</span>
-            <div class="time-grid" id="time-grid" role="group" aria-labelledby="time-label"></div>
+            <button type="button" class="time-trigger" id="time-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="time-modal">
+              <span class="time-trigger__label" id="time-trigger-label">Select time</span>
+              <span class="time-trigger__hint" id="time-trigger-hint">Choose an available 2-hour slot</span>
+            </button>
             <span class="field__hint">Each booking is 2 hours. Last start is 16:00. We hold the table for 15 minutes after your start time; if you have not arrived by then, it is cancelled.</span>
           </div>
         </div>
 
         <div class="wizard-panel" data-panel="2" hidden>
           <h3 class="panel-title">Reservation details</h3>
-          <p class="field__hint">We’ll send the reservation to Tiny and to your WhatsApp.</p>
+          <p class="field__hint">We’ll email your reservation details and a private link to edit or cancel. We’ll also send a copy to Tiny.</p>
           <div class="form-row form-row--name">
             <div class="field">
               <label class="field__label" for="reserve-salutation">Title</label>
@@ -153,7 +156,12 @@
           <button class="btn btn--outline" type="button" id="wizard-back" hidden>Back</button>
           <button class="btn" type="button" id="wizard-next">Continue</button>
           <button class="btn" type="submit" id="wizard-submit" hidden>Confirm reservation</button>
-          <a class="btn" id="wa-open" hidden target="_blank" rel="noopener noreferrer">Open WhatsApp</a>
+          <a class="btn" id="wa-open" hidden target="_blank" rel="noopener noreferrer">Send to WhatsApp</a>
+        </div>
+        <div class="post-save-actions" id="post-save-actions" hidden>
+          <a class="btn btn--outline" id="post-save-edit" href="#">Edit</a>
+          <button class="btn btn--outline" type="button" id="post-save-share">Share</button>
+          <button class="btn btn--outline" type="button" id="post-save-cancel">Cancel</button>
         </div>
       </form>
     </section>
@@ -161,10 +169,22 @@
 
   <div id="site-chrome-footer"></div>
 
-  <script src="../shared/supabase-config.js?v=20260910a"></script>
-  <script src="../shared/submit-request.js?v=20260910b"></script>
+  <div class="time-modal" id="time-modal" hidden aria-hidden="true">
+    <button type="button" class="time-modal__backdrop" data-close-time aria-label="Close"></button>
+    <div class="time-modal__panel" role="dialog" aria-modal="true" aria-labelledby="time-modal-title">
+      <div class="time-modal__head">
+        <h3 id="time-modal-title">Available times</h3>
+        <button type="button" class="time-modal__close" data-close-time aria-label="Close">&times;</button>
+      </div>
+      <div class="time-grid" id="time-grid" role="group" aria-labelledby="time-modal-title"></div>
+    </div>
+  </div>
+
+  <script src="../shared/supabase-config.js?v=20260917d"></script>
+  <script src="../shared/submit-request.js?v=20260917d"></script>
+  <script src="../shared/success-modal.js?v=20260917d"></script>
   <script src="../shared/reserve-tables.js?v=20260917a"></script>
-  <script src="../shared/chrome.js?v=20260917a" defer></script>
-  <script src="js/main.js?v=20260917a" defer></script>
+  <script src="../shared/chrome.js?v=20260917d" defer></script>
+  <script src="js/main.js?v=20260917d" defer></script>
 </body>
 </html>

@@ -189,8 +189,17 @@ textarea {
   border-bottom: 0;
 }
 
-.quote-list .is-total {
+.quote-list .is-total,
+.kv .is-total {
   font-weight: 700;
+}
+
+.event-pricing-preview {
+  margin-top: 8px;
+}
+
+.event-pricing-preview .muted {
+  margin: 0;
 }
 
 .media-row {

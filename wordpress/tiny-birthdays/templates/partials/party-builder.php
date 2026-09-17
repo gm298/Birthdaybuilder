@@ -1,0 +1,395 @@
+<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+$hero = tiny_birthdays_asset('birthdays/builder/img/hero.jpg');
+$food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
+?>
+<section class="builder-page builder-hero is-active" id="intro" aria-label="Welcome to the birthday builder">
+  <img class="builder-hero__img" src="<?php echo esc_url($hero); ?>" alt="Children celebrating at Tiny with balloon photozone and tropical terrace" width="1800" height="1200">
+  <div class="builder-hero__copy">
+    <p class="builder-hero__brand">Tiny</p>
+    <h1 tabindex="-1">Welcome to our birthday builder where you can build your birthday from custom decoration designs and custom birthday cake.</h1>
+    <p class="builder-hero__note">Please note this process will take approximately 5 minutes</p>
+    <a class="btn btn--lg" href="#details" id="intro-continue">Continue</a>
+  </div>
+</section>
+
+<div class="steps-chrome" id="steps-chrome">
+  <nav class="steps-bar" id="steps-bar" aria-label="Builder steps">
+    <a class="step-chip" href="#details" data-step="details"><span class="step-chip__check" aria-hidden="true"></span>01 Details</a>
+    <a class="step-chip" href="#package" data-step="package"><span class="step-chip__check" aria-hidden="true"></span>02 Package</a>
+    <a class="step-chip" href="#decor" data-step="decor"><span class="step-chip__check" aria-hidden="true"></span>03 Decorations</a>
+    <a class="step-chip" href="#cakes" data-step="cakes"><span class="step-chip__check" aria-hidden="true"></span>04 Cake</a>
+    <a class="step-chip" href="#addons" data-step="addons"><span class="step-chip__check" aria-hidden="true"></span>05 Add ons</a>
+    <a class="step-chip" href="#food" data-step="food"><span class="step-chip__check" aria-hidden="true"></span>06 Food</a>
+    <a class="step-chip step-chip--quote" href="#send" data-step="send">Quote</a>
+  </nav>
+  <div class="steps-progress" id="steps-progress" aria-live="polite">
+    <div class="steps-progress__track" role="progressbar" aria-valuemin="0" aria-valuemax="6" aria-valuenow="0" id="steps-progress-track">
+      <div class="steps-progress__fill" id="steps-progress-fill"></div>
+    </div>
+    <p class="steps-progress__text" id="steps-progress-text">0 out of 6 steps complete</p>
+  </div>
+</div>
+
+<section class="builder-page builder-section builder-section--cream" id="details" hidden>
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">01 · Fill out your details</div>
+      <h2 tabindex="-1">When &amp; who</h2>
+    </div>
+    <p class="section-note">A few essentials so we can check the date and tailor the party.</p>
+  </div>
+  <div class="details-grid">
+    <div class="details-row details-row--top">
+      <div class="field">
+        <label class="field__label" for="party-date">When would you like to celebrate?</label>
+        <input type="date" id="party-date" name="party-date" required>
+      </div>
+      <div class="field field--guests">
+        <span class="field__label">How many people? <span class="field__req">*</span></span>
+        <div class="guest-pair">
+          <div class="field">
+            <label class="field__label field__label--soft" for="guest-kids">Kids</label>
+            <input type="number" id="guest-kids" name="guest-kids" min="0" placeholder="e.g. 12" inputmode="numeric" required>
+          </div>
+          <div class="field">
+            <label class="field__label field__label--soft" for="guest-adults">Adults</label>
+            <input type="number" id="guest-adults" name="guest-adults" min="0" placeholder="e.g. 8" inputmode="numeric">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="details-row details-row--schedule">
+      <div class="field">
+        <label class="field__label" for="party-time">Start time <span class="field__req">*</span></label>
+        <input type="time" id="party-time" name="party-time" required>
+      </div>
+      <div class="field">
+        <span class="field__label">Duration</span>
+        <p class="field__static" id="party-duration">3 hours (included with every package)</p>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field__label" for="child-name">Birthday child’s name <span class="field__req">*</span></label>
+      <input type="text" id="child-name" name="child-name" placeholder="e.g. Mira" required>
+    </div>
+    <div class="field">
+      <label class="field__label" for="child-age">Turning <span class="field__req">*</span></label>
+      <input type="text" id="child-age" name="child-age" placeholder="e.g. 5" required>
+    </div>
+    <div class="details-row details-row--contact field--full" id="contact-fields">
+      <div class="field">
+        <label class="field__label" for="contact-email">Email</label>
+        <input type="email" id="contact-email" name="contact-email" autocomplete="email" placeholder="you@email.com">
+      </div>
+      <div class="field">
+        <label class="field__label" for="contact-phone">WhatsApp number</label>
+        <div class="phone-split">
+          <div class="dial-combobox">
+            <input type="hidden" id="contact-dial" name="contact-dial" value="62">
+            <input type="text" id="contact-dial-search" class="dial-combobox__input" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="contact-dial-list" aria-label="Country code" autocomplete="off" spellcheck="false" placeholder="+62 ID">
+            <ul class="dial-combobox__list" id="contact-dial-list" role="listbox" hidden></ul>
+          </div>
+          <input type="tel" id="contact-phone" name="contact-phone" inputmode="tel" autocomplete="tel" placeholder="81234567890">
+        </div>
+      </div>
+    </div>
+    <p class="field__hint field--full" id="contact-hint">We need email or WhatsApp so we can send the quotation. At least one is required. We’ll store this plan, photos and contact details so Tiny can quote you.</p>
+    <div class="field field--full">
+      <label class="field__label" for="food-notes">Allergies or food notes</label>
+      <textarea id="food-notes" name="food-notes" placeholder="No nuts, vegetarian adults, kids eat first…"></textarea>
+    </div>
+    <div class="field field--full">
+      <label class="field__label" for="party-notes">Anything else</label>
+      <textarea id="party-notes" name="party-notes" placeholder="Timing, colours, characters we should know"></textarea>
+    </div>
+  </div>
+</section>
+
+<section class="builder-page builder-section builder-section--white" id="package" hidden>
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">02 · Choose package</div>
+      <h2 tabindex="-1">Choose your package</h2>
+    </div>
+    <div class="day-toggle day-toggle--readonly" id="day-indicator" role="status" aria-live="polite">
+      <span class="day-indicator__label" id="day-indicator-label">Weekday pricing</span>
+    </div>
+  </div>
+  <p class="section-note" style="margin:-8px 0 24px">Simple, Optimal or Whole Terrace. Three hours, set up before you arrive.</p>
+  <p class="package-hint" id="package-hint" role="status">Enter how many people in step 01 before you can choose a package.</p>
+  <div class="pkg-grid" id="package-grid"></div>
+</section>
+
+<section class="builder-page builder-section builder-section--cream" id="decor" hidden>
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">03 · Choose decoration</div>
+      <h2 tabindex="-1">Choose decoration</h2>
+    </div>
+    <p class="section-note">Your package includes a decoration set. Pick the look from our parties, or build your own custom theme.</p>
+  </div>
+  <h3 class="subhead subhead--tight">Build your own custom theme</h3>
+  <div class="theme-collage__action">
+    <button type="button" class="btn btn--build-own" id="open-custom-builder">Build your own</button>
+  </div>
+  <div class="photo-grid photo-grid--3 photo-grid--decor" id="decor-package-grid"></div>
+  <div class="theme-collage" id="theme-collage" aria-hidden="true"></div>
+</section>
+
+<section class="builder-page builder-section builder-section--white" id="cakes" hidden>
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">04 · Build your cake</div>
+      <h2 tabindex="-1">Choose your cake</h2>
+    </div>
+    <p class="section-note">This is Tiny’s cake catalogue. Browse the gallery, then build size, sponge and design below.</p>
+  </div>
+
+  <section class="gallery" id="gallery" aria-label="Cake gallery">
+    <div class="gallery__head">
+      <h2>Cakes we bake</h2>
+      <div class="filters" id="filters" role="tablist" aria-label="Filter by theme"></div>
+    </div>
+    <div class="gallery__grid" id="gallery-grid"></div>
+    <div class="gallery-more-wrap">
+      <button type="button" class="btn btn--outline" id="gallery-more" hidden>See more cakes</button>
+    </div>
+  </section>
+
+  <section class="builder builder--bleed" id="build">
+    <div class="builder__intro">
+      <div class="eyebrow">Build your cake</div>
+      <h2>Make your own cake</h2>
+      <p>Size, sponge flavours and a design — either one of ours or your own photo. It becomes part of your party WhatsApp message.</p>
+      <ul class="builder__points">
+        <li>Custom themes and characters welcome</li>
+        <li>Free cake tasting if you're booking a birthday</li>
+        <li>Included in your chosen package size, or tell us a different one</li>
+        <li>Pick up to two sponge flavours</li>
+      </ul>
+      <div class="builder__diet">
+        <div>
+          <h3>Gluten-free and no added sugar, on any cake</h3>
+          <p><strong style="font-weight:400;color:#fff">Gluten-free</strong> means the sponge is baked without wheat flour, on a nut or root-vegetable base instead. <strong style="font-weight:400;color:#fff">No added sugar</strong> means nothing sweeter than fruit and dates goes in — no cane sugar, no syrups. Both are a paid add-on available on every cake here; tell us which you need when you order and we'll quote it. The decoration doesn't change.</p>
+        </div>
+        <div class="builder__diet-tags">
+          <span>Gluten-free</span>
+          <span>No added sugar</span>
+        </div>
+      </div>
+    </div>
+
+    <form class="builder__form" id="cake-form" novalidate>
+      <div class="field">
+        <span class="field__label" id="addons-label">Diet options</span>
+        <div class="option-row" id="addon-options" role="group" aria-labelledby="addons-label"></div>
+        <span class="field__hint field__hint--soft">Choose a diet option or leave on “No special requirements” to see every cake and sponge. Gluten-free and no added sugar filter the sponge list below — both cost extra.</span>
+      </div>
+
+      <div class="field">
+        <span class="field__label" id="size-label">Size</span>
+        <div class="option-row" id="size-options" role="group" aria-labelledby="size-label"></div>
+        <span class="field__hint" id="size-note">18 cm — the usual birthday size, about 12–16 slices.</span>
+      </div>
+
+      <div class="form-row">
+        <div class="field">
+          <span class="field__label" id="sponge-label">No added sugar sponge <span class="field__label-note">(up to 2 flavours total)</span></span>
+          <div class="option-col" id="sponge-options" role="group" aria-labelledby="sponge-label"></div>
+          <span class="field__hint" id="sponge-hint">Select one or two flavours for your cake layers.</span>
+        </div>
+        <div class="field" id="sugar-sponge-field">
+          <span class="field__label" id="sugar-sponge-label">Sugar added sponge <span class="field__label-note">(counts toward 2)</span></span>
+          <div class="option-col" id="sugar-sponge-options" role="group" aria-labelledby="sugar-sponge-label"></div>
+          <span class="field__hint field__hint--soft" id="sugar-sponge-hint">Mix with a no-sugar sponge, or pick two sugar-added flavours.</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="field__label" id="design-label">Design</span>
+        <div class="option-row" id="mode-options" role="group" aria-labelledby="design-label">
+          <button type="button" class="option-btn option-btn--sm is-active" data-mode="gallery">From the gallery</button>
+          <button type="button" class="option-btn option-btn--sm" data-mode="own">My own idea</button>
+        </div>
+        <div class="design-grid is-visible" id="design-grid"></div>
+        <label class="file-drop" id="file-drop">
+          <span class="file-drop__label" id="file-label">Tap to attach a photo</span>
+          <span class="file-drop__hint">Attach a reference photo — we'll get close, not identical</span>
+          <input type="file" id="ref-photo" accept="image/*">
+        </label>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="cake-theme">Theme or name on the cake</label>
+        <input type="text" id="cake-theme" name="theme" placeholder="e.g. dinosaurs, and the name Mira">
+      </div>
+
+      <p class="builder__submit-note">Cake choices are saved into your party summary. Continue with add-ons and food, then send everything together.</p>
+      <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
+
+      <div class="builder__diet-mobile">
+        <h3>Gluten-free and no added sugar</h3>
+        <p><strong style="font-weight:400;color:#fff">Gluten-free</strong> — sponge without wheat flour, on a nut or root-vegetable base. <strong style="font-weight:400;color:#fff">No added sugar</strong> — sweetened only with fruit and dates. Both are a paid add-on; we'll quote it in the chat.</p>
+      </div>
+      <ul class="builder__points-mobile">
+        <li>Pick up to two sponge flavours</li>
+        <li>Custom themes welcome</li>
+        <li>Included with your birthday package</li>
+      </ul>
+    </form>
+  </section>
+</section>
+
+<section class="builder-page builder-section builder-section--cream" id="addons" hidden>
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">05 · Choose add ons</div>
+      <h2 tabindex="-1">Add some extra magic</h2>
+    </div>
+    <p class="section-note">Masterclass, entertainment, extra cake or more décor. Skip anything you don’t need.</p>
+  </div>
+
+  <h3 class="subhead subhead--tight">Masterclass activities</h3>
+  <button type="button" class="btn-none-addon" id="no-masterclass" data-master="">No masterclass add on</button>
+  <div class="photo-grid photo-grid--master" id="masterclass-grid"></div>
+
+  <h3 class="subhead">Entertainment</h3>
+  <button type="button" class="btn-none-addon" id="no-entertainment">No entertainment add on</button>
+  <div class="photo-grid photo-grid--entertain" id="extras-entertainment"></div>
+
+  <div class="addon-collapse" id="addon-decoration-collapse">
+    <button type="button" class="addon-collapse__toggle" aria-expanded="false" aria-controls="addon-decoration-panel" id="addon-decoration-toggle">
+      <span class="addon-collapse__title">Add On Decoration Package</span>
+      <span class="addon-collapse__arrow" aria-hidden="true"></span>
+    </button>
+    <div class="addon-collapse__panel" id="addon-decoration-panel" hidden>
+      <div class="photo-grid photo-grid--extras" id="extras-decoration"></div>
+    </div>
+  </div>
+
+  <div class="addon-collapse" id="addon-cake-collapse">
+    <button type="button" class="addon-collapse__toggle" aria-expanded="false" aria-controls="addon-cake-panel" id="addon-cake-toggle">
+      <span class="addon-collapse__title">Extra cake</span>
+      <span class="addon-collapse__arrow" aria-hidden="true"></span>
+    </button>
+    <div class="addon-collapse__panel" id="addon-cake-panel" hidden>
+      <div class="check-list check-list--row" id="extras-cake"></div>
+    </div>
+  </div>
+</section>
+
+<section class="builder-page builder-section builder-section--white builder-section--food" id="food" hidden>
+  <div class="section-head section-head--stack">
+    <div>
+      <div class="eyebrow">06 · Food &amp; drink</div>
+      <h2 tabindex="-1">Choose food &amp; drink</h2>
+      <p class="section-lede" id="food-lede">Food and drink sit in the package as a play-area deposit. Tell us allergies and we’ll set the table from Tiny’s kitchen.</p>
+    </div>
+  </div>
+  <div class="food-hero">
+    <img id="food-image" src="<?php echo esc_url($food); ?>" alt="Family table at Tiny with themed balloons" width="1200" height="800">
+    <div class="food-hero__actions">
+      <a class="btn btn--menu" href="https://drive.google.com/drive/folders/1-Ubm3u3EvXdcDY-TdVo_sA4bPH5s5ARI?usp=drive_link" target="_blank" rel="noopener noreferrer">See menu</a>
+    </div>
+  </div>
+  <ul class="food-deposits" id="food-deposits"></ul>
+  <p class="food-included" id="food-included"></p>
+</section>
+
+<section class="builder-page builder-section builder-section--sage" id="send" hidden>
+  <div class="section-head">
+    <div>
+      <div class="eyebrow">Quotation</div>
+      <h2 tabindex="-1">Review &amp; send</h2>
+    </div>
+  </div>
+  <div class="summary-panel">
+    <ul class="summary-list" id="summary-list"></ul>
+    <div class="quote-panel" id="quote-panel" aria-label="Price quotation"></div>
+    <div class="summary-actions">
+      <p>We’ll save the full plan, custom design and cake photo for Tiny, then open WhatsApp. You can also download a PDF quotation (no bank details).</p>
+      <button class="btn btn--white btn--lg" type="button" id="send-whatsapp">Save &amp; send to WhatsApp</button>
+      <button class="btn btn--outline-light btn--lg" type="button" id="export-quote-pdf">Export PDF quotation</button>
+      <p class="form-status" id="send-status" role="status" aria-live="polite"></p>
+    </div>
+  </div>
+</section>
+
+<p class="step-gate" id="step-gate" role="status" aria-live="polite" hidden></p>
+<a class="btn btn--next-step" href="#details" id="next-step" hidden>Continue</a>
+
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="lightbox-name">
+  <button class="lightbox__close" type="button" aria-label="Close">&times;</button>
+  <div class="lightbox__panel">
+    <div class="lightbox__img" id="lightbox-img" role="img" aria-label=""></div>
+    <div class="lightbox__meta">
+      <span class="lightbox__name" id="lightbox-name"></span>
+      <span class="lightbox__theme" id="lightbox-theme"></span>
+    </div>
+    <a class="btn btn--white" href="#build" id="lightbox-order">Use this cake</a>
+  </div>
+</div>
+
+<div class="builder-modal" id="custom-builder-modal" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="custom-builder-title" hidden>
+  <button class="builder-modal__backdrop" type="button" aria-label="Close custom builder" data-close-builder></button>
+  <div class="builder-modal__panel">
+    <button class="builder-modal__close" type="button" aria-label="Close" data-close-builder>&times;</button>
+    <h3 class="builder-modal__title" id="custom-builder-title">Build your own custom theme</h3>
+    <p class="builder-modal__pkg" id="builder-pkg-label"></p>
+    <div id="custom-theme-wrap">
+      <div class="field field--design-request">
+        <label class="field__label" for="decor-design-request">Want us to design and build it for you?</label>
+        <p class="field__hint field__hint--design-request">Give us your design request — tell us what you would like and we’ll take care of the rest.</p>
+        <input type="text" id="decor-design-request" name="decor-design-request" placeholder="e.g. Full Minecraft backdrop with name arch and matching table styling">
+      </div>
+      <div class="backdrop-builder" id="backdrop-builder">
+        <div class="backdrop-builder__preview">
+          <canvas id="backdrop-canvas" width="1024" height="678" aria-label="Decoration preview"></canvas>
+          <img class="backdrop-builder__static" id="backdrop-static" alt="" width="1024" height="678" hidden>
+          <p class="backdrop-builder__hint">A briefing mockup — Tiny will match the look, not every pixel.</p>
+        </div>
+        <div class="backdrop-builder__controls">
+          <p class="backdrop-builder__lede" id="backdrop-lede">Upload a print for each arch and remap the three balloon groups. Balloons stay in front of the prints.</p>
+          <div class="backdrop-uploads" id="backdrop-uploads"></div>
+          <div class="field" id="backdrop-name-field">
+            <label class="field__label" for="backdrop-name">Name on the right arch</label>
+            <input type="text" id="backdrop-name" name="backdrop-name" placeholder="e.g. Mira’s Birthday" autocomplete="off">
+          </div>
+          <div class="field" id="backdrop-colours-field">
+            <span class="field__label" id="backdrop-colours-label">Balloon colours</span>
+            <p class="backdrop-builder__lede backdrop-builder__lede--colours">Each picker replaces one colour from the photo. The small chip is the original.</p>
+            <div class="backdrop-colours" id="backdrop-colours" role="group" aria-labelledby="backdrop-colours-label"></div>
+          </div>
+          <button class="btn btn--outline" type="button" id="backdrop-download">Download mockup PNG</button>
+        </div>
+      </div>
+    </div>
+    <div class="builder-modal__footer">
+      <button type="button" class="btn" data-close-builder>Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="builder-modal builder-modal--alert" id="guest-limit-modal" role="alertdialog" aria-modal="true" aria-hidden="true" aria-labelledby="guest-limit-title" hidden>
+  <button class="builder-modal__backdrop" type="button" aria-label="Close" data-close-guest-limit></button>
+  <div class="builder-modal__panel builder-modal__panel--compact">
+    <button class="builder-modal__close" type="button" aria-label="Close" data-close-guest-limit>&times;</button>
+    <h3 class="builder-modal__title" id="guest-limit-title">Guest limit</h3>
+    <p>For guests exceeding 35 people please contact us for a custom quotation.</p>
+    <a class="btn" href="https://wa.me/6282147830142?text=Hi%20Tiny!%20I%27d%20like%20a%20custom%20quotation%20for%20a%20Whole%20Terrace%20birthday%20party%20with%20more%20than%2035%20guests." target="_blank" rel="noopener noreferrer" data-wa="builder_guest_limit">Contact us on WhatsApp</a>
+  </div>
+</div>
+
+<div class="lightbox lightbox--photo" id="photo-lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="photo-lightbox-name">
+  <button class="lightbox__close" type="button" aria-label="Close" data-close-photo>&times;</button>
+  <div class="lightbox__panel lightbox__panel--photo">
+    <div class="lightbox__img lightbox__img--photo" id="photo-lightbox-img" role="img" aria-label=""></div>
+    <div class="lightbox__meta">
+      <span class="lightbox__name" id="photo-lightbox-name"></span>
+      <span class="lightbox__theme" id="photo-lightbox-note"></span>
+    </div>
+  </div>
+</div>

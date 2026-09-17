@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { sendReservationEmail } from "../_shared/send-booking-email.ts";
 
 const ALLOWED_ORIGINS = [
   "https://tinyhealthycafe.com",
@@ -322,13 +323,22 @@ Deno.serve(async (req) => {
   if (idempotencyKey) {
     const { data: existing } = await supabase
       .from("requests")
-      .select("id, public_code, files")
+      .select("id, public_code, manage_token, files")
       .eq("idempotency_key", idempotencyKey)
       .maybeSingle();
     if (existing?.id) {
       const files = await uploadFiles(supabase, existing.id, fileParts, existing.files || {});
       await supabase.from("requests").update({ files }).eq("id", existing.id);
-      return json({ ok: true, requestId: existing.id, publicCode: existing.public_code }, 200, origin);
+      return json(
+        {
+          ok: true,
+          requestId: existing.id,
+          publicCode: existing.public_code,
+          manageToken: existing.manage_token,
+        },
+        200,
+        origin
+      );
     }
   }
 
@@ -370,16 +380,29 @@ Deno.serve(async (req) => {
     client: meta.client && typeof meta.client === "object" ? meta.client : {},
   };
 
-  const { error: insertError } = await supabase.from("requests").insert(row);
+  const manageToken = crypto.randomUUID();
+  const { error: insertError } = await supabase.from("requests").insert({
+    ...row,
+    manage_token: manageToken,
+  });
   if (insertError) {
     if (String(insertError.message || "").includes("idempotency") && idempotencyKey) {
       const { data: existing } = await supabase
         .from("requests")
-        .select("id, public_code")
+        .select("id, public_code, manage_token")
         .eq("idempotency_key", idempotencyKey)
         .maybeSingle();
       if (existing) {
-        return json({ ok: true, requestId: existing.id, publicCode: existing.public_code }, 200, origin);
+        return json(
+          {
+            ok: true,
+            requestId: existing.id,
+            publicCode: existing.public_code,
+            manageToken: existing.manage_token,
+          },
+          200,
+          origin
+        );
       }
     }
     console.error(insertError);
@@ -388,7 +411,28 @@ Deno.serve(async (req) => {
 
   const files = await uploadFiles(supabase, id, fileParts, {});
   await supabase.from("requests").update({ files }).eq("id", id);
-  return json({ ok: true, requestId: id, publicCode }, 200, origin);
+
+  if (source === "reservation" && email) {
+    const res = (payload as { reservation?: Record<string, unknown> }).reservation || {};
+    const partyInfo = (payload as { party?: Record<string, unknown> }).party || {};
+    const kids = Number(res.kids ?? partyInfo.guestKids) || 0;
+    const adults = Number(res.adults ?? partyInfo.guestAdults) || 0;
+    const salutation = asString(res.salutation);
+    const bareName = asString(res.name) || asString(row.contact_name);
+    await sendReservationEmail({
+      to: email,
+      publicCode,
+      manageToken,
+      guestName: [salutation, bareName].filter(Boolean).join(" "),
+      partyDate: asString(partyInfo.date || row.party_date),
+      partyTime: asString(partyInfo.time || row.party_time).slice(0, 5),
+      guestsLabel: `${kids} kids · ${adults} adults`,
+      tableLabel: asString(res.tableLabel || row.package_name),
+      purpose: asString(res.purpose),
+    });
+  }
+
+  return json({ ok: true, requestId: id, publicCode, manageToken }, 200, origin);
 });
 
 async function uploadFiles(

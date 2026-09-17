@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/staff.css?v=20260917n">
+  <link rel="stylesheet" href="css/staff.css?v=20260917o">
 </head>
 <body>
   <div class="staff-shell">
@@ -318,6 +318,22 @@
           <label class="check"><input type="radio" name="event-payment" value="tiny" checked> By Tiny</label>
           <label class="check"><input type="radio" name="event-payment" value="vendor"> By vendor</label>
         </fieldset>
+        <fieldset class="field" id="event-pricing">
+          <legend>Pricing</legend>
+          <label class="field">
+            <span>Price (IDR)</span>
+            <input type="number" id="event-price" min="0" step="1000" placeholder="0">
+          </label>
+          <label class="check">
+            <input type="checkbox" id="event-add-service">
+            <span>Add 5% service charge</span>
+          </label>
+          <label class="check">
+            <input type="checkbox" id="event-add-tax">
+            <span>Add 10% tax</span>
+          </label>
+          <div id="event-pricing-preview" class="event-pricing-preview"></div>
+        </fieldset>
         <label class="field">
           <span>Notes</span>
           <textarea id="event-notes" rows="3" placeholder="Setup, vendor, timing…"></textarea>
@@ -343,6 +359,6 @@
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/reserve-tables.js?v=20260917f"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js"></script>
-  <script type="module" src="js/app.js?v=20260917n"></script>
+  <script type="module" src="js/app.js?v=20260917o"></script>
 </body>
 </html>

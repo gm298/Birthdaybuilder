@@ -212,7 +212,12 @@ function visualClass(row) {
 }
 
 function displaySubtitle(row) {
-  if (eventType(row) === "reservation" || eventType(row) === "event") return tableText(row);
+  if (eventType(row) === "reservation") return tableText(row);
+  if (eventType(row) === "event") {
+    const table = tableText(row);
+    const total = eventPricingFromRow(row)?.total || row.quote_total_idr;
+    return total ? `${table}${table ? " · " : ""}${formatIdr(total)}` : table;
+  }
   const pkg = row.package_name || (row.source === "cake" ? "Cake only" : "Package TBC");
   const total = row.quote_total_idr ? ` · ${formatIdr(row.quote_total_idr)}` : "";
   return `${sourceLabel(row.source)} · ${pkg}${total}`;
@@ -1723,6 +1728,77 @@ function syncEventRepeatFields() {
   }
 }
 
+function eventPricingTotals(price, includeService, includeTax) {
+  const base = Math.max(0, Math.round(Number(price) || 0));
+  const service = includeService ? Math.round(base * 0.05) : 0;
+  const tax = includeTax ? Math.round((base + service) * 0.1) : 0;
+  return {
+    currency: "IDR",
+    price: base,
+    includeService: Boolean(includeService),
+    includeTax: Boolean(includeTax),
+    service,
+    tax,
+    total: base + service + tax,
+  };
+}
+
+function eventPricingFromRow(row) {
+  const stored = row?.payload?.event?.pricing;
+  if (stored && (Number(stored.total) || Number(stored.price))) {
+    return eventPricingTotals(stored.price, stored.includeService, stored.includeTax);
+  }
+  if (row?.quote_total_idr) {
+    return eventPricingTotals(
+      row.quote_subtotal_idr ?? row.quote_total_idr,
+      Boolean(row.quote_service_idr),
+      Boolean(row.quote_tax_idr)
+    );
+  }
+  return null;
+}
+
+function readEventPricing() {
+  return eventPricingTotals(
+    document.getElementById("event-price")?.value,
+    document.getElementById("event-add-service")?.checked,
+    document.getElementById("event-add-tax")?.checked
+  );
+}
+
+function eventPricingHtml(pricing) {
+  if (!pricing?.price) return `<p class="muted">Enter a price in IDR. Tax and service are optional.</p>`;
+  return `<ul class="kv">
+    <li><span>Price</span><span>${escapeHtml(formatIdr(pricing.price))}</span></li>
+    ${
+      pricing.includeService
+        ? `<li><span>Service 5%</span><span>${escapeHtml(formatIdr(pricing.service))}</span></li>`
+        : ""
+    }
+    ${
+      pricing.includeTax
+        ? `<li><span>Tax 10%</span><span>${escapeHtml(formatIdr(pricing.tax))}</span></li>`
+        : ""
+    }
+    <li class="is-total"><span>Total</span><span>${escapeHtml(formatIdr(pricing.total))}</span></li>
+  </ul>`;
+}
+
+function refreshEventPricingPreview() {
+  const host = document.getElementById("event-pricing-preview");
+  if (host) host.innerHTML = eventPricingHtml(readEventPricing());
+}
+
+function fillEventPricing(pricing = {}) {
+  const priceInput = document.getElementById("event-price");
+  const serviceInput = document.getElementById("event-add-service");
+  const taxInput = document.getElementById("event-add-tax");
+  if (priceInput) priceInput.value = pricing.price ? String(pricing.price) : "";
+  if (serviceInput) serviceInput.checked = Boolean(pricing.includeService);
+  if (taxInput) taxInput.checked = Boolean(pricing.includeTax);
+  refreshEventPricingPreview();
+}
+
 function openEventModal(opts = {}) {
   state.editingEventId = opts.id || null;
   document.getElementById("event-modal-title").textContent = opts.id ? "Edit event" : "Add event";
@@ -1740,6 +1816,7 @@ function openEventModal(opts = {}) {
   document.querySelectorAll('input[name="event-payment"]').forEach((input) => {
     input.checked = input.value === payment;
   });
+  fillEventPricing(opts.pricing || {});
   fillEventTableList(opts.tableIds || []);
   document.getElementById("event-guests").innerHTML = (opts.guests?.length ? opts.guests : [{}]).map(guestRowHtml).join("");
   document.getElementById("event-status").textContent = "";
@@ -1797,6 +1874,8 @@ async function saveStaffEvent() {
   const fullTerrace = Boolean(document.getElementById("event-full-terrace")?.checked);
   const notes = document.getElementById("event-notes")?.value.trim() || "";
   const payment = document.querySelector('input[name="event-payment"]:checked')?.value || "tiny";
+  const pricing = readEventPricing();
+  const hasPricing = pricing.price > 0;
   const photos = document.getElementById("event-photos")?.files;
   const guests = readGuestList();
   const freq = document.getElementById("event-repeat")?.value || "none";
@@ -1829,6 +1908,7 @@ async function saveStaffEvent() {
       location,
       fullTerrace: location === "service" && fullTerrace,
       payment,
+      pricing: hasPricing ? pricing : null,
       guests,
       repeat,
     },
@@ -1857,6 +1937,10 @@ async function saveStaffEvent() {
         email: guests.find((guest) => guest.email)?.email || user?.email || "events@tinyhealthycafe.com",
         phone: guests.find((guest) => guest.phone)?.phone || null,
         payload,
+        quote_subtotal_idr: hasPricing ? pricing.price : null,
+        quote_service_idr: hasPricing ? pricing.service : null,
+        quote_tax_idr: hasPricing ? pricing.tax : null,
+        quote_total_idr: hasPricing ? pricing.total : null,
       })
       .eq("id", requestId)
       .eq("source", "event");
@@ -1881,6 +1965,10 @@ async function saveStaffEvent() {
         package_name: tableLabel,
         guest_adults: pax,
         payload,
+        quote_subtotal_idr: hasPricing ? pricing.price : null,
+        quote_service_idr: hasPricing ? pricing.service : null,
+        quote_tax_idr: hasPricing ? pricing.tax : null,
+        quote_total_idr: hasPricing ? pricing.total : null,
       })
       .select("id")
       .single();
@@ -2440,6 +2528,14 @@ async function loadDetail(id) {
               : `<p class="muted">No guests added.</p>`
           }
         </section>
+        ${
+          isEvent && eventPricingFromRow(row)
+            ? `<section>
+          <h3>Pricing</h3>
+          ${eventPricingHtml(eventPricingFromRow(row))}
+        </section>`
+            : ""
+        }
         <section>
           <h3>Pictures</h3>
           <div class="media-row">
@@ -2600,6 +2696,7 @@ async function loadDetail(id) {
       tableIds: reservation.tableIds || [],
       guests: event.guests || [],
       repeat: event.repeat,
+      pricing: event.pricing || eventPricingFromRow(row),
     });
   });
   document.getElementById("add-guest-detail")?.addEventListener("click", () => {
@@ -2617,6 +2714,7 @@ async function loadDetail(id) {
       tableIds: reservation.tableIds || [],
       guests: [...(event.guests || []), {}],
       repeat: event.repeat,
+      pricing: event.pricing || eventPricingFromRow(row),
     });
   });
   document.getElementById("export-guests")?.addEventListener("click", async () => {
@@ -3416,6 +3514,12 @@ document.getElementById("event-guests")?.addEventListener("click", (e) => {
   const host = document.getElementById("event-guests");
   row?.remove();
   if (host && !host.querySelector(".guest-row")) host.insertAdjacentHTML("beforeend", guestRowHtml());
+});
+document.getElementById("event-form")?.addEventListener("input", (e) => {
+  if (e.target.closest("#event-pricing")) refreshEventPricingPreview();
+});
+document.getElementById("event-form")?.addEventListener("change", (e) => {
+  if (e.target.closest("#event-pricing")) refreshEventPricingPreview();
 });
 document.getElementById("event-form")?.addEventListener("submit", async (e) => {
   e.preventDefault();

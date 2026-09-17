@@ -778,12 +778,25 @@ h3 {
 
 .phone-split {
   display: grid;
-  grid-template-columns: minmax(132px, 168px) 1fr;
-  gap: 8px;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.phone-split .dial-combobox__input,
+.phone-split #contact-phone {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid rgba(100, 124, 110, 0.28);
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  padding: 10px 12px;
 }
 
 .dial-combobox {
   position: relative;
+  z-index: 5;
 }
 
 .dial-combobox__input {
@@ -794,8 +807,8 @@ h3 {
   position: absolute;
   left: 0;
   top: calc(100% + 4px);
-  z-index: 40;
-  width: min(280px, 70vw);
+  z-index: 50;
+  width: min(300px, 80vw);
   max-height: 240px;
   overflow: auto;
   margin: 0;
@@ -803,9 +816,9 @@ h3 {
   list-style: none;
   background: var(--white);
   color: var(--deep);
-  border: 1px solid rgba(255, 255, 255, 0.45);
-  border-radius: 6px;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(100, 124, 110, 0.22);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
 }
 
 .dial-combobox__list li {
@@ -1228,6 +1241,114 @@ h3 {
   display: none !important;
 }
 
+.post-save-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.post-save-actions[hidden] {
+  display: none !important;
+}
+
+.time-trigger {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 16px;
+  border: 1px solid rgba(100, 124, 110, 0.28);
+  border-radius: 14px;
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.time-trigger__label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--deep);
+}
+
+.time-trigger__hint {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+body.time-modal-open {
+  overflow: hidden;
+}
+
+.time-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 350;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.time-modal[hidden] {
+  display: none;
+}
+
+.time-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: rgba(34, 44, 38, 0.5);
+  cursor: pointer;
+}
+
+.time-modal__panel {
+  position: relative;
+  z-index: 1;
+  width: min(520px, 100%);
+  max-height: min(80dvh, 640px);
+  overflow: auto;
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--cream);
+  box-shadow: 0 24px 60px rgba(34, 44, 38, 0.28);
+}
+
+.time-modal__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.time-modal__head h3 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.time-modal__close {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.time-modal .time-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+
 .summary-card {
   display: grid;
   gap: 0;
@@ -1503,6 +1624,6 @@ h3 {
   }
 
   .phone-split {
-    grid-template-columns: 1fr;
+    grid-template-columns: 110px minmax(0, 1fr);
   }
 }

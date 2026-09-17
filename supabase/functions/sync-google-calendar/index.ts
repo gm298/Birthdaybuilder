@@ -48,6 +48,14 @@ type RequestRow = {
       location?: string;
       fullTerrace?: boolean;
       payment?: string;
+      pricing?: {
+        price?: number;
+        includeService?: boolean;
+        includeTax?: boolean;
+        service?: number;
+        tax?: number;
+        total?: number;
+      };
       guests?: { name?: string; pax?: number; phone?: string; email?: string; notes?: string }[];
       repeat?: { freq?: string; until?: string; interval?: number };
     };
@@ -439,6 +447,22 @@ function paymentLines(row: RequestRow) {
   return [line(payment.deposit, "Deposit"), line(payment.balance, "Balance")];
 }
 
+function formatIdr(n: number) {
+  return `IDR ${Math.round(n).toLocaleString("en-US")}`;
+}
+
+function eventPricingLines(row: RequestRow) {
+  const pricing = row.payload?.event?.pricing;
+  const price = Number(pricing?.price) || 0;
+  const total = Number(pricing?.total) || 0;
+  if (!price && !total) return [];
+  const lines = [`Price: ${formatIdr(price)}`];
+  if (pricing?.includeService) lines.push(`Service 5%: ${formatIdr(Number(pricing.service) || 0)}`);
+  if (pricing?.includeTax) lines.push(`Tax 10%: ${formatIdr(Number(pricing.tax) || 0)}`);
+  lines.push(`Total: ${formatIdr(total || price)}`);
+  return lines;
+}
+
 function googleRrule(row: RequestRow) {
   const freq = asString(row.payload?.event?.repeat?.freq);
   if (!freq || freq === "none") return undefined;
@@ -495,6 +519,7 @@ async function eventBody(token: string, row: RequestRow) {
     event.location === "masterclass" ? "Location: In masterclass" : event.location === "service" ? "Location: In service area" : "",
     event.fullTerrace ? "Block: Full terrace" : "",
     event.payment === "vendor" ? "Payment: By vendor" : event.payment === "tiny" ? "Payment: By Tiny" : "",
+    ...eventPricingLines(row),
     pay ? `Payment: ${pay}` : "",
     ...paymentLines(row),
     row.phone ? `Phone: ${row.phone}` : "",
