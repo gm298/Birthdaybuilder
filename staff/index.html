@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/staff.css?v=20260917a">
+  <link rel="stylesheet" href="css/staff.css?v=20260917c">
 </head>
 <body>
   <div class="staff-shell">
@@ -46,6 +46,7 @@
         <a href="#/calendar" data-view="calendar">Calendar</a>
         <a href="#/timeline" data-view="timeline">Timeline</a>
         <a href="#/tables" data-view="tables">Tables</a>
+        <a href="#/events" data-view="events">Events</a>
       </nav>
 
       <p class="muted calendar-sync" id="calendar-sync-note">Confirmed bookings sync to the Tiny Google Calendar.</p>
@@ -53,8 +54,16 @@
       <div id="inbox-views">
         <div class="toolbar toolbar--inbox">
           <p class="date-label" id="selected-date-label"></p>
-          <label class="filter">
+          <label class="filter" id="filter-date-mode-wrap">
             <span>Date</span>
+            <select id="filter-date-mode" aria-label="Date range">
+              <option value="all">All requests</option>
+              <option value="upcoming">All dates (from today)</option>
+              <option value="day">Specific date</option>
+            </select>
+          </label>
+          <label class="filter" id="inbox-date-wrap" hidden>
+            <span>On</span>
             <input type="date" id="inbox-date" aria-label="Selected date">
           </label>
           <label class="filter">
@@ -70,6 +79,7 @@
             <span>Status</span>
             <select id="filter-status" aria-label="Status">
               <option value="all">All statuses</option>
+              <option value="pending">Not confirmed</option>
               <option value="new">New booking</option>
               <option value="contacted">Contacted</option>
               <option value="quoted">Quoted</option>
@@ -114,6 +124,13 @@
           </div>
           <div class="pms" id="pms"></div>
         </div>
+        <div id="events-view" hidden>
+          <div class="tables-toolbar">
+            <p class="muted" id="events-count"></p>
+            <button class="btn" type="button" id="add-event">Add event</button>
+          </div>
+          <div class="booking-list" id="events-list"></div>
+        </div>
       </div>
 
       <div id="detail-view" hidden></div>
@@ -155,8 +172,74 @@
       </form>
     </div>
   </div>
+  <div class="modal" id="event-modal" hidden>
+    <div class="modal__card modal__card--wide">
+      <h2 id="event-modal-title">Add event</h2>
+      <form id="event-form">
+        <label class="field">
+          <span>Event name</span>
+          <input type="text" id="event-name" required placeholder="Private event">
+        </label>
+        <div class="field-row">
+          <label class="field">
+            <span>Date</span>
+            <input type="date" id="event-date" required>
+          </label>
+          <label class="field">
+            <span>Start</span>
+            <input type="time" id="event-start" required>
+          </label>
+          <label class="field">
+            <span>End</span>
+            <input type="time" id="event-end" required>
+          </label>
+        </div>
+        <label class="field">
+          <span>Location</span>
+          <select id="event-location" required>
+            <option value="service">In service area</option>
+            <option value="masterclass">In masterclass</option>
+          </select>
+        </label>
+        <div id="event-service-fields">
+          <label class="check">
+            <input type="checkbox" id="event-full-terrace">
+            <span>Block the full terrace</span>
+          </label>
+          <fieldset class="field">
+            <legend>Blocked tables</legend>
+            <div class="block-tables" id="event-table-list"></div>
+          </fieldset>
+        </div>
+        <fieldset class="field">
+          <legend>Payment type</legend>
+          <label class="check"><input type="radio" name="event-payment" value="tiny" checked> By Tiny</label>
+          <label class="check"><input type="radio" name="event-payment" value="vendor"> By vendor</label>
+        </fieldset>
+        <label class="field">
+          <span>Notes</span>
+          <textarea id="event-notes" rows="3" placeholder="Setup, vendor, timing…"></textarea>
+        </label>
+        <label class="field">
+          <span>Pictures</span>
+          <input type="file" id="event-photos" accept="image/jpeg,image/png,image/webp,application/pdf" multiple>
+          <span class="muted">These also attach to the Google Calendar event once the event is saved.</span>
+        </label>
+        <div class="field">
+          <span>Guest list</span>
+          <div id="event-guests" class="guest-list"></div>
+          <button class="btn btn--outline" type="button" id="event-guest-add">Add guest</button>
+        </div>
+        <p class="status" id="event-status" role="status"></p>
+        <div class="contact-actions">
+          <button class="btn" type="submit">Save event</button>
+          <button class="btn btn--outline" type="button" id="event-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/reserve-tables.js?v=20260917a"></script>
-  <script type="module" src="js/app.js?v=20260917a"></script>
+  <script type="module" src="js/app.js?v=20260917c"></script>
 </body>
 </html>

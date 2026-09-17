@@ -27,6 +27,10 @@ type RequestRow = {
   guest_kids?: number | null;
   staff_notes?: string | null;
   google_event_id?: string | null;
+  files?: {
+    quotePdf?: string;
+    eventPhotos?: string[];
+  } | null;
   payload?: {
     reservation?: {
       name?: string;
@@ -35,8 +39,16 @@ type RequestRow = {
       endTime?: string;
       purpose?: string;
       notes?: string;
+      area?: string;
     };
-    event?: { name?: string; notes?: string };
+    event?: {
+      name?: string;
+      notes?: string;
+      location?: string;
+      fullTerrace?: boolean;
+      payment?: string;
+      guests?: { name?: string; pax?: number; phone?: string; email?: string; notes?: string }[];
+    };
     party?: { notes?: string; foodNotes?: string };
   } | null;
 };
@@ -129,6 +141,11 @@ function tableText(row: RequestRow) {
 }
 
 function guestText(row: RequestRow) {
+  const eventGuests = row.payload?.event?.guests;
+  if (Array.isArray(eventGuests) && eventGuests.length) {
+    const pax = eventGuests.reduce((sum, guest) => sum + (Number(guest.pax) || 0), 0);
+    return `${eventGuests.length} names · ${pax} pax`;
+  }
   const parts = [
     row.guest_kids ? `${row.guest_kids} kids` : "",
     row.guest_adults ? `${row.guest_adults} adults` : "",
@@ -169,6 +186,11 @@ function relevantSnapshot(row: RequestRow | null | undefined) {
     tableLabel: reservation.tableLabel,
     endTime: reservation.endTime,
     notes: reservation.notes || row.payload?.event?.notes || row.payload?.party?.notes,
+    location: row.payload?.event?.location || reservation.area,
+    payment: row.payload?.event?.payment,
+    guests: row.payload?.event?.guests,
+    quotePdf: row.files?.quotePdf || "",
+    eventPhotos: row.files?.eventPhotos || [],
   });
 }
 
@@ -187,7 +209,7 @@ async function googleAccessToken() {
   const pem = String(sa.private_key || "").replace(/\\n/g, "\n");
   const key = await importPKCS8(pem, "RS256");
   const assertion = await new SignJWT({
-    scope: "https://www.googleapis.com/auth/calendar",
+    scope: "https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive",
   })
     .setProtectedHeader({ alg: "RS256", typ: "JWT" })
     .setIssuer(sa.client_email)
@@ -216,8 +238,8 @@ function calendarUrl(path = "", query = "") {
   return `https://www.googleapis.com/calendar/v3/calendars/${id}/events${path}${query}`;
 }
 
-async function gcal(token: string, method: string, path: string, body?: unknown) {
-  const res = await fetch(path.startsWith("http") ? path : calendarUrl(path), {
+async function gcal(token: string, method: string, path: string, body?: unknown, query = "") {
+  const res = await fetch(path.startsWith("http") ? path : calendarUrl(path, query), {
     method,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -235,7 +257,151 @@ async function gcal(token: string, method: string, path: string, body?: unknown)
   return { ok: res.ok, status: res.status, data };
 }
 
-function eventBody(row: RequestRow) {
+function mimeFromPath(path: string) {
+  const ext = path.split(".").pop()?.toLowerCase() || "";
+  if (ext === "pdf") return "application/pdf";
+  if (ext === "png") return "image/png";
+  if (ext === "webp") return "image/webp";
+  if (ext === "heic" || ext === "heif") return "image/heic";
+  return "image/jpeg";
+}
+
+function fileTitle(path: string, fallback: string) {
+  const base = path.split("/").pop() || fallback;
+  return base;
+}
+
+async function driveJson(token: string, method: string, url: string, body?: unknown, contentType = "application/json") {
+  const res = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(body && !(body instanceof Uint8Array) ? { "Content-Type": contentType } : {}),
+    },
+    body: body instanceof Uint8Array ? body : body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  let data: Record<string, unknown> = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
+  return { ok: res.ok, status: res.status, data };
+}
+
+async function driveFind(token: string, name: string) {
+  const q = encodeURIComponent(`name='${name.replace(/'/g, "\\'")}' and trashed=false`);
+  const found = await driveJson(
+    token,
+    "GET",
+    `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,mimeType,webViewLink)&pageSize=1`
+  );
+  const files = Array.isArray(found.data.files) ? (found.data.files as { id?: string; mimeType?: string; webViewLink?: string; name?: string }[]) : [];
+  return files[0] || null;
+}
+
+async function driveShare(token: string, fileId: string) {
+  await driveJson(token, "POST", `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}/permissions`, {
+    role: "reader",
+    type: "anyone",
+  });
+}
+
+async function driveUpload(token: string, name: string, mime: string, bytes: Uint8Array) {
+  const existing = await driveFind(token, name);
+  if (existing?.id) {
+    const res = await fetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${encodeURIComponent(existing.id)}?uploadType=media&fields=id,webViewLink,name,mimeType`,
+      {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": mime,
+        },
+        body: bytes,
+      }
+    );
+    const data = await res.json();
+    if (res.ok && data.id) {
+      await driveShare(token, String(data.id));
+      return { fileId: String(data.id), mimeType: mime, title: name, fileUrl: String(data.webViewLink || `https://drive.google.com/file/d/${data.id}/view`) };
+    }
+  }
+  const metadata = JSON.stringify({ name, mimeType: mime });
+  const boundary = "tiny_upload_boundary";
+  const encoder = new TextEncoder();
+  const metaPart = encoder.encode(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`
+  );
+  const fileHead = encoder.encode(`--${boundary}\r\nContent-Type: ${mime}\r\n\r\n`);
+  const tail = encoder.encode(`\r\n--${boundary}--`);
+  const body = new Uint8Array(metaPart.length + fileHead.length + bytes.length + tail.length);
+  body.set(metaPart, 0);
+  body.set(fileHead, metaPart.length);
+  body.set(bytes, metaPart.length + fileHead.length);
+  body.set(tail, metaPart.length + fileHead.length + bytes.length);
+  const res = await fetch(
+    "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink,name,mimeType",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    }
+  );
+  const data = await res.json();
+  if (!res.ok || !data.id) {
+    throw new Error(data.error?.message || "Could not upload calendar attachment");
+  }
+  await driveShare(token, String(data.id));
+  return {
+    fileId: String(data.id),
+    mimeType: mime,
+    title: name,
+    fileUrl: String(data.webViewLink || `https://drive.google.com/file/d/${data.id}/view`),
+  };
+}
+
+function attachmentPaths(row: RequestRow) {
+  const files = row.files || {};
+  const items: { path: string; title: string }[] = [];
+  if (files.quotePdf) items.push({ path: files.quotePdf, title: `${row.id}-quotation.pdf` });
+  (files.eventPhotos || []).forEach((path, index) => {
+    const ext = path.split(".").pop() || "jpg";
+    items.push({ path, title: `${row.id}-event-${index + 1}.${ext}` });
+  });
+  return items;
+}
+
+async function calendarAttachments(token: string, row: RequestRow) {
+  const supabase = adminClient();
+  const attachments: { fileId: string; mimeType: string; title: string; fileUrl: string }[] = [];
+  const links: string[] = [];
+  for (const item of attachmentPaths(row)) {
+    try {
+      const { data, error } = await supabase.storage.from("request-files").download(item.path);
+      if (error || !data) {
+        const signed = await supabase.storage.from("request-files").createSignedUrl(item.path, 60 * 60 * 24 * 365);
+        if (signed.data?.signedUrl) links.push(`${fileTitle(item.path, item.title)}: ${signed.data.signedUrl}`);
+        continue;
+      }
+      const bytes = new Uint8Array(await data.arrayBuffer());
+      const uploaded = await driveUpload(token, item.title, mimeFromPath(item.path), bytes);
+      attachments.push(uploaded);
+      links.push(`${uploaded.title}: ${uploaded.fileUrl}`);
+    } catch (err) {
+      console.error("attachment failed", item.path, err);
+      const signed = await supabase.storage.from("request-files").createSignedUrl(item.path, 60 * 60 * 24 * 365);
+      if (signed.data?.signedUrl) links.push(`${fileTitle(item.path, item.title)}: ${signed.data.signedUrl}`);
+    }
+  }
+  return { attachments, links };
+}
+
+async function eventBody(token: string, row: RequestRow) {
   const source = String(row.source || "reservation");
   const kind = occupyKind(source);
   const endTime = asString(row.payload?.reservation?.endTime);
@@ -254,14 +420,27 @@ function eventBody(row: RequestRow) {
   ]
     .map((item) => asString(item))
     .filter(Boolean);
+  const event = row.payload?.event || {};
+  const guestLines = (event.guests || [])
+    .map((guest) => {
+      const bits = [guest.name, guest.pax ? `${guest.pax} pax` : "", guest.phone, guest.email, guest.notes].filter(Boolean);
+      return bits.length ? `Guest: ${bits.join(" · ")}` : "";
+    })
+    .filter(Boolean);
+  const { attachments, links } = await calendarAttachments(token, row);
   const description = [
     row.public_code ? `Code: ${row.public_code}` : "",
     guests ? `Guests: ${guests}` : "",
     tables ? `Tables: ${tables}` : "",
+    event.location === "masterclass" ? "Location: In masterclass" : event.location === "service" ? "Location: In service area" : "",
+    event.fullTerrace ? "Block: Full terrace" : "",
+    event.payment === "vendor" ? "Payment: By vendor" : event.payment === "tiny" ? "Payment: By Tiny" : "",
     row.phone ? `Phone: ${row.phone}` : "",
     row.email ? `Email: ${row.email}` : "",
     row.payload?.reservation?.purpose ? `Purpose: ${row.payload.reservation.purpose}` : "",
     ...notes.map((note) => `Notes: ${note}`),
+    ...guestLines,
+    ...links.map((link) => `File: ${link}`),
   ]
     .filter(Boolean)
     .join("\n");
@@ -273,6 +452,7 @@ function eventBody(row: RequestRow) {
     end: { dateTime: dateTimeAt(date, range.end), timeZone: TZ },
     colorId: colorId(source),
     extendedProperties: { private: { requestId: String(row.id || "") } },
+    ...(attachments.length ? { attachments } : {}),
   };
 }
 
@@ -288,16 +468,17 @@ async function saveEventId(id: string, googleEventId: string | null) {
 }
 
 async function upsertEvent(token: string, row: RequestRow) {
-  const body = eventBody(row);
+  const body = await eventBody(token, row);
   if (!body || !row.id) return { action: "skip" as const };
+  const attachQuery = "?supportsAttachments=true";
   if (row.google_event_id) {
-    const patched = await gcal(token, "PATCH", `/${encodeURIComponent(row.google_event_id)}`, body);
+    const patched = await gcal(token, "PATCH", `/${encodeURIComponent(row.google_event_id)}`, body, attachQuery);
     if (patched.ok) return { action: "updated" as const, id: row.google_event_id };
     if (patched.status !== 404) {
       throw new Error(googleError(patched.data) || "Could not update Google event");
     }
   }
-  const created = await gcal(token, "POST", "", body);
+  const created = await gcal(token, "POST", "", body, attachQuery);
   const eventId = asString(created.data.id);
   if (!created.ok || !eventId) {
     throw new Error(googleError(created.data) || "Could not create Google event");
@@ -365,7 +546,7 @@ async function backfill(token: string) {
   const { data, error } = await supabase
     .from("requests")
     .select(
-      "id, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, staff_notes, google_event_id, payload"
+      "id, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, staff_notes, google_event_id, payload, files"
     )
     .eq("status", "booked")
     .not("party_date", "is", null)

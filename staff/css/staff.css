@@ -270,6 +270,18 @@ input, select, textarea {
   border: 1px solid rgba(100, 124, 110, 0.16);
   border-radius: 12px;
   padding: 16px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.stat-card:hover { background: #f4f7f4; }
+
+.stat-card.is-selected {
+  box-shadow: inset 0 0 0 2px var(--sage);
+  background: #f4f7f4;
 }
 
 .stat-card strong {
@@ -295,6 +307,10 @@ input, select, textarea {
 
 .undated-label {
   margin: 18px 0 4px;
+}
+
+.booking-list > .undated-label:first-child {
+  margin-top: 0;
 }
 
 .booking-list {
@@ -367,6 +383,12 @@ input, select, textarea {
 .dot--cancelled { background: #6b7280; }
 .dot--rejected { background: #b42318; }
 .dot--closed { background: #6941c6; }
+.dot--reservation-pending { background: #c5d6f5; box-shadow: inset 0 0 0 1px #8eacde; }
+.dot--reservation { background: #2b62c5; }
+.dot--birthday-pending { background: #cfe3d4; box-shadow: inset 0 0 0 1px #8fbf9a; }
+.dot--birthday { background: #2f6b46; }
+.dot--event { background: #6941c6; }
+.dot--cooking { background: #9a6b2f; }
 
 .badge--new { background: #e7eefc; color: #2b62c5; }
 .badge--contacted { background: #e6f4f4; color: #0e7c7b; }
@@ -433,7 +455,7 @@ input, select, textarea {
 .timeline__track {
   display: grid;
   gap: 8px;
-  min-width: 1400px;
+  min-width: 1680px;
 }
 
 .timeline__hours {
@@ -461,9 +483,40 @@ input, select, textarea {
   min-height: 42px;
 }
 
-.timeline__item.is-birthday {
-  background: #eef2ff;
-  border-color: #c7d2fe;
+.timeline__item.is-reservation.is-pending {
+  background: #c5d6f5;
+  border-color: #8eacde;
+  color: #1e3f7a;
+}
+.timeline__item.is-reservation.is-confirmed {
+  background: #2b62c5;
+  border-color: #2b62c5;
+  color: #fff;
+}
+.timeline__item.is-birthday.is-pending {
+  background: #cfe3d4;
+  border-color: #8fbf9a;
+  color: #1e3d28;
+}
+.timeline__item.is-birthday.is-confirmed {
+  background: #2f6b46;
+  border-color: #2f6b46;
+  color: #fff;
+}
+.timeline__item.is-event {
+  background: #6941c6;
+  border-color: #6941c6;
+  color: #fff;
+}
+.timeline__item.is-cooking {
+  background: repeating-linear-gradient(135deg, #9a6b2f, #9a6b2f 8px, #b8843c 8px, #b8843c 16px);
+  border-color: #9a6b2f;
+  color: #fff;
+}
+.timeline__item.is-cancelled {
+  background: #d0d5d8;
+  border-color: #c5c9cc;
+  color: #4b5563;
 }
 
 .timeline__item strong {
@@ -587,7 +640,7 @@ input, select, textarea {
 .staff-shell { max-width: 1440px; }
 
 .toolbar--inbox {
-  grid-template-columns: 1.4fr repeat(3, minmax(140px, 200px));
+  grid-template-columns: minmax(160px, 1.2fr) repeat(4, minmax(140px, 200px));
   align-items: end;
 }
 
@@ -650,10 +703,13 @@ input, select, textarea {
   text-overflow: ellipsis;
 }
 
-.cal-event.is-reservation { background: #2b62c5; }
-.cal-event.is-birthday { background: #2f6b46; }
+.cal-event.is-reservation.is-confirmed { background: #2b62c5; }
+.cal-event.is-reservation.is-pending { background: #c5d6f5; color: #1e3f7a; }
+.cal-event.is-birthday.is-confirmed { background: #2f6b46; }
+.cal-event.is-birthday.is-pending { background: #cfe3d4; color: #1e3d28; }
 .cal-event.is-event { background: #6941c6; }
 .cal-event.is-cooking { background: #9a6b2f; }
+.cal-event.is-cancelled { background: #d0d5d8; color: #4b5563; }
 .cal-more {
   background: transparent;
   color: var(--sage);
@@ -719,14 +775,20 @@ input, select, textarea {
   overflow: hidden;
 }
 
-.day-item.is-reservation,
-.pms__item.is-reservation { background: #2b62c5; }
-.day-item.is-birthday,
-.pms__item.is-birthday { background: #2f6b46; }
+.day-item.is-reservation.is-confirmed,
+.pms__item.is-reservation.is-confirmed { background: #2b62c5; }
+.day-item.is-reservation.is-pending,
+.pms__item.is-reservation.is-pending { background: #c5d6f5; color: #1e3f7a; }
+.day-item.is-birthday.is-confirmed,
+.pms__item.is-birthday.is-confirmed { background: #2f6b46; }
+.day-item.is-birthday.is-pending,
+.pms__item.is-birthday.is-pending { background: #cfe3d4; color: #1e3d28; }
 .day-item.is-event,
 .pms__item.is-event { background: #6941c6; }
 .day-item.is-cooking,
 .pms__item.is-cooking { background: repeating-linear-gradient(135deg, #9a6b2f, #9a6b2f 8px, #b8843c 8px, #b8843c 16px); }
+.day-item.is-cancelled,
+.pms__item.is-cancelled { background: #d0d5d8; color: #4b5563; }
 
 .pms__row {
   min-height: 44px;
@@ -770,6 +832,46 @@ input, select, textarea {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 12px;
+}
+
+.field-row:has(#event-date) {
+  grid-template-columns: 1.2fr 1fr 1fr;
+}
+
+.check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  margin: 0 0 10px;
+}
+
+.modal__card--wide {
+  width: min(760px, 100%);
+}
+
+.guest-list {
+  display: grid;
+  gap: 10px;
+  margin: 8px 0 10px;
+}
+
+.guest-row {
+  display: grid;
+  grid-template-columns: 1.2fr 70px 1fr 1.2fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.guest-row input {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .guest-row,
+  .field-row:has(#event-date) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .modal {

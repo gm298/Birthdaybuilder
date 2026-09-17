@@ -6,8 +6,9 @@ const TZ = "Asia/Makassar";
 const BIRTHDAY_SOURCES = ["party_builder", "cake", "pdf_quote"];
 const ALL_STATUSES = ["new", "contacted", "quoted", "booked", "cancelled", "rejected", "closed"];
 const EVENT_STATUSES = ["booked", "cancelled", "closed"];
+const PENDING_STATUSES = ["new", "contacted", "quoted"];
 const REQUEST_SELECT =
-  "id, created_at, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload, google_event_id";
+  "id, created_at, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload, files, google_event_id";
 
 const loginCard = document.getElementById("login-card");
 const app = document.getElementById("app");
@@ -18,14 +19,18 @@ const loginStatus = document.getElementById("login-status");
 const viewNav = document.getElementById("view-nav");
 const pageTitle = document.getElementById("page-title");
 const blockModal = document.getElementById("block-modal");
+const eventModal = document.getElementById("event-modal");
 
-const VIEWS = ["overview", "calendar", "day", "timeline", "tables"];
+const VIEWS = ["overview", "calendar", "day", "timeline", "tables", "events"];
+const STAFF_DAY_START = 8 * 60;
+const STAFF_DAY_END = 21 * 60;
 
 const state = {
   rows: [],
   view: "overview",
   lastView: "overview",
   selectedDate: todayIso(),
+  dateMode: "all",
   calendarMonth: todayIso().slice(0, 7),
   filters: { type: "all", status: "all" },
 };
@@ -63,6 +68,17 @@ function formatWhen(iso) {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+  });
+}
+
+function formatShortDate(iso) {
+  if (!iso) return "No date";
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    timeZone: "UTC",
   });
 }
 
@@ -116,6 +132,11 @@ function displayName(row) {
 }
 
 function displayGuests(row) {
+  const eventGuests = row.payload?.event?.guests;
+  if (Array.isArray(eventGuests) && eventGuests.length) {
+    const pax = eventGuests.reduce((sum, guest) => sum + (Number(guest.pax) || 0), 0);
+    return `${eventGuests.length} name${eventGuests.length === 1 ? "" : "s"} · ${pax} pax`;
+  }
   const kids = row.guest_kids ? `${row.guest_kids} kids` : "";
   const adults = row.guest_adults ? `${row.guest_adults} adults` : "";
   const joined = [kids, adults].filter(Boolean).join(" · ");
@@ -125,7 +146,22 @@ function displayGuests(row) {
 }
 
 function tableText(row) {
+  if (row.payload?.event?.location === "masterclass") return "Masterclass";
+  if (row.payload?.event?.fullTerrace) return "Full terrace";
   return row.payload?.reservation?.tableLabel || row.package_name || "Table TBC";
+}
+
+function visualKind(row) {
+  if (row?.synthetic) return "cooking";
+  return eventType(row);
+}
+
+function visualClass(row) {
+  const kind = visualKind(row);
+  if (row?.synthetic) return `is-${kind} is-confirmed`;
+  if (row.status === "cancelled" || row.status === "rejected") return `is-${kind} is-cancelled`;
+  if (row.status === "booked" || row.status === "closed") return `is-${kind} is-confirmed`;
+  return `is-${kind} is-pending`;
 }
 
 function displaySubtitle(row) {
@@ -263,11 +299,18 @@ function cookingRow(iso) {
   };
 }
 
+function matchesType(row) {
+  return state.filters.type === "all" || eventType(row) === state.filters.type;
+}
+
+function matchesStatus(row) {
+  if (state.filters.status === "all") return true;
+  if (state.filters.status === "pending") return PENDING_STATUSES.includes(row.status);
+  return row.status === state.filters.status;
+}
+
 function matchesFilters(row) {
-  const type = eventType(row);
-  if (state.filters.type !== "all" && type !== state.filters.type) return false;
-  if (state.filters.status !== "all" && row.status !== state.filters.status) return false;
-  return true;
+  return matchesType(row) && matchesStatus(row);
 }
 
 function filteredRows() {
@@ -281,8 +324,34 @@ function rowsOnDate(iso) {
   return rows;
 }
 
+function overviewDated(pred) {
+  const today = todayIso();
+  return state.rows
+    .filter(pred)
+    .filter((row) => {
+      if (!row.party_date) return false;
+      if (state.dateMode === "upcoming") return row.party_date >= today;
+      if (state.dateMode === "day") return row.party_date === state.selectedDate;
+      return true;
+    })
+    .slice()
+    .sort((a, b) => {
+      const byDate = String(a.party_date).localeCompare(String(b.party_date));
+      if (byDate) return byDate;
+      return timeLabel(a.party_time).localeCompare(timeLabel(b.party_time));
+    });
+}
+
+function overviewUndated(pred) {
+  return state.rows.filter(pred).filter((row) => !row.party_date);
+}
+
+function overviewRows() {
+  return overviewDated(matchesFilters);
+}
+
 function undatedRows() {
-  return filteredRows().filter((row) => !row.party_date);
+  return overviewUndated(matchesFilters);
 }
 
 function parseHash() {
@@ -367,22 +436,36 @@ function renderNav(view) {
     });
   }
   if (pageTitle && view !== "detail" && view !== "cooking") {
-    pageTitle.textContent = "Inbox";
+    pageTitle.textContent = view === "events" ? "Events" : "Inbox";
   }
 }
 
 function syncFilterInputs() {
   const dateInput = document.getElementById("inbox-date");
+  const dateWrap = document.getElementById("inbox-date-wrap");
+  const modeInput = document.getElementById("filter-date-mode");
+  const modeWrap = document.getElementById("filter-date-mode-wrap");
   const typeInput = document.getElementById("filter-type");
   const statusInput = document.getElementById("filter-status");
   const label = document.getElementById("selected-date-label");
+  const onOverview = state.view === "overview";
+  if (modeWrap) modeWrap.hidden = !onOverview;
+  if (modeInput) modeInput.value = state.dateMode;
+  if (dateWrap) dateWrap.hidden = onOverview && state.dateMode !== "day";
   if (dateInput) dateInput.value = state.selectedDate;
   if (typeInput) typeInput.value = state.filters.type;
   if (statusInput) statusInput.value = state.filters.status;
-  if (label) label.textContent = formatLongDate(state.selectedDate);
+  if (label) {
+    if (onOverview && state.dateMode === "all") label.textContent = "All requests";
+    else if (onOverview && state.dateMode === "upcoming") label.textContent = `From ${formatLongDate(todayIso())}`;
+    else label.textContent = formatLongDate(state.selectedDate);
+  }
 }
 
-function bookingCard(row) {
+function bookingCard(row, opts = {}) {
+  const dateLine = opts.showDate
+    ? `<div class="muted">${escapeHtml(row.party_date ? formatShortDate(row.party_date) : "No date")}</div>`
+    : "";
   return `<button class="booking-card" type="button" data-open="${escapeHtml(row.synthetic ? `cooking/${row.party_date}` : `request/${row.id}`)}">
     <div>
       <div class="code">${escapeHtml(row.public_code)}</div>
@@ -394,6 +477,7 @@ function bookingCard(row) {
       <div class="muted">${escapeHtml(typeLabel(eventType(row)))} · ${escapeHtml(displaySubtitle(row))}</div>
     </div>
     <div class="time">${escapeHtml(slotRange(row))}
+      ${dateLine}
       <div class="muted">${escapeHtml(displayGuests(row))}</div>
     </div>
   </button>`;
@@ -401,38 +485,74 @@ function bookingCard(row) {
 
 function renderOverview() {
   syncFilterInputs();
-  const rows = rowsOnDate(state.selectedDate);
+  const dated = overviewRows();
+  const showDate = state.dateMode !== "day";
+  const undated = undatedRows();
+  const visible = dated.concat(undated);
+  const statPool = overviewDated(matchesType).concat(overviewUndated(matchesType));
+  const selectedFilter = state.filters.status;
   const stats = [
-    ["booked", "Confirmed", countBy(rows, (r) => r.status === "booked")],
-    ["new", "New booking", countBy(rows, (r) => ["new", "contacted", "quoted"].includes(r.status))],
-    ["cancelled", "Cancelled", countBy(rows, (r) => r.status === "cancelled")],
-    ["rejected", "Rejected", countBy(rows, (r) => r.status === "rejected")],
-    ["closed", "Finished", countBy(rows, (r) => r.status === "closed")],
-    ["total", "Total", rows.length],
+    ["booked", "booked", "Confirmed", countBy(statPool, (r) => r.status === "booked")],
+    ["new", "pending", "New booking", countBy(statPool, (r) => PENDING_STATUSES.includes(r.status))],
+    ["cancelled", "cancelled", "Cancelled", countBy(statPool, (r) => r.status === "cancelled")],
+    ["rejected", "rejected", "Rejected", countBy(statPool, (r) => r.status === "rejected")],
+    ["closed", "closed", "Finished", countBy(statPool, (r) => r.status === "closed")],
+    ["total", "all", "Total", statPool.length],
   ];
   document.getElementById("stat-grid").innerHTML = stats
-    .map(
-      ([key, labelText, count]) =>
-        `<article class="stat-card is-${key}"><strong>${count}</strong><span>${labelText}</span></article>`
-    )
+    .map(([key, filter, labelText, count]) => {
+      const selected = selectedFilter === filter;
+      return `<button class="stat-card is-${key}${selected ? " is-selected" : ""}" type="button" data-status-filter="${filter}" aria-pressed="${selected}">
+        <strong>${count}</strong><span>${labelText}</span>
+      </button>`;
+    })
     .join("");
-  const undated = undatedRows();
   const list = document.getElementById("booking-list");
+  const emptyText =
+    state.dateMode === "upcoming"
+      ? "No bookings from today onwards."
+      : state.dateMode === "all"
+        ? "No bookings yet."
+        : "No bookings on this date.";
+  let body = "";
+  if (showDate) {
+    const groups = [];
+    const seen = new Map();
+    dated.forEach((row) => {
+      const key = row.party_date || "";
+      if (!seen.has(key)) {
+        const group = { date: key, rows: [] };
+        seen.set(key, group);
+        groups.push(group);
+      }
+      seen.get(key).rows.push(row);
+    });
+    body = groups
+      .map(
+        (group) =>
+          `<p class="date-label undated-label">${escapeHtml(formatLongDate(group.date))}</p>${group.rows
+            .map((row) => bookingCard(row, { showDate: true }))
+            .join("")}`
+      )
+      .join("");
+  } else if (dated.length) {
+    body = dated
+      .slice()
+      .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)))
+      .map((row) => bookingCard(row))
+      .join("");
+  }
   list.innerHTML = [
-    rows.length
-      ? rows
-          .slice()
-          .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)))
-          .map(bookingCard)
-          .join("")
-      : `<p class="muted">No bookings on this date.</p>`,
+    body || (undated.length ? "" : `<p class="muted">${emptyText}</p>`),
     undated.length
-      ? `<p class="date-label undated-label">No date yet</p>${undated.map(bookingCard).join("")}`
+      ? `<p class="date-label undated-label">No date yet</p>${undated.map((row) => bookingCard(row, { showDate })).join("")}`
       : "",
   ].join("");
-  document.getElementById("overview-status").textContent = `${rows.length} booking${
-    rows.length === 1 ? "" : "s"
-  }`;
+  const suffix =
+    state.dateMode === "upcoming" ? " from today" : state.dateMode === "all" ? "" : "";
+  document.getElementById("overview-status").textContent = `${visible.length} booking${
+    visible.length === 1 ? "" : "s"
+  }${suffix}`;
 }
 
 function monthCells(yearMonth) {
@@ -480,12 +600,14 @@ function renderCalendar() {
     timeZone: "UTC",
   });
   document.getElementById("cal-legend").innerHTML = [
+    ["reservation-pending", "Reservation (unconfirmed)"],
     ["reservation", "Reservation"],
+    ["birthday-pending", "Birthday (unconfirmed)"],
     ["birthday", "Birthday"],
     ["event", "Event"],
     ["cooking", "Cooking class"],
   ]
-    .map(([kind, text]) => `<span><span class="dot dot--${kind === "cooking" ? "quoted" : kind === "event" ? "closed" : kind === "birthday" ? "booked" : "new"}"></span> ${text}</span>`)
+    .map(([kind, text]) => `<span><span class="dot dot--${kind}"></span> ${text}</span>`)
     .join("");
   const heads = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
     .map((name) => `<div class="cal-cell is-head">${name}</div>`)
@@ -507,8 +629,7 @@ function renderCalendar() {
       const extra = rows.length - shown.length;
       const events = shown
         .map((row) => {
-          const kind = row.synthetic ? "cooking" : eventType(row);
-          return `<button class="cal-event is-${kind}" type="button" data-open="${escapeHtml(openTarget(row).slice(2))}">${escapeHtml(
+          return `<button class="cal-event ${visualClass(row)}" type="button" data-open="${escapeHtml(openTarget(row).slice(2))}">${escapeHtml(
             `${timeLabel(row.party_time)} ${displayName(row)}`
           )}</button>`;
         })
@@ -525,9 +646,8 @@ function renderCalendar() {
 }
 
 function hourMarks() {
-  const Map = window.TinyReserveMap;
-  const dayStart = Map?.DAY_START ?? 7 * 60 + 30;
-  const dayEnd = Map?.DAY_END ?? 19 * 60;
+  const dayStart = STAFF_DAY_START;
+  const dayEnd = STAFF_DAY_END;
   const slots = [];
   for (let minutes = dayStart; minutes <= dayEnd; minutes += 60) {
     const hour = Math.floor(minutes / 60);
@@ -538,6 +658,20 @@ function hourMarks() {
     });
   }
   return { dayStart, dayEnd, span: dayEnd - dayStart, slots };
+}
+
+function clampOccupy(range, dayStart, span) {
+  const start = Math.max(range.start ?? dayStart, dayStart);
+  const end = Math.max(start + 15, Math.min(range.end ?? start + 60, dayStart + span));
+  const pct = (value) => ((value - dayStart) / span) * 100;
+  return {
+    start,
+    end,
+    left: pct(start),
+    width: Math.max(2, pct(end) - pct(start)),
+    top: pct(start),
+    height: Math.max(4, pct(end) - pct(start)),
+  };
 }
 
 function renderDay() {
@@ -551,11 +685,8 @@ function renderDay() {
   const height = Math.max(640, span * 1.2);
   const items = rows
     .map((row) => {
-      const range = rowOccupy(row) || { start: dayStart, end: dayStart + 60 };
-      const top = ((range.start - dayStart) / span) * 100;
-      const blockHeight = Math.max(4, ((range.end - range.start) / span) * 100);
-      const kind = row.synthetic ? "cooking" : eventType(row);
-      return `<button class="day-item is-${kind}" type="button" data-open="${escapeHtml(openTarget(row).slice(2))}" style="top:${top}%;height:${blockHeight}%">
+      const box = clampOccupy(rowOccupy(row) || { start: dayStart, end: dayStart + 60 }, dayStart, span);
+      return `<button class="day-item ${visualClass(row)}" type="button" data-open="${escapeHtml(openTarget(row).slice(2))}" style="top:${box.top}%;height:${box.height}%">
         <strong>${escapeHtml(slotRange(row))}</strong><br>${escapeHtml(displayName(row))} · ${escapeHtml(displaySubtitle(row))}
       </button>`;
     })
@@ -612,12 +743,10 @@ function renderTimeline() {
           packed.length
             ? packed
                 .map((item) => {
-                  const left = ((item.range.start - dayStart) / span) * 100;
-                  const width = ((item.range.end - item.range.start) / span) * 100;
-                  const kind = item.row.synthetic ? "event" : occupyKind(item.row);
-                  return `<button class="timeline__item is-${kind}" type="button" data-open="${escapeHtml(
+                  const box = clampOccupy(item.range, dayStart, span);
+                  return `<button class="timeline__item ${visualClass(item.row)}" type="button" data-open="${escapeHtml(
                     openTarget(item.row).slice(2)
-                  )}" style="left:${left}%;width:${width}%;top:calc(${item.lane} * 46px)">
+                  )}" style="left:${box.left}%;width:${box.width}%;top:calc(${item.lane} * 46px)">
                     <strong>${escapeHtml(slotRange(item.row))}</strong>
                     ${escapeHtml(displayName(item.row))} · ${escapeHtml(displaySubtitle(item.row))}
                     · ${escapeHtml(displayGuests(item.row))}
@@ -665,13 +794,10 @@ function renderTables() {
       const items = rows
         .filter((row) => (row.payload?.reservation?.tableIds || []).includes(table.id))
         .map((row) => {
-          const range = rowOccupy(row) || { start: dayStart, end: dayStart + 60 };
-          const left = ((range.start - dayStart) / span) * 100;
-          const width = Math.max(4, ((range.end - range.start) / span) * 100);
-          const kind = row.synthetic ? "cooking" : eventType(row);
-          return `<button class="pms__item is-${kind}" type="button" data-open="${escapeHtml(
+          const box = clampOccupy(rowOccupy(row) || { start: dayStart, end: dayStart + 60 }, dayStart, span);
+          return `<button class="pms__item ${visualClass(row)}" type="button" data-open="${escapeHtml(
             openTarget(row).slice(2)
-          )}" style="left:${left}%;width:${width}%" title="${escapeHtml(displayName(row))}">${escapeHtml(
+          )}" style="left:${box.left}%;width:${box.width}%" title="${escapeHtml(displayName(row))}">${escapeHtml(
             displayName(row)
           )}</button>`;
         })
@@ -711,6 +837,212 @@ function openBlockModal(opts = {}) {
 
 function closeBlockModal() {
   blockModal.hidden = true;
+}
+
+function guestRowHtml(guest = {}) {
+  return `<div class="guest-row">
+    <input type="text" name="guest-name" placeholder="Name" value="${escapeHtml(guest.name || "")}">
+    <input type="number" name="guest-pax" min="1" placeholder="PAX" value="${escapeHtml(guest.pax || 1)}">
+    <input type="tel" name="guest-phone" placeholder="Phone" value="${escapeHtml(guest.phone || "")}">
+    <input type="email" name="guest-email" placeholder="Email" value="${escapeHtml(guest.email || "")}">
+    <input type="text" name="guest-notes" placeholder="Notes" value="${escapeHtml(guest.notes || "")}">
+    <button class="btn btn--outline" type="button" data-remove-guest>Remove</button>
+  </div>`;
+}
+
+function readGuestList() {
+  return [...document.querySelectorAll("#event-guests .guest-row")]
+    .map((row) => ({
+      name: row.querySelector('[name="guest-name"]')?.value.trim() || "",
+      pax: Number(row.querySelector('[name="guest-pax"]')?.value) || 1,
+      phone: row.querySelector('[name="guest-phone"]')?.value.trim() || "",
+      email: row.querySelector('[name="guest-email"]')?.value.trim() || "",
+      notes: row.querySelector('[name="guest-notes"]')?.value.trim() || "",
+    }))
+    .filter((guest) => guest.name || guest.phone || guest.email);
+}
+
+function fillEventTableList(selected = []) {
+  const host = document.getElementById("event-table-list");
+  if (!host) return;
+  const Map = window.TinyReserveMap;
+  const picked = new Set(selected);
+  host.innerHTML = (Map?.TABLES || [])
+    .map(
+      (table) =>
+        `<label><input type="checkbox" name="event-table" value="${escapeHtml(table.id)}"${
+          picked.has(table.id) ? " checked" : ""
+        }> ${table.area === "indoor" ? "Indoor" : "Terrace"} ${table.number}</label>`
+    )
+    .join("");
+}
+
+function syncEventLocationFields() {
+  const location = document.getElementById("event-location")?.value || "service";
+  const service = document.getElementById("event-service-fields");
+  if (service) service.hidden = location !== "service";
+}
+
+function applyFullTerrace() {
+  const full = document.getElementById("event-full-terrace")?.checked;
+  if (!full) return;
+  const terrace = new Set(window.TinyReserveMap?.terraceTableIds?.() || []);
+  document.querySelectorAll('input[name="event-table"]').forEach((input) => {
+    input.checked = terrace.has(input.value);
+  });
+}
+
+function openEventModal(opts = {}) {
+  document.getElementById("event-name").value = opts.name || "";
+  document.getElementById("event-date").value = opts.date || state.selectedDate;
+  document.getElementById("event-start").value = opts.start || "14:00";
+  document.getElementById("event-end").value = opts.end || "17:00";
+  document.getElementById("event-location").value = opts.location || "service";
+  document.getElementById("event-full-terrace").checked = Boolean(opts.fullTerrace);
+  document.getElementById("event-notes").value = opts.notes || "";
+  document.getElementById("event-photos").value = "";
+  const payment = opts.payment === "vendor" ? "vendor" : "tiny";
+  document.querySelectorAll('input[name="event-payment"]').forEach((input) => {
+    input.checked = input.value === payment;
+  });
+  fillEventTableList(opts.tableIds || []);
+  document.getElementById("event-guests").innerHTML = (opts.guests?.length ? opts.guests : [{}]).map(guestRowHtml).join("");
+  document.getElementById("event-status").textContent = "";
+  document.getElementById("event-status").className = "status";
+  syncEventLocationFields();
+  if (opts.fullTerrace) applyFullTerrace();
+  eventModal.hidden = false;
+}
+
+function closeEventModal() {
+  eventModal.hidden = true;
+}
+
+function renderEvents() {
+  syncFilterInputs();
+  const rows = state.rows
+    .filter((row) => row.source === "event")
+    .filter(matchesStatus)
+    .filter((row) => row.party_date === state.selectedDate)
+    .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)));
+  document.getElementById("events-count").textContent = `${rows.length} event${
+    rows.length === 1 ? "" : "s"
+  } on this date`;
+  const list = document.getElementById("events-list");
+  list.innerHTML = rows.length
+    ? rows.map((row) => bookingCard(row)).join("")
+    : `<p class="muted">No events on this date. Add one to block tables, keep a guest list, and push it to Google Calendar.</p>`;
+}
+
+async function uploadEventPhotos(requestId, fileList) {
+  const files = [...(fileList || [])];
+  const paths = [];
+  for (const file of files) {
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `${requestId}/event/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from("request-files").upload(path, file, {
+      contentType: file.type || "image/jpeg",
+      upsert: false,
+    });
+    if (error) throw error;
+    paths.push(path);
+  }
+  return paths;
+}
+
+async function saveStaffEvent() {
+  const statusEl = document.getElementById("event-status");
+  const name = document.getElementById("event-name")?.value.trim() || "";
+  const date = document.getElementById("event-date")?.value;
+  const start = document.getElementById("event-start")?.value;
+  const end = document.getElementById("event-end")?.value;
+  const location = document.getElementById("event-location")?.value || "service";
+  const fullTerrace = Boolean(document.getElementById("event-full-terrace")?.checked);
+  const notes = document.getElementById("event-notes")?.value.trim() || "";
+  const payment = document.querySelector('input[name="event-payment"]:checked')?.value || "tiny";
+  const photos = document.getElementById("event-photos")?.files;
+  const guests = readGuestList();
+  const Map = window.TinyReserveMap;
+  let tableIds = [...document.querySelectorAll('input[name="event-table"]:checked')].map((input) => input.value);
+  if (location === "masterclass") tableIds = [];
+  else if (fullTerrace) tableIds = Map?.terraceTableIds?.() || tableIds;
+  if (!name || !date || !start || !end) {
+    statusEl.textContent = "Name, date, and time are required.";
+    statusEl.className = "status is-error";
+    return;
+  }
+  if (location === "service" && !tableIds.length) {
+    statusEl.textContent = "Pick tables to block, or choose full terrace.";
+    statusEl.className = "status is-error";
+    return;
+  }
+  const tables = tableIds.map((id) => Map.findTable(id)).filter(Boolean);
+  const tableLabel =
+    location === "masterclass" ? "Masterclass" : fullTerrace ? "Full terrace" : Map.tableLabel(tables);
+  const pax = guests.reduce((sum, guest) => sum + (Number(guest.pax) || 0), 0) || null;
+  const { data: sessionData } = await supabase.auth.getSession();
+  const user = sessionData.session?.user;
+  const code = `EVT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  statusEl.textContent = "Saving event…";
+  statusEl.className = "status";
+  const { data, error } = await supabase
+    .from("requests")
+    .insert({
+      source: "event",
+      status: "booked",
+      public_code: code,
+      email: guests.find((guest) => guest.email)?.email || user?.email || "events@tinyhealthycafe.com",
+      phone: guests.find((guest) => guest.phone)?.phone || null,
+      contact_name: name,
+      party_date: date,
+      party_time: start,
+      package_name: tableLabel,
+      guest_adults: pax,
+      payload: {
+        event: {
+          name,
+          notes,
+          location,
+          fullTerrace: location === "service" && fullTerrace,
+          payment,
+          guests,
+        },
+        reservation: {
+          name,
+          tableIds,
+          tableNumbers: tables.map((table) => table.number),
+          tableLabel,
+          area: location === "masterclass" ? "masterclass" : tables[0]?.area || "terrace",
+          endTime: end,
+          notes,
+        },
+      },
+    })
+    .select("id")
+    .single();
+  if (error || !data?.id) {
+    statusEl.textContent = error?.message || "Could not save event.";
+    statusEl.className = "status is-error";
+    return;
+  }
+  try {
+    const eventPhotos = await uploadEventPhotos(data.id, photos);
+    if (eventPhotos.length) {
+      const { error: fileError } = await supabase
+        .from("requests")
+        .update({ files: { eventPhotos } })
+        .eq("id", data.id);
+      if (fileError) throw fileError;
+    }
+  } catch (err) {
+    statusEl.textContent = `Event saved, but photos did not upload: ${err.message || err}`;
+    statusEl.className = "status is-error";
+    return;
+  }
+  closeEventModal();
+  state.selectedDate = date;
+  await loadRows();
+  showInbox("events");
 }
 
 function minutesToTime(minutes) {
@@ -810,6 +1142,8 @@ async function loadDetail(id) {
     signedUrl(files.backdropPng),
     signedUrl(files.cakePhoto),
   ]);
+  const eventPhotoPaths = files.eventPhotos || [];
+  const eventPhotoUrls = await Promise.all(eventPhotoPaths.map((path) => signedUrl(path)));
   const printEntries = Object.entries(files.prints || {});
   const printUrls = await Promise.all(printEntries.map(([, path]) => signedUrl(path)));
   const lines = (quote.lines || [])
@@ -858,7 +1192,7 @@ async function loadDetail(id) {
         ${row.phone ? `<a class="btn btn--outline" href="tel:${escapeHtml(row.phone)}">${escapeHtml(row.phone)}</a>` : ""}
         ${wa ? `<a class="btn" href="${escapeHtml(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
         ${pdfUrl ? `<a class="btn btn--outline" href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF quotation</a>` : ""}
-        ${isEvent ? `<button class="btn btn--outline" type="button" id="delete-event">Remove block</button>` : ""}
+        ${isEvent ? `<button class="btn btn--outline" type="button" id="delete-event">Remove event</button>` : ""}
       </div>
       <div class="detail-grid">
         <section>
@@ -880,7 +1214,14 @@ async function loadDetail(id) {
             <li><span>Guests</span><span>${escapeHtml(displayGuests(row))}</span></li>
             <li><span>Tables</span><span>${escapeHtml(tableText(row))}</span></li>
             ${
-              isReservation
+              isEvent
+                ? `<li><span>Location</span><span>${escapeHtml(
+                    payload.event?.location === "masterclass" ? "In masterclass" : "In service area"
+                  )}</span></li>
+                   <li><span>Payment</span><span>${escapeHtml(
+                     payload.event?.payment === "vendor" ? "By vendor" : "By Tiny"
+                   )}</span></li>`
+                : isReservation
                 ? `<li><span>Purpose</span><span>${escapeHtml(reservation.purpose || "—")}</span></li>`
                 : type === "birthday"
                   ? `<li><span>Package</span><span>${escapeHtml(row.package_name || "—")}</span></li>
@@ -896,6 +1237,39 @@ async function loadDetail(id) {
             ? `<section>
           <h3>Table layout</h3>
           <div class="staff-plan" id="staff-detail-plan"></div>
+        </section>`
+            : ""
+        }
+        ${
+          isEvent
+            ? `<section>
+          <h3>Guest list</h3>
+          ${
+            (payload.event?.guests || []).length
+              ? `<ul class="kv">${payload.event.guests
+                  .map(
+                    (guest) =>
+                      `<li><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</span><span>${escapeHtml(
+                        [guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—"
+                      )}</span></li>`
+                  )
+                  .join("")}</ul>`
+              : `<p class="muted">No guests added.</p>`
+          }
+        </section>
+        <section>
+          <h3>Pictures</h3>
+          <div class="media-row">
+            ${
+              eventPhotoUrls.filter(Boolean).length
+                ? eventPhotoUrls
+                    .map((url, i) =>
+                      url ? `<img src="${escapeHtml(url)}" alt="Event picture ${i + 1}">` : ""
+                    )
+                    .join("")
+                : `<p class="muted">No pictures uploaded.</p>`
+            }
+          </div>
         </section>`
             : ""
         }
@@ -997,7 +1371,7 @@ async function loadDetail(id) {
     }
   });
   document.getElementById("delete-event")?.addEventListener("click", async () => {
-    if (!window.confirm("Remove this table block?")) return;
+    if (!window.confirm("Remove this event?")) return;
     const { error: delError } = await supabase.from("requests").delete().eq("id", row.id).eq("source", "event");
     const statusEl = document.getElementById("detail-status");
     if (delError) {
@@ -1022,12 +1396,14 @@ function showInbox(view) {
   document.getElementById("day-view").hidden = view !== "day";
   document.getElementById("timeline-view").hidden = view !== "timeline";
   document.getElementById("tables-view").hidden = view !== "tables";
+  document.getElementById("events-view").hidden = view !== "events";
   renderNav(view);
   if (view === "overview") renderOverview();
   if (view === "calendar") renderCalendar();
   if (view === "day") renderDay();
   if (view === "timeline") renderTimeline();
   if (view === "tables") renderTables();
+  if (view === "events") renderEvents();
 }
 
 async function route() {
@@ -1085,6 +1461,13 @@ signOutBtn?.addEventListener("click", async () => {
 });
 
 document.getElementById("inbox-views")?.addEventListener("click", (e) => {
+  const statusCard = e.target.closest("[data-status-filter]");
+  if (statusCard) {
+    e.preventDefault();
+    state.filters.status = statusCard.dataset.statusFilter || "all";
+    showInbox("overview");
+    return;
+  }
   const open = e.target.closest("[data-open]");
   if (open) {
     e.preventDefault();
@@ -1113,8 +1496,15 @@ document.getElementById("inbox-views")?.addEventListener("click", (e) => {
 document.getElementById("inbox-date")?.addEventListener("change", (e) => {
   state.selectedDate = e.target.value || todayIso();
   state.calendarMonth = state.selectedDate.slice(0, 7);
+  if (state.view === "overview") state.dateMode = "day";
   if (state.view === "day") go(`day/${state.selectedDate}`);
   else showInbox(state.view);
+});
+
+document.getElementById("filter-date-mode")?.addEventListener("change", (e) => {
+  state.dateMode = e.target.value || "all";
+  if (state.dateMode === "day" && !state.selectedDate) state.selectedDate = todayIso();
+  showInbox(state.view);
 });
 
 document.getElementById("filter-type")?.addEventListener("change", (e) => {
@@ -1144,9 +1534,33 @@ document.getElementById("block-tables")?.addEventListener("click", () => {
   openBlockModal({ date: state.selectedDate });
 });
 
+document.getElementById("add-event")?.addEventListener("click", () => {
+  openEventModal({ date: state.selectedDate });
+});
+
 document.getElementById("block-cancel")?.addEventListener("click", closeBlockModal);
 blockModal?.addEventListener("click", (e) => {
   if (e.target === blockModal) closeBlockModal();
+});
+document.getElementById("event-cancel")?.addEventListener("click", closeEventModal);
+eventModal?.addEventListener("click", (e) => {
+  if (e.target === eventModal) closeEventModal();
+});
+document.getElementById("event-location")?.addEventListener("change", syncEventLocationFields);
+document.getElementById("event-full-terrace")?.addEventListener("change", applyFullTerrace);
+document.getElementById("event-guest-add")?.addEventListener("click", () => {
+  document.getElementById("event-guests")?.insertAdjacentHTML("beforeend", guestRowHtml());
+});
+document.getElementById("event-guests")?.addEventListener("click", (e) => {
+  if (!e.target.closest("[data-remove-guest]")) return;
+  const row = e.target.closest(".guest-row");
+  const host = document.getElementById("event-guests");
+  row?.remove();
+  if (host && !host.querySelector(".guest-row")) host.insertAdjacentHTML("beforeend", guestRowHtml());
+});
+document.getElementById("event-form")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  await saveStaffEvent();
 });
 
 document.getElementById("block-form")?.addEventListener("submit", async (e) => {

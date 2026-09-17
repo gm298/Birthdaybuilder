@@ -5,7 +5,7 @@ Confirmed requests (`status = booked` with a date and time) sync to one shared *
 ## 1. Google Cloud + calendar (one-time)
 
 1. Open [Google Cloud Console](https://console.cloud.google.com/) and create a project (or reuse Tiny’s).
-2. Enable **Google Calendar API**.
+2. Enable **Google Calendar API** and **Google Drive API** (Drive is used to attach birthday quotation PDFs and event pictures).
 3. **IAM & Admin → Service accounts → Create**. Skip optional permissions. Open the account → **Keys → Add key → JSON** and download the file.
 4. In [Google Calendar](https://calendar.google.com), create a calendar named **Tiny Bookings**.
 5. Calendar settings → **Share with specific people** → add the service account email (`…@….iam.gserviceaccount.com`) with **Make changes to events**.
@@ -71,6 +71,7 @@ Or in Google Calendar: repeating event **Saturday 14:00–17:00**, title `Cookin
 ## What syncs
 
 - **Creates / updates** when `status = booked` and `party_date` + `party_time` are set (reservations, birthday parties, events, cake/PDF with a time).
+- **Attaches** the birthday quotation PDF and any event pictures to the Google event (via Drive). File links are also added to the event description.
 - **Deletes** the Google event when status becomes `cancelled` or `rejected`, or the row is deleted.
 - **Keeps** the Google event when status is `closed` (finished).
 - Times match staff occupy windows: reservations 3 hours, birthdays 4 hours, events use the block end time.
