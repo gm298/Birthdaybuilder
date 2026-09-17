@@ -152,19 +152,33 @@ input, select, textarea {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0;
+  border: 1px solid rgba(100, 124, 110, 0.18);
+  border-radius: 8px;
+  overflow: hidden;
 }
 
 .quote-list li, .kv li {
   display: flex;
   justify-content: space-between;
   gap: 16px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(100, 124, 110, 0.16);
+  background: var(--white);
+}
+
+.quote-list li:nth-child(even),
+.kv li:nth-child(even) {
+  background: var(--cream);
+}
+
+.quote-list li:last-child,
+.kv li:last-child {
+  border-bottom: 0;
 }
 
 .quote-list .is-total {
   font-weight: 700;
-  border-top: 1px solid rgba(100, 124, 110, 0.2);
-  padding-top: 8px;
 }
 
 .media-row {
@@ -716,13 +730,113 @@ input, select, textarea {
   padding: 0 6px;
 }
 
-.day-head,
-.tables-toolbar {
+.day-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.tables-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.tables-time {
+  min-width: 260px;
+  flex: 1;
+}
+
+.tables-time input[type="range"] {
+  padding: 0;
+  accent-color: var(--deep);
+}
+
+.tables-floor .table-hit {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.quote-editor {
+  display: grid;
+  gap: 8px;
+}
+
+.quote-line {
+  display: grid;
+  grid-template-columns: 1.4fr 72px 120px 110px auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.quote-line input[type="hidden"] {
+  display: none;
+}
+
+.quote-line-total {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.colour-row {
+  display: grid;
+  grid-template-columns: 1fr 56px auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.colour-row input[type="hidden"] {
+  display: none;
+}
+
+.colour-row input[type="color"] {
+  padding: 2px;
+  height: 40px;
+}
+
+.colour-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(44, 58, 50, 0.35);
+  margin-right: 6px;
+  vertical-align: middle;
+}
+
+.payment-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.payment-card {
+  border: 1px solid rgba(100, 124, 110, 0.18);
+  border-radius: 10px;
+  padding: 16px;
+  background: var(--cream);
+}
+
+.payment-card h3 { margin-top: 0; }
+
+@media (max-width: 900px) {
+  .quote-line,
+  .payment-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.quote-totals {
+  margin-top: 8px;
+}
+
+.invoice-preview {
+  display: none;
 }
 
 .day-board,

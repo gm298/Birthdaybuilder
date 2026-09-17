@@ -29,6 +29,7 @@ type RequestRow = {
   google_event_id?: string | null;
   files?: {
     quotePdf?: string;
+    invoicePdf?: string;
     eventPhotos?: string[];
   } | null;
   payload?: {
@@ -48,8 +49,13 @@ type RequestRow = {
       fullTerrace?: boolean;
       payment?: string;
       guests?: { name?: string; pax?: number; phone?: string; email?: string; notes?: string }[];
+      repeat?: { freq?: string; until?: string; interval?: number };
     };
-    party?: { notes?: string; foodNotes?: string };
+    party?: { notes?: string; foodNotes?: string; guests?: { name?: string; pax?: number; phone?: string; email?: string; notes?: string }[] };
+    payment?: {
+      deposit?: { status?: string; method?: string; paidOn?: string; notes?: string; amount?: number };
+      balance?: { status?: string; method?: string; paidOn?: string; notes?: string; amount?: number };
+    };
   } | null;
 };
 
@@ -184,13 +190,17 @@ function relevantSnapshot(row: RequestRow | null | undefined) {
     email: row.email,
     staff_notes: row.staff_notes,
     tableLabel: reservation.tableLabel,
+    tableIds: reservation.tableIds || [],
     endTime: reservation.endTime,
     notes: reservation.notes || row.payload?.event?.notes || row.payload?.party?.notes,
     location: row.payload?.event?.location || reservation.area,
-    payment: row.payload?.event?.payment,
-    guests: row.payload?.event?.guests,
+    eventPayment: row.payload?.event?.payment,
+    guests: row.payload?.event?.guests || row.payload?.party?.guests,
     quotePdf: row.files?.quotePdf || "",
+    invoicePdf: row.files?.invoicePdf || "",
     eventPhotos: row.files?.eventPhotos || [],
+    repeat: row.payload?.event?.repeat || null,
+    payment: row.payload?.payment || null,
   });
 }
 
@@ -369,6 +379,7 @@ function attachmentPaths(row: RequestRow) {
   const files = row.files || {};
   const items: { path: string; title: string }[] = [];
   if (files.quotePdf) items.push({ path: files.quotePdf, title: `${row.id}-quotation.pdf` });
+  if (files.invoicePdf) items.push({ path: files.invoicePdf, title: `${row.id}-invoice.pdf` });
   (files.eventPhotos || []).forEach((path, index) => {
     const ext = path.split(".").pop() || "jpg";
     items.push({ path, title: `${row.id}-event-${index + 1}.${ext}` });
@@ -401,6 +412,53 @@ async function calendarAttachments(token: string, row: RequestRow) {
   return { attachments, links };
 }
 
+function paymentSummary(row: RequestRow) {
+  const payment = row.payload?.payment;
+  if (!payment) return "";
+  const deposit = payment.deposit || {};
+  const balance = payment.balance || {};
+  if (deposit.status === "paid" && balance.status === "paid") return "Paid in full";
+  const d = deposit.status === "paid" ? `DP paid${deposit.method ? ` · ${deposit.method}` : ""}` : "DP unpaid";
+  const b = balance.status === "paid" ? `Balance paid${balance.method ? ` · ${balance.method}` : ""}` : "Balance unpaid";
+  return `${d} · ${b}`;
+}
+
+function paymentLines(row: RequestRow) {
+  const payment = row.payload?.payment;
+  if (!payment) return [];
+  const line = (
+    part: { status?: string; method?: string; paidOn?: string; notes?: string } | undefined,
+    label: string
+  ) => {
+    const item = part || {};
+    return [label, item.status === "paid" ? "paid" : "unpaid", item.method, item.paidOn, item.notes]
+      .filter(Boolean)
+      .join(" · ");
+  };
+  return [line(payment.deposit, "Deposit"), line(payment.balance, "Balance")];
+}
+
+function googleRrule(row: RequestRow) {
+  const freq = asString(row.payload?.event?.repeat?.freq);
+  if (!freq || freq === "none") return undefined;
+  const date = asString(row.party_date);
+  if (!date) return undefined;
+  const weekday = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"][new Date(`${date}T00:00:00Z`).getUTCDay()];
+  const untilRaw = asString(row.payload?.event?.repeat?.until).replace(/-/g, "");
+  const untilPart = untilRaw ? `;UNTIL=${untilRaw}` : "";
+  if (freq === "daily") return [`RRULE:FREQ=DAILY${untilPart}`];
+  if (freq === "weekly") return [`RRULE:FREQ=WEEKLY;BYDAY=${weekday}${untilPart}`];
+  if (freq === "monthly") {
+    const day = Number(date.slice(8, 10));
+    const nth = Math.ceil(day / 7);
+    const [year, month] = date.split("-").map(Number);
+    const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const pos = day + 7 > last ? -1 : nth;
+    return [`RRULE:FREQ=MONTHLY;BYDAY=${pos}${weekday}${untilPart}`];
+  }
+  return undefined;
+}
+
 async function eventBody(token: string, row: RequestRow) {
   const source = String(row.source || "reservation");
   const kind = occupyKind(source);
@@ -421,12 +479,13 @@ async function eventBody(token: string, row: RequestRow) {
     .map((item) => asString(item))
     .filter(Boolean);
   const event = row.payload?.event || {};
-  const guestLines = (event.guests || [])
+  const guestLines = [...(event.guests || []), ...(row.payload?.party?.guests || [])]
     .map((guest) => {
       const bits = [guest.name, guest.pax ? `${guest.pax} pax` : "", guest.phone, guest.email, guest.notes].filter(Boolean);
       return bits.length ? `Guest: ${bits.join(" · ")}` : "";
     })
     .filter(Boolean);
+  const pay = paymentSummary(row);
   const { attachments, links } = await calendarAttachments(token, row);
   const description = [
     row.public_code ? `Code: ${row.public_code}` : "",
@@ -435,6 +494,8 @@ async function eventBody(token: string, row: RequestRow) {
     event.location === "masterclass" ? "Location: In masterclass" : event.location === "service" ? "Location: In service area" : "",
     event.fullTerrace ? "Block: Full terrace" : "",
     event.payment === "vendor" ? "Payment: By vendor" : event.payment === "tiny" ? "Payment: By Tiny" : "",
+    pay ? `Payment: ${pay}` : "",
+    ...paymentLines(row),
     row.phone ? `Phone: ${row.phone}` : "",
     row.email ? `Email: ${row.email}` : "",
     row.payload?.reservation?.purpose ? `Purpose: ${row.payload.reservation.purpose}` : "",
@@ -444,8 +505,9 @@ async function eventBody(token: string, row: RequestRow) {
   ]
     .filter(Boolean)
     .join("\n");
+  const recurrence = googleRrule(row);
   return {
-    summary: [typeLabel(source), name, tables].filter(Boolean).join(" · "),
+    summary: [typeLabel(source), name, tables, pay].filter(Boolean).join(" · "),
     description,
     location: CAFE_LOCATION,
     start: { dateTime: dateTimeAt(date, range.start), timeZone: TZ },
@@ -453,6 +515,7 @@ async function eventBody(token: string, row: RequestRow) {
     colorId: colorId(source),
     extendedProperties: { private: { requestId: String(row.id || "") } },
     ...(attachments.length ? { attachments } : {}),
+    ...(recurrence ? { recurrence } : {}),
   };
 }
 

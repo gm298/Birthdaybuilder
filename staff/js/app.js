@@ -24,6 +24,13 @@ const eventModal = document.getElementById("event-modal");
 const VIEWS = ["overview", "calendar", "day", "timeline", "tables", "events"];
 const STAFF_DAY_START = 8 * 60;
 const STAFF_DAY_END = 21 * 60;
+const BANK = {
+  bank: "BCA",
+  accountName: "Tiny Healthy Cafe",
+  accountNumber: "",
+};
+const PAYMENT_METHODS = ["Permata EDC", "Permata QRIS", "Bank Transfer", "Cash"];
+let invoiceSelectedTables = new Set();
 
 const state = {
   rows: [],
@@ -33,6 +40,9 @@ const state = {
   dateMode: "all",
   calendarMonth: todayIso().slice(0, 7),
   filters: { type: "all", status: "all" },
+  overviewStatus: "all",
+  tableMinutes: 14 * 60,
+  editingEventId: null,
 };
 
 function todayIso() {
@@ -309,8 +319,67 @@ function matchesStatus(row) {
   return row.status === state.filters.status;
 }
 
+function matchesOverviewStatus(row) {
+  if (state.overviewStatus === "all") return true;
+  if (state.overviewStatus === "pending") return PENDING_STATUSES.includes(row.status);
+  return row.status === state.overviewStatus;
+}
+
 function matchesFilters(row) {
   return matchesType(row) && matchesStatus(row);
+}
+
+function shiftIso(iso, days) {
+  const [y, m, d] = String(iso).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
+}
+
+function isoWeekday(iso) {
+  const [y, m, d] = String(iso).split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+}
+
+function weekdayName(iso) {
+  return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][isoWeekday(iso)] || "";
+}
+
+function monthlyNth(iso) {
+  const day = Number(String(iso).slice(8, 10));
+  const nth = Math.ceil(day / 7);
+  const [y, m] = String(iso).split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return { nth, isLast: day + 7 > last, ordinal: nth === 1 ? "first" : nth === 2 ? "second" : nth === 3 ? "third" : nth === 4 ? "fourth" : "fifth" };
+}
+
+function eventRepeat(row) {
+  return row?.payload?.event?.repeat || { freq: "none" };
+}
+
+function occursOn(row, iso) {
+  if (!row?.party_date || !iso) return false;
+  if (row.party_date === iso) return true;
+  const repeat = eventRepeat(row);
+  const freq = repeat.freq || "none";
+  if (freq === "none") return false;
+  if (iso < row.party_date) return false;
+  if (repeat.until && iso > repeat.until) return false;
+  const start = Date.parse(`${row.party_date}T00:00:00Z`);
+  const target = Date.parse(`${iso}T00:00:00Z`);
+  const days = Math.round((target - start) / 86400000);
+  if (days < 0) return false;
+  if (freq === "daily") return days % (repeat.interval || 1) === 0;
+  if (freq === "weekly") return isoWeekday(iso) === isoWeekday(row.party_date) && days % (7 * (repeat.interval || 1)) === 0;
+  if (freq === "monthly") {
+    const a = monthlyNth(row.party_date);
+    const b = monthlyNth(iso);
+    return isoWeekday(iso) === isoWeekday(row.party_date) && (a.isLast ? b.isLast : a.nth === b.nth);
+  }
+  return false;
+}
+
+function instanceOnDate(row, iso) {
+  if (row.party_date === iso) return row;
+  return { ...row, party_date: iso, occurrenceOf: row.id };
 }
 
 function filteredRows() {
@@ -318,7 +387,9 @@ function filteredRows() {
 }
 
 function rowsOnDate(iso) {
-  const rows = filteredRows().filter((row) => row.party_date === iso);
+  const rows = filteredRows()
+    .filter((row) => occursOn(row, iso))
+    .map((row) => instanceOnDate(row, iso));
   const cooking = cookingRow(iso);
   if (cooking && matchesFilters(cooking) && !rows.some((row) => row.synthetic)) rows.push(cooking);
   return rows;
@@ -347,17 +418,21 @@ function overviewUndated(pred) {
 }
 
 function overviewRows() {
-  return overviewDated(matchesFilters);
+  return overviewDated((row) => matchesType(row) && matchesOverviewStatus(row));
 }
 
 function undatedRows() {
-  return overviewUndated(matchesFilters);
+  return overviewUndated((row) => matchesType(row) && matchesOverviewStatus(row));
 }
 
 function parseHash() {
   const hash = (location.hash || "").replace(/^#\/?/, "");
   const request = hash.match(/^request\/([0-9a-f-]{36})/i);
   if (request) return { view: "detail", id: request[1] };
+  const invoice = hash.match(/^invoice\/([0-9a-f-]{36})/i);
+  if (invoice) return { view: "invoice", id: invoice[1] };
+  const payment = hash.match(/^payment\/([0-9a-f-]{36})/i);
+  if (payment) return { view: "payment", id: payment[1] };
   const cooking = hash.match(/^cooking\/(\d{4}-\d{2}-\d{2})/);
   if (cooking) return { view: "cooking", date: cooking[1] };
   const day = hash.match(/^day\/(\d{4}-\d{2}-\d{2})/);
@@ -428,14 +503,14 @@ async function loadRows() {
 
 function renderNav(view) {
   if (viewNav) {
-    viewNav.hidden = view === "detail" || view === "cooking";
+    viewNav.hidden = view === "detail" || view === "cooking" || view === "invoice" || view === "payment";
     viewNav.querySelectorAll("a").forEach((link) => {
       const target = link.dataset.view === "calendar" ? "calendar" : link.dataset.view;
       link.href = `#/${target}`;
       link.classList.toggle("is-active", link.dataset.view === (view === "day" ? "calendar" : view));
     });
   }
-  if (pageTitle && view !== "detail" && view !== "cooking") {
+  if (pageTitle && !["detail", "cooking", "invoice", "payment"].includes(view)) {
     pageTitle.textContent = view === "events" ? "Events" : "Inbox";
   }
 }
@@ -449,14 +524,16 @@ function syncFilterInputs() {
   const statusInput = document.getElementById("filter-status");
   const label = document.getElementById("selected-date-label");
   const onOverview = state.view === "overview";
+  const onCalendar = state.view === "calendar";
   if (modeWrap) modeWrap.hidden = !onOverview;
   if (modeInput) modeInput.value = state.dateMode;
-  if (dateWrap) dateWrap.hidden = onOverview && state.dateMode !== "day";
+  if (dateWrap) dateWrap.hidden = onCalendar || (onOverview && state.dateMode !== "day");
   if (dateInput) dateInput.value = state.selectedDate;
   if (typeInput) typeInput.value = state.filters.type;
-  if (statusInput) statusInput.value = state.filters.status;
+  if (statusInput) statusInput.value = onOverview ? state.overviewStatus : state.filters.status;
   if (label) {
-    if (onOverview && state.dateMode === "all") label.textContent = "All requests";
+    if (onCalendar) label.textContent = "Calendar";
+    else if (onOverview && state.dateMode === "all") label.textContent = "All requests";
     else if (onOverview && state.dateMode === "upcoming") label.textContent = `From ${formatLongDate(todayIso())}`;
     else label.textContent = formatLongDate(state.selectedDate);
   }
@@ -490,7 +567,7 @@ function renderOverview() {
   const undated = undatedRows();
   const visible = dated.concat(undated);
   const statPool = overviewDated(matchesType).concat(overviewUndated(matchesType));
-  const selectedFilter = state.filters.status;
+  const selectedFilter = state.overviewStatus;
   const stats = [
     ["booked", "booked", "Confirmed", countBy(statPool, (r) => r.status === "booked")],
     ["new", "pending", "New booking", countBy(statPool, (r) => PENDING_STATUSES.includes(r.status))],
@@ -674,13 +751,15 @@ function clampOccupy(range, dayStart, span) {
   };
 }
 
-function renderDay() {
-  syncFilterInputs();
-  document.getElementById("day-title").textContent = formatLongDate(state.selectedDate);
+function fillDayBoard(board, countNode, titleNode) {
+  if (!board) return;
+  if (titleNode) titleNode.textContent = formatLongDate(state.selectedDate);
   const rows = rowsOnDate(state.selectedDate)
     .slice()
     .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)));
-  document.getElementById("day-count").textContent = `${rows.length} event${rows.length === 1 ? "" : "s"}`;
+  if (countNode) {
+    countNode.textContent = `${rows.length} event${rows.length === 1 ? "" : "s"}`;
+  }
   const { dayStart, span, slots } = hourMarks();
   const height = Math.max(640, span * 1.2);
   const items = rows
@@ -691,7 +770,7 @@ function renderDay() {
       </button>`;
     })
     .join("");
-  document.getElementById("day-board").innerHTML = `
+  board.innerHTML = `
     <div class="day-hours" style="height:${height}px">
       <div>${slots
         .map((slot) => `<div class="day-hour" style="height:${height / slots.length}px">${slot.label}</div>`)
@@ -703,112 +782,86 @@ function renderDay() {
   `;
 }
 
-function renderTimeline() {
+function renderDay() {
   syncFilterInputs();
-  const rows = rowsOnDate(state.selectedDate).filter((row) => row.party_time);
-  const Map = window.TinyReserveMap;
-  const { dayStart, dayEnd, span } = hourMarks();
-  const slots = [];
-  for (let minutes = dayStart; minutes <= dayEnd; minutes += 30) {
-    const hour = Math.floor(minutes / 60);
-    const min = minutes % 60;
-    slots.push(`${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`);
-  }
-  document.getElementById("timeline-count").textContent = `${rows.length} booking${
-    rows.length === 1 ? "" : "s"
-  } · reservations 3 hours, birthdays 4 hours`;
-  const packed = rows
-    .slice()
-    .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)))
-    .map((row) => ({ row, range: rowOccupy(row) || { start: dayStart, end: dayStart + 60 } }));
-  const lanes = [];
-  packed.forEach((item) => {
-    let lane = lanes.findIndex((list) =>
-      list.every((other) => item.range.end <= other.range.start || item.range.start >= other.range.end)
-    );
-    if (lane < 0) {
-      lanes.push([]);
-      lane = lanes.length - 1;
-    }
-    lanes[lane].push(item);
-    item.lane = lane;
-  });
-  document.getElementById("timeline").innerHTML = `
-    <div class="timeline__track" style="--lanes:${Math.max(lanes.length, 1)}; --slots:${slots.length}">
-      <div class="timeline__hours">
-        ${slots.map((slot) => `<div class="timeline__slot">${slot}</div>`).join("")}
-      </div>
-      <div class="timeline__bookings">
-        ${
-          packed.length
-            ? packed
-                .map((item) => {
-                  const box = clampOccupy(item.range, dayStart, span);
-                  return `<button class="timeline__item ${visualClass(item.row)}" type="button" data-open="${escapeHtml(
-                    openTarget(item.row).slice(2)
-                  )}" style="left:${box.left}%;width:${box.width}%;top:calc(${item.lane} * 46px)">
-                    <strong>${escapeHtml(slotRange(item.row))}</strong>
-                    ${escapeHtml(displayName(item.row))} · ${escapeHtml(displaySubtitle(item.row))}
-                    · ${escapeHtml(displayGuests(item.row))}
-                  </button>`;
-                })
-                .join("")
-            : `<p class="muted">No bookings on this date.</p>`
-        }
-      </div>
-    </div>
-  `;
+  fillDayBoard(
+    document.getElementById("day-board"),
+    document.getElementById("day-count"),
+    document.getElementById("day-title")
+  );
 }
 
-function tableRowsForDay() {
-  const Map = window.TinyReserveMap;
-  return Map?.TABLES || [];
+function renderTimeline() {
+  syncFilterInputs();
+  fillDayBoard(
+    document.getElementById("timeline"),
+    document.getElementById("timeline-count"),
+    document.getElementById("timeline-title")
+  );
+}
+
+function occupiedAtTime(iso, minutes) {
+  return rowsOnDate(iso).filter((row) => {
+    const range = rowOccupy(row);
+    if (!range) return false;
+    return minutes >= range.start && minutes < range.end;
+  });
 }
 
 function renderTables() {
   syncFilterInputs();
-  const rows = rowsOnDate(state.selectedDate).filter(
-    (row) => (row.payload?.reservation?.tableIds || []).length || row.synthetic
-  );
-  document.getElementById("tables-count").textContent = `${rows.length} booking${
-    rows.length === 1 ? "" : "s"
-  } on the floor · click an empty slot to block a table`;
-  const { dayStart, span, slots } = hourMarks();
-  const hourLines = slots
-    .map((slot) => {
-      const left = ((slot.minutes - dayStart) / span) * 100;
-      return `<span class="pms__hourline" style="left:${left}%"></span>`;
-    })
-    .join("");
-  const head = `<div class="pms__hours">
-    <div class="pms__label">Table</div>
-    <div class="pms__track" style="min-height:36px">${slots
-      .map((slot) => {
-        const left = ((slot.minutes - dayStart) / span) * 100;
-        return `<span class="pms__hour" style="position:absolute;left:${left}%;top:8px">${slot.label}</span>`;
-      })
-      .join("")}</div>
-  </div>`;
-  const body = tableRowsForDay()
-    .map((table) => {
-      const items = rows
-        .filter((row) => (row.payload?.reservation?.tableIds || []).includes(table.id))
-        .map((row) => {
-          const box = clampOccupy(rowOccupy(row) || { start: dayStart, end: dayStart + 60 }, dayStart, span);
-          return `<button class="pms__item ${visualClass(row)}" type="button" data-open="${escapeHtml(
-            openTarget(row).slice(2)
-          )}" style="left:${box.left}%;width:${box.width}%" title="${escapeHtml(displayName(row))}">${escapeHtml(
-            displayName(row)
-          )}</button>`;
-        })
-        .join("");
-      return `<div class="pms__row">
-        <div class="pms__label">${table.area === "indoor" ? "In" : "Tr"} ${table.number}</div>
-        <div class="pms__track" data-table="${table.id}">${hourLines}${items}</div>
-      </div>`;
-    })
-    .join("");
-  document.getElementById("pms").innerHTML = head + body;
+  const slider = document.getElementById("tables-slider");
+  if (slider && !slider.dataset.ready) {
+    slider.value = String(state.tableMinutes);
+    slider.dataset.ready = "1";
+  }
+  if (slider) state.tableMinutes = Number(slider.value) || state.tableMinutes;
+  const timeText = minutesToTime(state.tableMinutes);
+  const label = document.getElementById("tables-time-label");
+  if (label) label.textContent = timeText;
+  const active = occupiedAtTime(state.selectedDate, state.tableMinutes);
+  const held = new Set();
+  const byTable = new Map();
+  active.forEach((row) => {
+    (row.payload?.reservation?.tableIds || []).forEach((id) => {
+      held.add(id);
+      if (!byTable.has(id)) byTable.set(id, row);
+    });
+  });
+  document.getElementById("tables-count").textContent = `${active.length} booking${
+    active.length === 1 ? "" : "s"
+  } at ${timeText} · drag the time to see booked and blocked tables`;
+  const floor = document.getElementById("tables-floor");
+  floor.innerHTML = `<section><h3>Indoor</h3><div class="staff-plan" id="tables-indoor"></div></section>
+    <section><h3>Terrace</h3><div class="staff-plan" id="tables-terrace"></div></section>`;
+  const Map = window.TinyReserveMap;
+  const pick = (tableId) => {
+    const row = byTable.get(tableId);
+    if (row) {
+      go(openTarget(row).slice(2));
+      return;
+    }
+    const end = minutesToTime(Math.min(STAFF_DAY_END, state.tableMinutes + 120));
+    openBlockModal({ tableIds: [tableId], start: timeText, end, date: state.selectedDate });
+  };
+  Map?.renderMap?.(document.getElementById("tables-indoor"), {
+    area: "indoor",
+    selected: [],
+    held: [...held],
+    guests: 1,
+    interactive: true,
+    base: "../reserve/img/",
+    onPick: pick,
+  });
+  Map?.renderMap?.(document.getElementById("tables-terrace"), {
+    area: "terrace",
+    selected: [],
+    held: [...held],
+    guests: 1,
+    interactive: true,
+    base: "../reserve/img/",
+    onPick: pick,
+  });
 }
 
 function fillBlockTableList(selected = []) {
@@ -892,7 +945,39 @@ function applyFullTerrace() {
   });
 }
 
+function repeatHint(freq, date) {
+  if (!date || freq === "none") return "";
+  const day = weekdayName(date);
+  const nth = monthlyNth(date);
+  if (freq === "daily") return "Every day";
+  if (freq === "weekly") return `Weekly on ${day}`;
+  if (freq === "monthly") return nth.isLast ? `Monthly on the last ${day}` : `Monthly on the ${nth.ordinal} ${day}`;
+  return "";
+}
+
+function syncEventRepeatFields() {
+  const freq = document.getElementById("event-repeat")?.value || "none";
+  const date = document.getElementById("event-date")?.value || state.selectedDate;
+  const wrap = document.getElementById("event-until-wrap");
+  const hint = document.getElementById("event-repeat-hint");
+  if (wrap) wrap.hidden = freq === "none";
+  if (hint) hint.textContent = repeatHint(freq, date);
+  const weekly = document.querySelector('#event-repeat option[value="weekly"]');
+  const monthly = document.querySelector('#event-repeat option[value="monthly"]');
+  if (weekly) weekly.textContent = date ? `Weekly on ${weekdayName(date)}` : "Weekly";
+  if (monthly) {
+    const nth = date ? monthlyNth(date) : null;
+    monthly.textContent = nth
+      ? nth.isLast
+        ? `Monthly on the last ${weekdayName(date)}`
+        : `Monthly on the ${nth.ordinal} ${weekdayName(date)}`
+      : "Monthly";
+  }
+}
+
 function openEventModal(opts = {}) {
+  state.editingEventId = opts.id || null;
+  document.getElementById("event-modal-title").textContent = opts.id ? "Edit event" : "Add event";
   document.getElementById("event-name").value = opts.name || "";
   document.getElementById("event-date").value = opts.date || state.selectedDate;
   document.getElementById("event-start").value = opts.start || "14:00";
@@ -901,6 +986,8 @@ function openEventModal(opts = {}) {
   document.getElementById("event-full-terrace").checked = Boolean(opts.fullTerrace);
   document.getElementById("event-notes").value = opts.notes || "";
   document.getElementById("event-photos").value = "";
+  document.getElementById("event-repeat").value = opts.repeat?.freq || "none";
+  document.getElementById("event-until").value = opts.repeat?.until || "";
   const payment = opts.payment === "vendor" ? "vendor" : "tiny";
   document.querySelectorAll('input[name="event-payment"]').forEach((input) => {
     input.checked = input.value === payment;
@@ -910,12 +997,14 @@ function openEventModal(opts = {}) {
   document.getElementById("event-status").textContent = "";
   document.getElementById("event-status").className = "status";
   syncEventLocationFields();
+  syncEventRepeatFields();
   if (opts.fullTerrace) applyFullTerrace();
   eventModal.hidden = false;
 }
 
 function closeEventModal() {
   eventModal.hidden = true;
+  state.editingEventId = null;
 }
 
 function renderEvents() {
@@ -962,6 +1051,8 @@ async function saveStaffEvent() {
   const payment = document.querySelector('input[name="event-payment"]:checked')?.value || "tiny";
   const photos = document.getElementById("event-photos")?.files;
   const guests = readGuestList();
+  const freq = document.getElementById("event-repeat")?.value || "none";
+  const until = document.getElementById("event-until")?.value || "";
   const Map = window.TinyReserveMap;
   let tableIds = [...document.querySelectorAll('input[name="event-table"]:checked')].map((input) => input.value);
   if (location === "masterclass") tableIds = [];
@@ -982,74 +1073,281 @@ async function saveStaffEvent() {
   const pax = guests.reduce((sum, guest) => sum + (Number(guest.pax) || 0), 0) || null;
   const { data: sessionData } = await supabase.auth.getSession();
   const user = sessionData.session?.user;
-  const code = `EVT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+  const repeat = freq === "none" ? { freq: "none" } : { freq, until: until || shiftIso(date, 365) };
+  const payload = {
+    event: {
+      name,
+      notes,
+      location,
+      fullTerrace: location === "service" && fullTerrace,
+      payment,
+      guests,
+      repeat,
+    },
+    reservation: {
+      name,
+      tableIds,
+      tableNumbers: tables.map((table) => table.number),
+      tableLabel,
+      area: location === "masterclass" ? "masterclass" : tables[0]?.area || "terrace",
+      endTime: end,
+      notes,
+    },
+  };
   statusEl.textContent = "Saving event…";
   statusEl.className = "status";
-  const { data, error } = await supabase
-    .from("requests")
-    .insert({
-      source: "event",
-      status: "booked",
-      public_code: code,
-      email: guests.find((guest) => guest.email)?.email || user?.email || "events@tinyhealthycafe.com",
-      phone: guests.find((guest) => guest.phone)?.phone || null,
-      contact_name: name,
-      party_date: date,
-      party_time: start,
-      package_name: tableLabel,
-      guest_adults: pax,
-      payload: {
-        event: {
-          name,
-          notes,
-          location,
-          fullTerrace: location === "service" && fullTerrace,
-          payment,
-          guests,
-        },
-        reservation: {
-          name,
-          tableIds,
-          tableNumbers: tables.map((table) => table.number),
-          tableLabel,
-          area: location === "masterclass" ? "masterclass" : tables[0]?.area || "terrace",
-          endTime: end,
-          notes,
-        },
-      },
-    })
-    .select("id")
-    .single();
-  if (error || !data?.id) {
-    statusEl.textContent = error?.message || "Could not save event.";
-    statusEl.className = "status is-error";
-    return;
+  let requestId = state.editingEventId;
+  if (requestId) {
+    const { error } = await supabase
+      .from("requests")
+      .update({
+        contact_name: name,
+        party_date: date,
+        party_time: start,
+        package_name: tableLabel,
+        guest_adults: pax,
+        email: guests.find((guest) => guest.email)?.email || user?.email || "events@tinyhealthycafe.com",
+        phone: guests.find((guest) => guest.phone)?.phone || null,
+        payload,
+      })
+      .eq("id", requestId)
+      .eq("source", "event");
+    if (error) {
+      statusEl.textContent = error.message;
+      statusEl.className = "status is-error";
+      return;
+    }
+  } else {
+    const code = `EVT-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+    const { data, error } = await supabase
+      .from("requests")
+      .insert({
+        source: "event",
+        status: "booked",
+        public_code: code,
+        email: guests.find((guest) => guest.email)?.email || user?.email || "events@tinyhealthycafe.com",
+        phone: guests.find((guest) => guest.phone)?.phone || null,
+        contact_name: name,
+        party_date: date,
+        party_time: start,
+        package_name: tableLabel,
+        guest_adults: pax,
+        payload,
+      })
+      .select("id")
+      .single();
+    if (error || !data?.id) {
+      statusEl.textContent = error?.message || "Could not save event.";
+      statusEl.className = "status is-error";
+      return;
+    }
+    requestId = data.id;
   }
   try {
-    const eventPhotos = await uploadEventPhotos(data.id, photos);
-    if (eventPhotos.length) {
-      const { error: fileError } = await supabase
-        .from("requests")
-        .update({ files: { eventPhotos } })
-        .eq("id", data.id);
+    const uploaded = await uploadEventPhotos(requestId, photos);
+    if (uploaded.length) {
+      const { data: current } = await supabase.from("requests").select("files").eq("id", requestId).maybeSingle();
+      const files = { ...(current?.files || {}) };
+      files.eventPhotos = [...(files.eventPhotos || []), ...uploaded];
+      const { error: fileError } = await supabase.from("requests").update({ files }).eq("id", requestId);
       if (fileError) throw fileError;
     }
   } catch (err) {
-    statusEl.textContent = `Event saved, but photos did not upload: ${err.message || err}`;
+    statusEl.textContent = `Event saved, but files did not upload: ${err.message || err}`;
     statusEl.className = "status is-error";
     return;
   }
+  const stayOnDetail = Boolean(state.editingEventId);
   closeEventModal();
   state.selectedDate = date;
   await loadRows();
-  showInbox("events");
+  if (stayOnDetail) {
+    if ((location.hash || "").includes(requestId)) await loadDetail(requestId);
+    else location.hash = `#/request/${requestId}`;
+  } else showInbox("events");
 }
 
 function minutesToTime(minutes) {
-  const wrapped = Math.max(0, Math.round(minutes / 30) * 30);
+  const wrapped = Math.max(0, Math.round(Number(minutes) || 0));
   const hour = Math.floor(wrapped / 60);
   const min = wrapped % 60;
   return `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+}
+
+function guestNameFor(row) {
+  return row.contact_name || row.payload?.reservation?.name || row.child_name || "there";
+}
+
+function feedbackMessage(row) {
+  const kind = eventType(row) === "reservation" ? "reservation" : "Birthday";
+  return `Hello ${guestNameFor(row)}, I would like to follow up and check how your ${kind} was?`;
+}
+
+function feedbackUrl(row) {
+  const phone = String(row.phone || "").replace(/\D/g, "");
+  const text = encodeURIComponent(feedbackMessage(row));
+  if (phone) return `https://wa.me/${phone}?text=${text}`;
+  if (row.email) return `mailto:${row.email}?subject=${encodeURIComponent("Tiny follow-up")}&body=${text}`;
+  return "";
+}
+
+function quoteLineValue(line) {
+  if (line?.note) return 0;
+  const qty = Number(line.qty) || 1;
+  const price = Number(line.price ?? line.value) || 0;
+  return qty * price;
+}
+
+function quoteTotalsFromLines(lines) {
+  const subtotal = lines.reduce((sum, line) => sum + quoteLineValue(line), 0);
+  const service = Math.round(subtotal * 0.05);
+  const tax = Math.round((subtotal + service) * 0.1);
+  const total = subtotal + service + tax;
+  return { subtotal, service, tax, total, dp30: Math.round(total * 0.3) };
+}
+
+function quoteLineHtml(line = {}) {
+  const qty = Number(line.qty) || 1;
+  const price = Number(line.price ?? line.value) || 0;
+  return `<div class="quote-line">
+    <input type="text" name="quote-label" value="${escapeHtml(line.label || "")}" placeholder="Item">
+    <input type="number" name="quote-qty" min="1" step="1" value="${qty}" aria-label="Qty">
+    <input type="number" name="quote-price" min="0" step="1000" value="${price}" aria-label="Unit price">
+    <span class="quote-line-total">${escapeHtml(formatIdr(qty * price))}</span>
+    <button class="btn btn--outline" type="button" data-remove-line>Remove</button>
+  </div>`;
+}
+
+function readQuoteEditor() {
+  const lines = [...document.querySelectorAll("#quote-editor .quote-line")]
+    .map((row) => {
+      const qty = Number(row.querySelector('[name="quote-qty"]')?.value) || 1;
+      const price = Number(row.querySelector('[name="quote-price"]')?.value) || 0;
+      return {
+        label: row.querySelector('[name="quote-label"]')?.value.trim() || "",
+        qty,
+        price,
+        value: qty * price,
+        note: false,
+        detail: row.querySelector('[name="quote-detail"]')?.value.trim() || "",
+      };
+    })
+    .filter((line) => line.label || line.value);
+  const totals = quoteTotalsFromLines(lines);
+  const bank = {
+    bank: document.getElementById("invoice-bank")?.value.trim() || BANK.bank,
+    accountName: document.getElementById("invoice-account-name")?.value.trim() || BANK.accountName,
+    accountNumber: document.getElementById("invoice-account-number")?.value.trim() || BANK.accountNumber,
+  };
+  return { lines, ...totals, currency: "IDR", bank };
+}
+
+function refreshQuoteTotals() {
+  document.querySelectorAll("#quote-editor .quote-line").forEach((row) => {
+    const qty = Number(row.querySelector('[name="quote-qty"]')?.value) || 1;
+    const price = Number(row.querySelector('[name="quote-price"]')?.value) || 0;
+    const total = row.querySelector(".quote-line-total");
+    if (total) total.textContent = formatIdr(qty * price);
+  });
+  const totals = quoteTotalsFromLines(readQuoteEditor().lines);
+  const host = document.getElementById("quote-totals");
+  if (!host) return;
+  host.innerHTML = `<ul class="kv">
+    <li><span>Subtotal</span><span>${escapeHtml(formatIdr(totals.subtotal))}</span></li>
+    <li><span>Service 5%</span><span>${escapeHtml(formatIdr(totals.service))}</span></li>
+    <li><span>Tax 10%</span><span>${escapeHtml(formatIdr(totals.tax))}</span></li>
+    <li class="is-total"><span>Total</span><span>${escapeHtml(formatIdr(totals.total))}</span></li>
+    <li><span>DP 30%</span><span>${escapeHtml(formatIdr(totals.dp30))}</span></li>
+  </ul>`;
+}
+
+function paymentSummary(payment) {
+  const deposit = payment?.deposit || {};
+  const balance = payment?.balance || {};
+  if (deposit.status === "paid" && balance.status === "paid") return "Paid in full";
+  const d = deposit.status === "paid" ? `DP paid${deposit.method ? ` · ${deposit.method}` : ""}` : "DP unpaid";
+  const b = balance.status === "paid" ? `Balance paid${balance.method ? ` · ${balance.method}` : ""}` : "Balance unpaid";
+  return `${d} · ${b}`;
+}
+
+function methodOptions(selected) {
+  return [`<option value="">Select method</option>`]
+    .concat(PAYMENT_METHODS.map((method) => `<option value="${escapeHtml(method)}"${method === selected ? " selected" : ""}>${escapeHtml(method)}</option>`))
+    .join("");
+}
+
+function paymentAmounts(row, quoteOverride) {
+  const quote = quoteOverride || row.payload?.quote || {};
+  const total = quote.total ?? row.quote_total_idr ?? 0;
+  const dp = quote.dp30 ?? row.quote_dp_idr ?? Math.round(total * 0.3);
+  const rest = Math.max(0, total - dp);
+  return { total, dp, rest };
+}
+
+function paymentFieldsHtml(id, title, amount, part = {}) {
+  return `<section class="payment-card">
+    <h3>${escapeHtml(title)}</h3>
+    <p>${escapeHtml(formatIdr(amount))}</p>
+    <label class="field"><span>Status</span>
+      <select id="${id}-status">
+        <option value="unpaid"${part.status !== "paid" ? " selected" : ""}>Unpaid</option>
+        <option value="paid"${part.status === "paid" ? " selected" : ""}>Paid</option>
+      </select>
+    </label>
+    <label class="field"><span>Method</span>
+      <select id="${id}-method">${methodOptions(part.method)}</select>
+    </label>
+    <label class="field"><span>Paid on</span><input type="date" id="${id}-date" value="${escapeHtml(part.paidOn || "")}"></label>
+    <label class="field"><span>Notes</span><textarea id="${id}-notes" rows="2">${escapeHtml(part.notes || "")}</textarea></label>
+  </section>`;
+}
+
+function readPaymentPart(id, amount) {
+  return {
+    status: document.getElementById(`${id}-status`)?.value || "unpaid",
+    method: document.getElementById(`${id}-method`)?.value || "",
+    paidOn: document.getElementById(`${id}-date`)?.value || "",
+    notes: document.getElementById(`${id}-notes`)?.value.trim() || "",
+    amount,
+  };
+}
+
+function readPaymentForm(dp, rest) {
+  return {
+    deposit: readPaymentPart("dp", dp),
+    balance: readPaymentPart("bal", rest),
+  };
+}
+
+function colourRowHtml(colour = {}) {
+  return `<div class="colour-row">
+    <input type="text" name="balloon-label" value="${escapeHtml(colour.label || "Balloon")}" placeholder="Balloon group">
+    <input type="color" name="balloon-hex" value="${escapeHtml(colour.hex || colour.original || "#c5dcc8")}">
+    <input type="hidden" name="balloon-id" value="${escapeHtml(colour.id || "")}">
+    <input type="hidden" name="balloon-original" value="${escapeHtml(colour.original || colour.hex || "#c5dcc8")}">
+    <button class="btn btn--outline" type="button" data-remove-colour>Remove</button>
+  </div>`;
+}
+
+async function htmlToPdfBlob(element, filename) {
+  if (!window.html2pdf) throw new Error("PDF library did not load.");
+  const blob = await window.html2pdf().set({
+    margin: 12,
+    filename,
+    image: { type: "jpeg", quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true },
+    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+  }).from(element).outputPdf("blob");
+  return blob;
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 async function signedUrl(path) {
@@ -1192,6 +1490,18 @@ async function loadDetail(id) {
         ${row.phone ? `<a class="btn btn--outline" href="tel:${escapeHtml(row.phone)}">${escapeHtml(row.phone)}</a>` : ""}
         ${wa ? `<a class="btn" href="${escapeHtml(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
         ${pdfUrl ? `<a class="btn btn--outline" href="${escapeHtml(pdfUrl)}" target="_blank" rel="noopener">Open PDF quotation</a>` : ""}
+        ${
+          type === "birthday"
+            ? `<a class="btn" href="#/invoice/${escapeHtml(row.id)}">Invoicing</a>
+               <a class="btn btn--outline" href="#/payment/${escapeHtml(row.id)}">Track payment</a>`
+            : ""
+        }
+        ${
+          row.status === "closed" && feedbackUrl(row)
+            ? `<a class="btn" href="${escapeHtml(feedbackUrl(row))}" target="_blank" rel="noopener">Ask for guest feedback</a>`
+            : ""
+        }
+        ${isEvent ? `<button class="btn" type="button" id="edit-event">Edit event</button>` : ""}
         ${isEvent ? `<button class="btn btn--outline" type="button" id="delete-event">Remove event</button>` : ""}
       </div>
       <div class="detail-grid">
@@ -1220,6 +1530,13 @@ async function loadDetail(id) {
                   )}</span></li>
                    <li><span>Payment</span><span>${escapeHtml(
                      payload.event?.payment === "vendor" ? "By vendor" : "By Tiny"
+                   )}</span></li>
+                   <li><span>Repeats</span><span>${escapeHtml(
+                     payload.event?.repeat?.freq && payload.event.repeat.freq !== "none"
+                       ? `${repeatHint(payload.event.repeat.freq, row.party_date)}${
+                           payload.event.repeat.until ? ` until ${payload.event.repeat.until}` : ""
+                         }`
+                       : "Does not repeat"
                    )}</span></li>`
                 : isReservation
                 ? `<li><span>Purpose</span><span>${escapeHtml(reservation.purpose || "—")}</span></li>`
@@ -1244,6 +1561,11 @@ async function loadDetail(id) {
           isEvent
             ? `<section>
           <h3>Guest list</h3>
+          <div class="contact-actions" style="margin-bottom:12px">
+            <button class="btn" type="button" id="add-guest-detail">Add to guest list</button>
+            <button class="btn btn--outline" type="button" id="export-guests">Export guest list PDF</button>
+            <button class="btn btn--outline" type="button" id="share-guests">Share guest list</button>
+          </div>
           ${
             (payload.event?.guests || []).length
               ? `<ul class="kv">${payload.event.guests
@@ -1277,13 +1599,18 @@ async function loadDetail(id) {
           type === "birthday"
             ? `<section>
           <h3>Quotation</h3>
-          <ul class="quote-list">
-            ${lines || "<li><span>No lines</span><span>—</span></li>"}
-            <li><span>Subtotal</span><span>${escapeHtml(formatIdr(quote.subtotal ?? row.quote_subtotal_idr))}</span></li>
-            <li><span>Service 5%</span><span>${escapeHtml(formatIdr(quote.service ?? row.quote_service_idr))}</span></li>
-            <li><span>Tax 10%</span><span>${escapeHtml(formatIdr(quote.tax ?? row.quote_tax_idr))}</span></li>
-            <li class="is-total"><span>Total</span><span>${escapeHtml(formatIdr(quote.total ?? row.quote_total_idr))}</span></li>
+          <ul class="kv">
+            ${(quote.lines || [])
+              .map(
+                (line) =>
+                  `<li><span>${escapeHtml(line.label || "Item")}${
+                    line.qty ? ` · ×${escapeHtml(line.qty)}` : ""
+                  }</span><span>${line.note ? "TBC" : escapeHtml(formatIdr(line.value))}</span></li>`
+              )
+              .join("") || "<li><span>No lines</span><span>—</span></li>"}
+            <li><span>Total</span><span>${escapeHtml(formatIdr(quote.total ?? row.quote_total_idr))}</span></li>
             <li><span>DP 30%</span><span>${escapeHtml(formatIdr(quote.dp30 ?? row.quote_dp_idr))}</span></li>
+            <li><span>Payment</span><span>${escapeHtml(paymentSummary(payload.payment))}</span></li>
           </ul>
         </section>
         <section>
@@ -1296,6 +1623,7 @@ async function loadDetail(id) {
             )}</span></li>
             <li><span>Theme</span><span>${escapeHtml(cake.theme || "—")}</span></li>
             <li><span>Diet</span><span>${escapeHtml((cake.diet || []).join(", ") || "—")}</span></li>
+            <li><span>Cake notes</span><span>${escapeHtml(cake.notes || "—")}</span></li>
           </ul>
           ${cakeUrl ? `<img class="hero-img" src="${escapeHtml(cakeUrl)}" alt="Cake reference">` : ""}
         </section>
@@ -1305,9 +1633,19 @@ async function loadDetail(id) {
             <li><span>Package</span><span>${escapeHtml(decor.packageLabel || "—")}</span></li>
             <li><span>Look</span><span>${escapeHtml(decor.themeLabel || "—")}</span></li>
             <li><span>Name on backdrop</span><span>${escapeHtml(decor.backdropName || "—")}</span></li>
-            <li><span>Colours</span><span>${escapeHtml(
-              (decor.balloonColours || []).map((c) => c.label || c.hex).join(", ") || "—"
-            )}</span></li>
+            <li><span>Colours</span><span>${
+              (decor.balloonColours || []).length
+                ? decor.balloonColours
+                    .map(
+                      (c) =>
+                        `<span class="colour-swatch" style="background:${escapeHtml(c.hex || c.original || "#c5dcc8")}"></span>${escapeHtml(
+                          c.label || c.hex || ""
+                        )}`
+                    )
+                    .join("<br>")
+                : "—"
+            }</span></li>
+            <li><span>Decor notes</span><span>${escapeHtml(decor.notes || "—")}</span></li>
           </ul>
           ${backdropUrl ? `<img class="hero-img" src="${escapeHtml(backdropUrl)}" alt="Custom backdrop mockup">` : ""}
           <div class="media-row">
@@ -1360,6 +1698,7 @@ async function loadDetail(id) {
         status_changed_by: sessionData.session?.user?.id || null,
       })
       .eq("id", row.id);
+    if (status === "closed") await loadDetail(row.id);
   });
   document.getElementById("save-notes")?.addEventListener("click", async () => {
     const notes = document.getElementById("staff-notes")?.value || "";
@@ -1369,6 +1708,88 @@ async function loadDetail(id) {
       statusEl.textContent = saveError ? saveError.message : "Notes saved.";
       statusEl.className = saveError ? "status is-error" : "status is-success";
     }
+  });
+  document.getElementById("edit-event")?.addEventListener("click", () => {
+    const event = payload.event || {};
+    openEventModal({
+      id: row.id,
+      name: row.contact_name || event.name,
+      date: row.party_date,
+      start: timeLabel(row.party_time),
+      end: reservation.endTime || "17:00",
+      location: event.location || "service",
+      fullTerrace: event.fullTerrace,
+      notes: event.notes || reservation.notes || "",
+      payment: event.payment || "tiny",
+      tableIds: reservation.tableIds || [],
+      guests: event.guests || [],
+      repeat: event.repeat,
+    });
+  });
+  document.getElementById("add-guest-detail")?.addEventListener("click", () => {
+    const event = payload.event || {};
+    openEventModal({
+      id: row.id,
+      name: row.contact_name || event.name,
+      date: row.party_date,
+      start: timeLabel(row.party_time),
+      end: reservation.endTime || "17:00",
+      location: event.location || "service",
+      fullTerrace: event.fullTerrace,
+      notes: event.notes || reservation.notes || "",
+      payment: event.payment || "tiny",
+      tableIds: reservation.tableIds || [],
+      guests: [...(event.guests || []), {}],
+      repeat: event.repeat,
+    });
+  });
+  document.getElementById("export-guests")?.addEventListener("click", async () => {
+    const guests = payload.event?.guests || [];
+    const host = document.createElement("div");
+    host.style.cssText = "padding:24px;font-family:Jost,sans-serif;color:#2c3a32;width:720px;background:#fff";
+    host.innerHTML = `<h2>Guest list · ${escapeHtml(displayName(row))}</h2>
+      <p>${escapeHtml(formatLongDate(row.party_date))} · ${escapeHtml(slotRange(row))}</p>
+      <ul class="kv">${
+        guests.length
+          ? guests
+              .map(
+                (guest) =>
+                  `<li><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</span><span>${escapeHtml(
+                    [guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—"
+                  )}</span></li>`
+              )
+              .join("")
+          : "<li><span>No guests</span><span>—</span></li>"
+      }</ul>`;
+    document.body.appendChild(host);
+    try {
+      const blob = await htmlToPdfBlob(host, `${row.public_code}-guests.pdf`);
+      downloadBlob(blob, `${row.public_code}-guests.pdf`);
+    } catch (err) {
+      window.print();
+    }
+    host.remove();
+  });
+  document.getElementById("share-guests")?.addEventListener("click", () => {
+    const guests = payload.event?.guests || [];
+    const text = [
+      `Guest list for ${displayName(row)}`,
+      `${formatLongDate(row.party_date)} · ${slotRange(row)}`,
+      ...guests.map(
+        (guest) =>
+          `${guest.name || "Guest"} · ${guest.pax || 1} pax${guest.phone ? ` · ${guest.phone}` : ""}${
+            guest.email ? ` · ${guest.email}` : ""
+          }`
+      ),
+    ].join("\n");
+    const phone = String(row.phone || "").replace(/\D/g, "");
+    if (navigator.share) {
+      navigator.share({ title: `Guest list ${row.public_code}`, text }).catch(() => {});
+      return;
+    }
+    if (phone) window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+    else if (row.email) window.location.href = `mailto:${row.email}?subject=${encodeURIComponent("Guest list")}&body=${encodeURIComponent(text)}`;
+    else navigator.clipboard?.writeText(text);
   });
   document.getElementById("delete-event")?.addEventListener("click", async () => {
     if (!window.confirm("Remove this event?")) return;
@@ -1382,6 +1803,416 @@ async function loadDetail(id) {
       return;
     }
     location.hash = backHash();
+  });
+}
+
+function renderInvoiceMaps() {
+  const Map = window.TinyReserveMap;
+  if (!Map) return;
+  const guests =
+    (Number(document.getElementById("invoice-kids")?.value) || 0) +
+    (Number(document.getElementById("invoice-adults")?.value) || 0) || 1;
+  const pick = (id) => {
+    if (invoiceSelectedTables.has(id)) invoiceSelectedTables.delete(id);
+    else invoiceSelectedTables.add(id);
+    renderInvoiceMaps();
+  };
+  Map.renderMap(document.getElementById("invoice-indoor"), {
+    area: "indoor",
+    selected: [...invoiceSelectedTables].filter((id) => String(id).startsWith("in-")),
+    held: [],
+    guests,
+    interactive: true,
+    base: "../reserve/img/",
+    onPick: pick,
+  });
+  Map.renderMap(document.getElementById("invoice-terrace"), {
+    area: "terrace",
+    selected: [...invoiceSelectedTables].filter((id) => String(id).startsWith("tr-")),
+    held: [],
+    guests,
+    interactive: true,
+    base: "../reserve/img/",
+    onPick: pick,
+  });
+}
+
+async function uploadStaffFile(requestId, folder, file) {
+  if (!file) return "";
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  const path = `${requestId}/${folder}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from("request-files").upload(path, file, {
+    contentType: file.type || "image/jpeg",
+    upsert: true,
+  });
+  if (error) throw error;
+  return path;
+}
+
+function readInvoiceForm(row) {
+  const quote = readQuoteEditor();
+  const Map = window.TinyReserveMap;
+  const tableIds = [...invoiceSelectedTables];
+  const tables = tableIds.map((id) => Map?.findTable?.(id)).filter(Boolean);
+  const balloonColours = [...document.querySelectorAll("#invoice-colours .colour-row")].map((rowEl, index) => {
+    const hex = rowEl.querySelector('[name="balloon-hex"]')?.value || "#c5dcc8";
+    return {
+      id: rowEl.querySelector('[name="balloon-id"]')?.value || `c${index + 1}`,
+      label: rowEl.querySelector('[name="balloon-label"]')?.value.trim() || `Balloon ${index + 1}`,
+      hex,
+      original: rowEl.querySelector('[name="balloon-original"]')?.value || hex,
+    };
+  });
+  const time = document.getElementById("invoice-time")?.value || "";
+  return {
+    child_name: document.getElementById("invoice-child")?.value.trim() || row.child_name,
+    contact_name: document.getElementById("invoice-contact")?.value.trim() || row.contact_name,
+    party_date: document.getElementById("invoice-date")?.value || row.party_date,
+    party_time: time ? (time.length === 5 ? `${time}:00` : time) : row.party_time,
+    guest_kids: Number(document.getElementById("invoice-kids")?.value) || 0,
+    guest_adults: Number(document.getElementById("invoice-adults")?.value) || 0,
+    quote,
+    guests: readGuestListFrom("#invoice-guests"),
+    cake: {
+      size: document.getElementById("invoice-cake-size")?.value.trim() || "",
+      sponges: (document.getElementById("invoice-cake-sponges")?.value || "")
+        .split("+")
+        .map((item) => item.trim())
+        .filter(Boolean),
+      design: document.getElementById("invoice-cake-design")?.value.trim() || "",
+      theme: document.getElementById("invoice-cake-theme")?.value.trim() || "",
+      notes: document.getElementById("invoice-cake-notes")?.value.trim() || "",
+    },
+    decor: {
+      backdropName: document.getElementById("invoice-backdrop-name")?.value.trim() || "",
+      notes: document.getElementById("invoice-decor-notes")?.value.trim() || "",
+      balloonColours,
+    },
+    tableIds,
+    tableLabel: tables.length ? Map.tableLabel(tables) : row.payload?.reservation?.tableLabel || row.package_name,
+    area: tables[0]?.area || row.payload?.reservation?.area || "terrace",
+  };
+}
+
+function readGuestListFrom(selector) {
+  return [...document.querySelectorAll(`${selector} .guest-row`)]
+    .map((row) => ({
+      name: row.querySelector('[name="guest-name"]')?.value.trim() || "",
+      pax: Number(row.querySelector('[name="guest-pax"]')?.value) || 1,
+      phone: row.querySelector('[name="guest-phone"]')?.value.trim() || "",
+      email: row.querySelector('[name="guest-email"]')?.value.trim() || "",
+      notes: row.querySelector('[name="guest-notes"]')?.value.trim() || "",
+    }))
+    .filter((guest) => guest.name || guest.phone || guest.email);
+}
+
+async function loadInvoice(id) {
+  inboxViews.hidden = true;
+  if (viewNav) viewNav.hidden = true;
+  detailView.hidden = false;
+  detailView.innerHTML = `<p class="status">Loading invoice…</p>`;
+  const { data: row, error } = await supabase.from("requests").select("*").eq("id", id).maybeSingle();
+  if (error || !row) {
+    detailView.innerHTML = `<p class="status is-error">${escapeHtml(error?.message || "Request not found.")}</p>`;
+    return;
+  }
+  const payload = row.payload || {};
+  const quote = payload.quote || {};
+  const cake = payload.cake || {};
+  const decor = payload.decor || {};
+  const reservation = payload.reservation || {};
+  const files = row.files || {};
+  const [cakeUrl, backdropUrl] = await Promise.all([signedUrl(files.cakePhoto), signedUrl(files.backdropPng)]);
+  invoiceSelectedTables = new Set(reservation.tableIds || []);
+  const colours = decor.balloonColours?.length ? decor.balloonColours : [{ label: "Balloon 1", hex: "#c5dcc8" }];
+  const guests = payload.party?.guests || [];
+  const payment = payload.payment || {};
+  const amounts = paymentAmounts(row, quote);
+  pageTitle.textContent = `Invoice · ${row.public_code}`;
+  detailView.innerHTML = `
+    <button class="btn btn--outline back" type="button" id="back-list">Back</button>
+    <article class="detail">
+      <h2>Invoicing</h2>
+      <p class="muted">${escapeHtml(row.public_code)} · edit the booking, decoration, cake and send the invoice.</p>
+      <div class="detail-grid">
+        <section>
+          <h3>Guest & party</h3>
+          <label class="field"><span>Child / guest name</span><input id="invoice-child" value="${escapeHtml(row.child_name || "")}"></label>
+          <label class="field"><span>Parent / contact</span><input id="invoice-contact" value="${escapeHtml(row.contact_name || "")}"></label>
+          <div class="field-row">
+            <label class="field"><span>Date</span><input type="date" id="invoice-date" value="${escapeHtml(row.party_date || "")}"></label>
+            <label class="field"><span>Time</span><input type="time" id="invoice-time" value="${escapeHtml(String(row.party_time || "").slice(0, 5))}"></label>
+          </div>
+          <div class="field-row">
+            <label class="field"><span>Kids</span><input type="number" min="0" id="invoice-kids" value="${escapeHtml(row.guest_kids || 0)}"></label>
+            <label class="field"><span>Adults</span><input type="number" min="0" id="invoice-adults" value="${escapeHtml(row.guest_adults || 0)}"></label>
+          </div>
+        </section>
+        <section>
+          <h3>Line items</h3>
+          <div class="quote-editor" id="quote-editor">
+            ${(quote.lines?.length ? quote.lines : [{ label: "", qty: 1, price: 0 }]).map(quoteLineHtml).join("")}
+            <button class="btn btn--outline" type="button" id="quote-add-line">Add item</button>
+            <div id="quote-totals"></div>
+          </div>
+          <label class="field"><span>Bank</span><input id="invoice-bank" value="${escapeHtml(quote.bank?.bank || BANK.bank)}"></label>
+          <label class="field"><span>Account name</span><input id="invoice-account-name" value="${escapeHtml(quote.bank?.accountName || BANK.accountName)}"></label>
+          <label class="field"><span>Account number</span><input id="invoice-account-number" value="${escapeHtml(quote.bank?.accountNumber || BANK.accountNumber)}"></label>
+        </section>
+        <section>
+          <h3>Decoration</h3>
+          <label class="field"><span>Name on backdrop</span><input id="invoice-backdrop-name" value="${escapeHtml(decor.backdropName || "")}"></label>
+          <div id="invoice-colours">${colours.map(colourRowHtml).join("")}</div>
+          <button class="btn btn--outline" type="button" id="add-balloon-colour">Add balloon colour</button>
+          <label class="field"><span>Decoration notes</span><textarea id="invoice-decor-notes" rows="3">${escapeHtml(decor.notes || "")}</textarea></label>
+          <label class="field"><span>Replace backdrop image</span><input type="file" id="invoice-backdrop-file" accept="image/jpeg,image/png,image/webp"></label>
+          ${backdropUrl ? `<img class="hero-img" src="${escapeHtml(backdropUrl)}" alt="Backdrop">` : ""}
+        </section>
+        <section>
+          <h3>Cake</h3>
+          <label class="field"><span>Size</span><input id="invoice-cake-size" value="${escapeHtml(cake.size || "")}"></label>
+          <label class="field"><span>Sponge</span><input id="invoice-cake-sponges" value="${escapeHtml((cake.sponges || []).join(" + "))}"></label>
+          <label class="field"><span>Design / reference</span><input id="invoice-cake-design" value="${escapeHtml(cake.design || "")}"></label>
+          <label class="field"><span>Theme</span><input id="invoice-cake-theme" value="${escapeHtml(cake.theme || "")}"></label>
+          <label class="field"><span>Cake notes</span><textarea id="invoice-cake-notes" rows="3">${escapeHtml(cake.notes || "")}</textarea></label>
+          <label class="field"><span>Replace cake reference photo</span><input type="file" id="invoice-cake-file" accept="image/jpeg,image/png,image/webp"></label>
+          ${cakeUrl ? `<img class="hero-img" src="${escapeHtml(cakeUrl)}" alt="Cake">` : ""}
+        </section>
+        <section>
+          <h3>Tables</h3>
+          <p class="muted">Click tables to assign this party.</p>
+          <div class="staff-plans tables-floor">
+            <div><h3>Indoor</h3><div class="staff-plan" id="invoice-indoor"></div></div>
+            <div><h3>Terrace</h3><div class="staff-plan" id="invoice-terrace"></div></div>
+          </div>
+        </section>
+        <section>
+          <h3>Guest list (optional)</h3>
+          <div id="invoice-guests" class="guest-list">${(guests.length ? guests : []).map(guestRowHtml).join("")}</div>
+          <button class="btn btn--outline" type="button" id="invoice-guest-add">Add guest</button>
+        </section>
+        <section>
+          <h3>Payment</h3>
+          <p class="muted">Deposit and balance also appear on Google Calendar when this booking is confirmed.</p>
+          <div class="payment-grid">
+            ${paymentFieldsHtml("dp", "Deposit 30%", amounts.dp, payment.deposit)}
+            ${paymentFieldsHtml("bal", "Balance", amounts.rest, payment.balance)}
+          </div>
+        </section>
+      </div>
+      <p class="status" id="invoice-status"></p>
+      <div class="contact-actions">
+        <button class="btn" type="button" id="save-invoice">Save invoice</button>
+        <button class="btn btn--outline" type="button" id="send-invoice">Save & send invoice</button>
+        <a class="btn btn--outline" href="#/payment/${escapeHtml(row.id)}">Track payment</a>
+      </div>
+    </article>
+  `;
+  refreshQuoteTotals();
+  renderInvoiceMaps();
+  document.getElementById("back-list")?.addEventListener("click", () => {
+    location.hash = `#/request/${row.id}`;
+  });
+  document.getElementById("quote-editor")?.addEventListener("input", refreshQuoteTotals);
+  document.getElementById("quote-editor")?.addEventListener("click", (e) => {
+    if (!e.target.closest("[data-remove-line]")) return;
+    e.target.closest(".quote-line")?.remove();
+    refreshQuoteTotals();
+  });
+  document.getElementById("quote-add-line")?.addEventListener("click", () => {
+    document.getElementById("quote-add-line")?.insertAdjacentHTML("beforebegin", quoteLineHtml());
+    refreshQuoteTotals();
+  });
+  document.getElementById("add-balloon-colour")?.addEventListener("click", () => {
+    document.getElementById("invoice-colours")?.insertAdjacentHTML("beforeend", colourRowHtml());
+  });
+  document.getElementById("invoice-colours")?.addEventListener("click", (e) => {
+    if (e.target.closest("[data-remove-colour]")) e.target.closest(".colour-row")?.remove();
+  });
+  document.getElementById("invoice-guest-add")?.addEventListener("click", () => {
+    document.getElementById("invoice-guests")?.insertAdjacentHTML("beforeend", guestRowHtml());
+  });
+  document.getElementById("invoice-guests")?.addEventListener("click", (e) => {
+    if (e.target.closest("[data-remove-guest]")) e.target.closest(".guest-row")?.remove();
+  });
+  document.getElementById("invoice-kids")?.addEventListener("change", renderInvoiceMaps);
+  document.getElementById("invoice-adults")?.addEventListener("change", renderInvoiceMaps);
+
+  async function persistInvoice(send) {
+    const statusEl = document.getElementById("invoice-status");
+    statusEl.textContent = "Saving…";
+    statusEl.className = "status";
+    const form = readInvoiceForm(row);
+    const nextPayload = {
+      ...payload,
+      quote: { ...quote, ...form.quote },
+      cake: { ...cake, ...form.cake },
+      decor: { ...decor, ...form.decor, balloonColours: form.decor.balloonColours },
+      party: { ...(payload.party || {}), guests: form.guests },
+      payment: readPaymentForm(form.quote.dp30, Math.max(0, form.quote.total - form.quote.dp30)),
+      reservation: {
+        ...reservation,
+        name: form.contact_name,
+        tableIds: form.tableIds,
+        tableLabel: form.tableLabel,
+        area: form.area,
+      },
+    };
+    const nextFiles = { ...(row.files || {}) };
+    try {
+      const cakeFile = document.getElementById("invoice-cake-file")?.files?.[0];
+      const backdropFile = document.getElementById("invoice-backdrop-file")?.files?.[0];
+      if (cakeFile) nextFiles.cakePhoto = await uploadStaffFile(row.id, "cake", cakeFile);
+      if (backdropFile) nextFiles.backdropPng = await uploadStaffFile(row.id, "backdrop", backdropFile);
+      if (send) {
+        const colours = form.decor.balloonColours
+          .map(
+            (c) =>
+              `<span style="display:inline-block;width:12px;height:12px;background:${escapeHtml(
+                c.hex
+              )};border:1px solid #ccc;margin-right:6px;vertical-align:middle"></span>${escapeHtml(c.label)} ${escapeHtml(c.hex)}`
+          )
+          .join("<br>");
+        const host = document.createElement("div");
+        host.style.cssText = "padding:28px;font-family:Jost,sans-serif;color:#2c3a32;width:720px;background:#fff";
+        host.innerHTML = `<h2>Invoice · Tiny Healthy Cafe</h2>
+          <p>${escapeHtml(row.public_code)} · ${escapeHtml(form.child_name || form.contact_name)}</p>
+          <p>${escapeHtml(formatLongDate(form.party_date))} · ${escapeHtml(timeLabel(form.party_time))}</p>
+          <p>${escapeHtml(form.guest_kids || 0)} kids · ${escapeHtml(form.guest_adults || 0)} adults · ${escapeHtml(form.tableLabel || "")}</p>
+          <ul class="kv">${form.quote.lines
+            .map(
+              (line) =>
+                `<li><span>${escapeHtml(line.label)} × ${escapeHtml(line.qty)}</span><span>${escapeHtml(formatIdr(line.value))}</span></li>`
+            )
+            .join("")}
+            <li><span>Subtotal</span><span>${escapeHtml(formatIdr(form.quote.subtotal))}</span></li>
+            <li><span>Service 5%</span><span>${escapeHtml(formatIdr(form.quote.service))}</span></li>
+            <li><span>Tax 10%</span><span>${escapeHtml(formatIdr(form.quote.tax))}</span></li>
+            <li class="is-total"><span>Total</span><span>${escapeHtml(formatIdr(form.quote.total))}</span></li>
+            <li><span>Deposit 30%</span><span>${escapeHtml(formatIdr(form.quote.dp30))}</span></li>
+          </ul>
+          <p><strong>Decoration</strong><br>Backdrop: ${escapeHtml(form.decor.backdropName || "—")}<br>${
+            colours || "Balloons: —"
+          }<br>${escapeHtml(form.decor.notes || "")}</p>
+          ${backdropUrl ? `<img src="${escapeHtml(backdropUrl)}" alt="Backdrop" style="max-width:320px;margin:8px 0">` : ""}
+          <p><strong>Cake</strong><br>${escapeHtml([form.cake.size, form.cake.design, form.cake.theme].filter(Boolean).join(" · ") || "—")}<br>${escapeHtml(
+            form.cake.notes || ""
+          )}</p>
+          ${cakeUrl ? `<img src="${escapeHtml(cakeUrl)}" alt="Cake" style="max-width:320px;margin:8px 0">` : ""}
+          ${
+            form.guests.length
+              ? `<p><strong>Guest list</strong></p><ul class="kv">${form.guests
+                  .map(
+                    (guest) =>
+                      `<li><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</span><span>${escapeHtml(
+                        [guest.phone, guest.email].filter(Boolean).join(" · ") || "—"
+                      )}</span></li>`
+                  )
+                  .join("")}</ul>`
+              : ""
+          }
+          <p><strong>Bank transfer</strong><br>${escapeHtml(form.quote.bank.bank)} · ${escapeHtml(
+            form.quote.bank.accountName
+          )}<br>${escapeHtml(form.quote.bank.accountNumber || "Account number TBC")}</p>
+          <p><strong>Payment</strong><br>${escapeHtml(paymentSummary(nextPayload.payment))}</p>
+          <p>Please transfer the 30% deposit (${escapeHtml(formatIdr(form.quote.dp30))}) to confirm.</p>`;
+        document.body.appendChild(host);
+        const blob = await htmlToPdfBlob(host, `${row.public_code}-invoice.pdf`);
+        host.remove();
+        const path = `${row.id}/invoice.pdf`;
+        await supabase.storage.from("request-files").upload(path, blob, { contentType: "application/pdf", upsert: true });
+        nextFiles.invoicePdf = path;
+        downloadBlob(blob, `${row.public_code}-invoice.pdf`);
+        const url = await signedUrl(path);
+        const text = `Hello ${form.contact_name || "there"}, here is the invoice for your Birthday at Tiny Healthy Cafe. Total ${formatIdr(
+          form.quote.total
+        )}. 30% deposit ${formatIdr(form.quote.dp30)}. ${form.quote.bank.bank} ${form.quote.bank.accountName} ${
+          form.quote.bank.accountNumber || ""
+        }. ${url || ""}`.trim();
+        const phone = String(row.phone || "").replace(/\D/g, "");
+        if (phone) window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+        else if (row.email) window.location.href = `mailto:${row.email}?subject=${encodeURIComponent("Tiny invoice")}&body=${encodeURIComponent(text)}`;
+      }
+      const { error: saveError } = await supabase
+        .from("requests")
+        .update({
+          child_name: form.child_name,
+          contact_name: form.contact_name,
+          party_date: form.party_date,
+          party_time: form.party_time,
+          guest_kids: form.guest_kids,
+          guest_adults: form.guest_adults,
+          package_name: form.tableLabel || row.package_name,
+          payload: nextPayload,
+          files: nextFiles,
+          quote_subtotal_idr: form.quote.subtotal,
+          quote_service_idr: form.quote.service,
+          quote_tax_idr: form.quote.tax,
+          quote_total_idr: form.quote.total,
+          quote_dp_idr: form.quote.dp30,
+          status: send && row.status === "new" ? "quoted" : row.status,
+        })
+        .eq("id", row.id);
+      if (saveError) throw saveError;
+      statusEl.textContent = send ? "Invoice saved and sent." : "Invoice saved.";
+      statusEl.className = "status is-success";
+    } catch (err) {
+      statusEl.textContent = err.message || "Could not save invoice.";
+      statusEl.className = "status is-error";
+    }
+  }
+
+  document.getElementById("save-invoice")?.addEventListener("click", () => persistInvoice(false));
+  document.getElementById("send-invoice")?.addEventListener("click", () => persistInvoice(true));
+}
+
+async function loadPayment(id) {
+  inboxViews.hidden = true;
+  if (viewNav) viewNav.hidden = true;
+  detailView.hidden = false;
+  detailView.innerHTML = `<p class="status">Loading payment…</p>`;
+  const { data: row, error } = await supabase.from("requests").select("*").eq("id", id).maybeSingle();
+  if (error || !row) {
+    detailView.innerHTML = `<p class="status is-error">${escapeHtml(error?.message || "Request not found.")}</p>`;
+    return;
+  }
+  const quote = row.payload?.quote || {};
+  const payment = row.payload?.payment || {};
+  const { dp, rest } = paymentAmounts(row, quote);
+  pageTitle.textContent = `Payment · ${row.public_code}`;
+  detailView.innerHTML = `
+    <button class="btn btn--outline back" type="button" id="back-list">Back</button>
+    <article class="detail">
+      <h2>Track payment</h2>
+      <p class="muted">${escapeHtml(displayName(row))} · ${escapeHtml(paymentSummary(payment))} · this also updates the Google Calendar event when the booking is confirmed.</p>
+      <div class="payment-grid">
+        ${paymentFieldsHtml("dp", "Deposit 30%", dp, payment.deposit)}
+        ${paymentFieldsHtml("bal", "Balance", rest, payment.balance)}
+      </div>
+      <p class="status" id="payment-status"></p>
+      <div class="contact-actions">
+        <button class="btn" type="button" id="save-payment">Save payment status</button>
+        <a class="btn btn--outline" href="#/invoice/${escapeHtml(row.id)}">Back to invoicing</a>
+      </div>
+    </article>
+  `;
+  document.getElementById("back-list")?.addEventListener("click", () => {
+    location.hash = `#/request/${row.id}`;
+  });
+  document.getElementById("save-payment")?.addEventListener("click", async () => {
+    const statusEl = document.getElementById("payment-status");
+    const nextPayment = readPaymentForm(dp, rest);
+    const { error: saveError } = await supabase
+      .from("requests")
+      .update({ payload: { ...(row.payload || {}), payment: nextPayment } })
+      .eq("id", row.id);
+    if (saveError) {
+      statusEl.textContent = saveError.message;
+      statusEl.className = "status is-error";
+      return;
+    }
+    statusEl.textContent = `Saved · ${paymentSummary(nextPayment)}. Google Calendar will update if this booking is confirmed.`;
+    statusEl.className = "status is-success";
   });
 }
 
@@ -1415,6 +2246,16 @@ async function route() {
   if (parsed.view === "detail") {
     renderNav(parsed.view);
     await loadDetail(parsed.id);
+    return;
+  }
+  if (parsed.view === "invoice") {
+    renderNav(parsed.view);
+    await loadInvoice(parsed.id);
+    return;
+  }
+  if (parsed.view === "payment") {
+    renderNav(parsed.view);
+    await loadPayment(parsed.id);
     return;
   }
   if (parsed.view === "cooking") {
@@ -1464,7 +2305,7 @@ document.getElementById("inbox-views")?.addEventListener("click", (e) => {
   const statusCard = e.target.closest("[data-status-filter]");
   if (statusCard) {
     e.preventDefault();
-    state.filters.status = statusCard.dataset.statusFilter || "all";
+    state.overviewStatus = statusCard.dataset.statusFilter || "all";
     showInbox("overview");
     return;
   }
@@ -1513,7 +2354,9 @@ document.getElementById("filter-type")?.addEventListener("change", (e) => {
 });
 
 document.getElementById("filter-status")?.addEventListener("change", (e) => {
-  state.filters.status = e.target.value || "all";
+  const value = e.target.value || "all";
+  if (state.view === "overview") state.overviewStatus = value;
+  else state.filters.status = value;
   showInbox(state.view);
 });
 
@@ -1529,6 +2372,23 @@ document.getElementById("cal-next")?.addEventListener("click", () => {
 document.getElementById("day-back")?.addEventListener("click", () => {
   go("calendar");
 });
+
+document.getElementById("timeline-prev")?.addEventListener("click", () => {
+  state.selectedDate = shiftIso(state.selectedDate, -1);
+  showInbox("timeline");
+});
+document.getElementById("timeline-next")?.addEventListener("click", () => {
+  state.selectedDate = shiftIso(state.selectedDate, 1);
+  showInbox("timeline");
+});
+
+document.getElementById("tables-slider")?.addEventListener("input", () => {
+  state.tableMinutes = Number(document.getElementById("tables-slider").value) || state.tableMinutes;
+  if (state.view === "tables") renderTables();
+});
+
+document.getElementById("event-repeat")?.addEventListener("change", syncEventRepeatFields);
+document.getElementById("event-date")?.addEventListener("change", syncEventRepeatFields);
 
 document.getElementById("block-tables")?.addEventListener("click", () => {
   openBlockModal({ date: state.selectedDate });

@@ -249,7 +249,7 @@
       btn.classList.toggle("is-selected", isSelected);
       btn.classList.toggle("is-held", isHeld && !isSelected);
       btn.classList.toggle("is-small", tooSmall && !isHeld);
-      btn.disabled = !interactive || (isHeld && !isSelected) || tooSmall;
+      btn.disabled = !interactive || (tooSmall && !isHeld && !isSelected);
       btn.setAttribute("aria-pressed", isSelected ? "true" : "false");
       btn.setAttribute("aria-label", `${table.name}, ${table.seats} seats`);
       if (isHeld && !isSelected) {
