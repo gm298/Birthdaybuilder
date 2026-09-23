@@ -1,0 +1,187 @@
+/* About Birthdays Revised — page-only styles */
+
+.hero__at-tiny {
+  display: block;
+  font-family: "Tenor Sans", serif;
+  font-weight: 400;
+  letter-spacing: 0.02em;
+}
+
+.included__card .included__build-cta {
+  display: inline-flex;
+  margin-top: 20px;
+  width: 100%;
+  justify-content: center;
+  text-align: center;
+}
+
+.packages .pkg h3,
+.packages .pkg-compact__name {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Offer slider */
+.offer-slider {
+  padding: 56px 24px 64px;
+  background: #f6f3ee;
+}
+
+.offer-slider__head {
+  max-width: 1100px;
+  margin: 0 auto 28px;
+}
+
+.offer-slider__head h2 {
+  margin: 8px 0 0;
+}
+
+.offer-slider__frame {
+  position: relative;
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.offer-slider__viewport {
+  overflow: hidden;
+  border-radius: 12px;
+  background: #1c2a22;
+  outline: none;
+}
+
+.offer-slider__track {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  transition: transform 0.45s ease;
+  will-change: transform;
+}
+
+.offer-slider__slide {
+  flex: 0 0 100%;
+  position: relative;
+  min-width: 100%;
+}
+
+.offer-slider__slide img {
+  display: block;
+  width: 100%;
+  height: min(62vw, 520px);
+  object-fit: cover;
+}
+
+.offer-slider__caption {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 28px 20px 16px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.68));
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.offer-slider__nav {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(28, 42, 34, 0.18);
+  background: #fff;
+  color: #1c2a22;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0 2px;
+}
+
+.offer-slider__nav:hover {
+  background: #1c2a22;
+  color: #fff;
+  border-color: #1c2a22;
+}
+
+.offer-slider__dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.offer-slider__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  border: 0;
+  padding: 0;
+  background: rgba(28, 42, 34, 0.28);
+  cursor: pointer;
+}
+
+.offer-slider__dot.is-active {
+  background: #1c2a22;
+  width: 22px;
+}
+
+.tasting-promo .cake-promo__actions .btn:first-child {
+  background: #1c2a22;
+  color: #fff;
+  border-color: #1c2a22;
+}
+
+.tasting-promo .cake-promo__actions .btn--outline {
+  background: transparent;
+}
+
+@media (max-width: 900px) {
+  .offer-slider {
+    padding: 40px 16px 48px;
+  }
+
+  .offer-slider__frame {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .offer-slider__nav {
+    position: absolute;
+    z-index: 2;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 36px;
+    height: 36px;
+    font-size: 22px;
+    background: rgba(255, 255, 255, 0.92);
+  }
+
+  .offer-slider__nav--prev {
+    left: 8px;
+  }
+
+  .offer-slider__nav--next {
+    right: 8px;
+  }
+
+  .offer-slider__viewport {
+    order: 0;
+  }
+
+  .offer-slider__slide img {
+    height: min(72vw, 360px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .offer-slider__track {
+    transition: none;
+  }
+}

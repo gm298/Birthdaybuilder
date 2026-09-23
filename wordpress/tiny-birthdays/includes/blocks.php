@@ -4,6 +4,7 @@ if (!defined('ABSPATH')) {
 }
 
 require_once TINY_BIRTHDAYS_DIR . 'includes/render-landing.php';
+require_once TINY_BIRTHDAYS_DIR . 'includes/render-landing-revised.php';
 require_once TINY_BIRTHDAYS_DIR . 'includes/render-apps.php';
 
 function tiny_birthdays_block_categories($categories) {
@@ -61,6 +62,11 @@ function tiny_birthdays_register_blocks() {
             'title' => 'Tiny Sticky Bar',
             'render_callback' => 'tiny_birthdays_render_sticky',
             'attributes' => tiny_birthdays_sticky_attributes(),
+        ],
+        'tiny/landing-revised' => [
+            'title' => 'Tiny About Birthdays Revised',
+            'render_callback' => 'tiny_birthdays_render_landing_revised',
+            'attributes' => [],
         ],
         'tiny/party-builder' => [
             'title' => 'Tiny Party Builder',

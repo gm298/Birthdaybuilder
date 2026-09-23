@@ -133,7 +133,7 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
   </div>
   <h3 class="subhead subhead--tight">Build your own custom theme</h3>
   <div class="theme-collage__action">
-    <button type="button" class="btn btn--build-own" id="open-custom-builder">Build your own</button>
+    <button type="button" class="btn btn--build-own" id="open-custom-builder">Customize it</button>
   </div>
   <div class="photo-grid photo-grid--3 photo-grid--decor" id="decor-package-grid"></div>
   <div class="theme-collage" id="theme-collage" aria-hidden="true"></div>
@@ -154,6 +154,14 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
       <div class="filters" id="filters" role="tablist" aria-label="Filter by theme"></div>
     </div>
     <div class="gallery__grid" id="gallery-grid"></div>
+    <div class="field gallery__own-idea" id="own-idea-field" hidden>
+      <span class="field__label">Your cake idea</span>
+      <label class="file-drop is-visible" id="file-drop">
+        <span class="file-drop__label" id="file-label">Tap to attach a photo</span>
+        <span class="file-drop__hint">Attach a reference photo — we'll get close, not identical</span>
+        <input type="file" id="ref-photo" accept="image/*">
+      </label>
+    </div>
     <div class="gallery-more-wrap">
       <button type="button" class="btn btn--outline" id="gallery-more" hidden>See more cakes</button>
     </div>
@@ -170,16 +178,6 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
         <li>Included in your chosen package size, or tell us a different one</li>
         <li>Pick up to two sponge flavours</li>
       </ul>
-      <div class="builder__diet">
-        <div>
-          <h3>Gluten-free and no added sugar, on any cake</h3>
-          <p><strong style="font-weight:400;color:#fff">Gluten-free</strong> means the sponge is baked without wheat flour, on a nut or root-vegetable base instead. <strong style="font-weight:400;color:#fff">No added sugar</strong> means nothing sweeter than fruit and dates goes in — no cane sugar, no syrups. Both are a paid add-on available on every cake here; tell us which you need when you order and we'll quote it. The decoration doesn't change.</p>
-        </div>
-        <div class="builder__diet-tags">
-          <span>Gluten-free</span>
-          <span>No added sugar</span>
-        </div>
-      </div>
     </div>
 
     <form class="builder__form" id="cake-form" novalidate>
@@ -187,6 +185,7 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
         <span class="field__label" id="addons-label">Diet options</span>
         <div class="option-row" id="addon-options" role="group" aria-labelledby="addons-label"></div>
         <span class="field__hint field__hint--soft">Choose a diet option or leave on “No special requirements” to see every cake and sponge. Gluten-free and no added sugar filter the sponge list below — both cost extra.</span>
+        <span class="field__hint" id="gf-sponge-hint" hidden>Gluten-free cakes use one sponge only: Flourless Zucchini Chocolate.</span>
       </div>
 
       <div class="field">
@@ -209,20 +208,6 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
       </div>
 
       <div class="field">
-        <span class="field__label" id="design-label">Design</span>
-        <div class="option-row" id="mode-options" role="group" aria-labelledby="design-label">
-          <button type="button" class="option-btn option-btn--sm is-active" data-mode="gallery">From the gallery</button>
-          <button type="button" class="option-btn option-btn--sm" data-mode="own">My own idea</button>
-        </div>
-        <div class="design-grid is-visible" id="design-grid"></div>
-        <label class="file-drop" id="file-drop">
-          <span class="file-drop__label" id="file-label">Tap to attach a photo</span>
-          <span class="file-drop__hint">Attach a reference photo — we'll get close, not identical</span>
-          <input type="file" id="ref-photo" accept="image/*">
-        </label>
-      </div>
-
-      <div class="field">
         <label class="field__label" for="cake-theme">Theme or name on the cake</label>
         <input type="text" id="cake-theme" name="theme" placeholder="e.g. dinosaurs, and the name Mira">
       </div>
@@ -230,10 +215,6 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
       <p class="builder__submit-note">Cake choices are saved into your party summary. Continue with add-ons and food, then send everything together.</p>
       <p class="form-status" id="form-status" role="status" aria-live="polite"></p>
 
-      <div class="builder__diet-mobile">
-        <h3>Gluten-free and no added sugar</h3>
-        <p><strong style="font-weight:400;color:#fff">Gluten-free</strong> — sponge without wheat flour, on a nut or root-vegetable base. <strong style="font-weight:400;color:#fff">No added sugar</strong> — sweetened only with fruit and dates. Both are a paid add-on; we'll quote it in the chat.</p>
-      </div>
       <ul class="builder__points-mobile">
         <li>Pick up to two sponge flavours</li>
         <li>Custom themes welcome</li>

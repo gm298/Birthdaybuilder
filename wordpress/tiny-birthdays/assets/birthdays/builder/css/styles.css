@@ -452,6 +452,17 @@ body.steps-pinned .site-header {
   position: relative;
   aspect-ratio: 4 / 5;
   overflow: hidden;
+  appearance: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  display: block;
+  width: 100%;
 }
 
 .theme-collage__item img {
@@ -473,8 +484,28 @@ body.steps-pinned .site-header {
   line-height: 1.3;
 }
 
+.theme-collage__item.is-selected {
+  outline: 3px solid var(--sage);
+  outline-offset: -3px;
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85);
+}
+
+.theme-collage__item.is-selected .theme-collage__caption {
+  background: linear-gradient(transparent, rgba(100, 124, 110, 0.92));
+  font-weight: 600;
+}
+
 .theme-collage__action {
   margin: 0 0 28px;
+}
+
+.gallery__own-idea {
+  margin: 0 0 24px;
+  max-width: 520px;
+}
+
+.gallery__own-idea .file-drop {
+  display: flex;
 }
 
 .addon-collapse {
@@ -638,8 +669,9 @@ body.steps-pinned .site-header {
   width: 100%;
   padding: 22px 28px;
   font-size: 18px;
-  font-weight: 600;
-  letter-spacing: 0.3px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 /* Dark green selected state — packages, add-ons, cakes */

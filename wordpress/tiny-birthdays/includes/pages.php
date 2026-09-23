@@ -81,6 +81,15 @@ function tiny_birthdays_ensure_pages() {
         'content' => "<!-- wp:tiny/party-builder /-->\n",
     ]);
 
+    $revised_id = tiny_birthdays_upsert_page([
+        'slug' => 'about-birthdays-revised',
+        'parent' => $landing_id,
+        'title' => 'About Birthdays Revised | Tiny Healthy Cafe',
+        'excerpt' => 'Dream birthday for your child at Tiny — cake, food, decor and entertainment. See packages, build your party, or book a free cake tasting.',
+        'type' => 'landing-revised',
+        'content' => "<!-- wp:tiny/landing-revised /-->\n",
+    ]);
+
     $cakes_id = tiny_birthdays_upsert_page([
         'slug' => 'cakes',
         'title' => 'Custom Birthday Cakes in Berawa, Bali | Tiny Healthy Cafe',
@@ -91,6 +100,7 @@ function tiny_birthdays_ensure_pages() {
 
     update_option('tiny_birthdays_pages', [
         'landing' => $landing_id,
+        'landing-revised' => $revised_id,
         'builder' => $builder_id,
         'cakes' => $cakes_id,
     ]);
@@ -170,6 +180,7 @@ function tiny_birthdays_allowed_blocks($allowed, $context) {
         'tiny/faq',
         'tiny/closing',
         'tiny/sticky-bar',
+        'tiny/landing-revised',
         'tiny/party-builder',
         'tiny/cakes-hero',
         'tiny/cakes-facts',

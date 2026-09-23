@@ -240,6 +240,7 @@
     },
   };
 
+  const FILTER_OWN_IDEA = "My own idea";
   const SPONGE_FLOURLESS = "Flourless Zucchini Chocolate (Gluten free)";
   const SPONGES_ALL = [
     "Wholewheat kale & apple",
@@ -1501,9 +1502,18 @@
 
   function flavourHintText() {
     const n = flavourCount();
+    if (cakeState.addons.includes("Gluten-free")) {
+      return "Gluten-free uses one sponge only: Flourless Zucchini Chocolate.";
+    }
     if (n === 0) return "Select one or two flavours — mix a no-sugar sponge with a sugar-added one if you like.";
     if (n === 1) return "1 flavour selected — you can add one more from either list.";
     return "2 flavours selected.";
+  }
+
+  function updateGlutenFreeHint() {
+    const hint = document.getElementById("gf-sponge-hint");
+    const gf = cakeState.addons.includes("Gluten-free");
+    if (hint) hint.hidden = !gf;
   }
 
   function afterFlavourChange() {
@@ -1527,6 +1537,7 @@
   function selectCakeDesign(cake) {
     if (!cake) return;
     cakeState.mode = "gallery";
+    if (cakeState.filter === FILTER_OWN_IDEA) cakeState.filter = "All";
     cakeState.design = cake.name;
     cakeState.activeCake = cake;
     cakeState.file = null;
@@ -1536,7 +1547,7 @@
     if (input) input.value = "";
     if (label) label.textContent = "Tap to attach a photo";
     renderMode();
-    renderDesignGrid();
+    renderFilters();
     renderGallery();
     renderSummary();
     const status = document.getElementById("form-status");
@@ -2896,14 +2907,29 @@
     const collageThemes = THEME_COLLAGE_IDS.map((id) => themes.find((t) => t.id === id)).filter(Boolean);
     host.removeAttribute("aria-hidden");
     host.innerHTML = collageThemes
-      .map(
-        (t) => `
-        <div class="theme-collage__item">
+      .map((t) => {
+        const selected = partyState.decorThemeId === t.id;
+        return `
+        <button type="button" class="theme-collage__item${selected ? " is-selected" : ""}" data-decor-theme="${escapeHtml(
+          t.id
+        )}" aria-pressed="${selected}">
           <img src="${escapeHtml(t.image)}" alt="" width="400" height="500" loading="lazy">
           <span class="theme-collage__caption">${escapeHtml(t.name)}</span>
-        </div>`
-      )
+        </button>`;
+      })
       .join("");
+    host.querySelectorAll("[data-decor-theme]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const id = btn.dataset.decorTheme;
+        partyState.decorThemeId = id;
+        partyState.decorReviewed = true;
+        renderThemeCollage();
+        updateBackdropBuilderUI();
+        renderSummary();
+        updateStepProgress();
+        track("builder_decor_theme", { theme: id });
+      });
+    });
   }
 
   function renderDecorThemes() {
@@ -3544,7 +3570,9 @@
   function renderFilters() {
     const el = document.getElementById("filters");
     if (!el) return;
-    el.innerHTML = cakeData.filters
+    const labels = [...(cakeData.filters || [])];
+    if (!labels.includes(FILTER_OWN_IDEA)) labels.push(FILTER_OWN_IDEA);
+    el.innerHTML = labels
       .map(
         (label) =>
           `<button type="button" class="filter-chip${
@@ -3558,22 +3586,43 @@
       btn.addEventListener("click", () => {
         cakeState.filter = btn.dataset.filter;
         cakeState.galleryExpanded = false;
+        if (cakeState.filter === FILTER_OWN_IDEA) {
+          cakeState.mode = "own";
+          cakeState.design = "";
+          cakeState.activeCake = null;
+        } else if (cakeState.mode === "own") {
+          cakeState.mode = "gallery";
+        }
         track("cake_filter", { filter: cakeState.filter });
         renderFilters();
+        renderMode();
         renderGallery();
+        renderSummary();
+        updateStepProgress();
       });
     });
   }
 
   function matchesFilter(cake, filter) {
     if (filter === "All") return true;
+    if (filter === FILTER_OWN_IDEA) return false;
     return cake.theme.toLowerCase().includes(filter.toLowerCase());
   }
 
   function renderGallery() {
     const grid = document.getElementById("gallery-grid");
     const moreBtn = document.getElementById("gallery-more");
+    const ownField = document.getElementById("own-idea-field");
     if (!grid) return;
+
+    if (cakeState.filter === FILTER_OWN_IDEA || cakeState.mode === "own") {
+      grid.innerHTML = "";
+      if (moreBtn) moreBtn.hidden = true;
+      if (ownField) ownField.hidden = false;
+      return;
+    }
+    if (ownField) ownField.hidden = true;
+
     const GALLERY_PREVIEW = 6;
     const visibleCakes = cakeData.cakes.filter((cake) =>
       matchesFilter(cake, cakeState.filter)
@@ -4212,6 +4261,7 @@
         }
         pruneSpongesToAvailable();
         syncSugarSpongeVisibility();
+        updateGlutenFreeHint();
         renderAddons();
         renderSpongeOptions();
         renderSugarSpongeOptions();
@@ -4220,83 +4270,42 @@
         updateStepProgress();
       });
     });
+    updateGlutenFreeHint();
   }
 
   function renderMode() {
-    document.querySelectorAll("#mode-options [data-mode]").forEach((btn) => {
-      btn.classList.toggle("is-active", btn.dataset.mode === cakeState.mode);
-    });
-    const grid = document.getElementById("design-grid");
     const drop = document.getElementById("file-drop");
-    if (grid) grid.classList.toggle("is-visible", cakeState.mode === "gallery");
+    const ownField = document.getElementById("own-idea-field");
     if (drop) drop.classList.toggle("is-visible", cakeState.mode === "own");
+    if (ownField) ownField.hidden = cakeState.mode !== "own";
   }
 
   function renderDesignGrid() {
-    const grid = document.getElementById("design-grid");
-    if (!grid) return;
-    grid.innerHTML = cakeData.cakes
-      .map(
-        (cake) => `
-      <button type="button" class="design-pick${
-        cakeState.design === cake.name ? " is-selected" : ""
-      }" data-design="${escapeHtml(cake.name)}">
-        <div class="design-pick__img">
-          <img src="${escapeHtml(cake.src)}" alt="" width="120" height="150" loading="lazy">
-        </div>
-        <span>${escapeHtml(cake.name)}</span>
-      </button>`
-      )
-      .join("");
-    grid.querySelectorAll(".design-pick").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const name = btn.dataset.design;
-        const cake = cakeData.cakes.find((c) => c.name === name);
-    if (cake) {
-          selectCakeDesign(cake);
-        } else {
-          cakeState.design = name;
-          cakeState.mode = "gallery";
-          cakeState.activeCake = null;
-          cakeState.file = null;
-          cakeState.fileName = "";
-          const input = document.getElementById("ref-photo");
-          const label = document.getElementById("file-label");
-          if (input) input.value = "";
-          if (label) label.textContent = "Tap to attach a photo";
-          renderMode();
-          renderDesignGrid();
-          renderGallery();
-          renderSummary();
-        }
-      });
-    });
+    /* Design picks live in the gallery; duplicate design grid removed. */
   }
 
   function initModeToggle() {
-    document.querySelectorAll("#mode-options [data-mode]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        cakeState.mode = btn.dataset.mode;
-        if (cakeState.mode === "own") {
-          cakeState.design = "";
-          cakeState.activeCake = null;
-        }
-        renderMode();
-        renderDesignGrid();
-        renderSummary();
-      });
-    });
+    /* Mode is chosen via the "My own idea" gallery filter. */
   }
 
   function initFileInput() {
     const input = document.getElementById("ref-photo");
     const label = document.getElementById("file-label");
-    if (!input || !label) return;
+    if (!input || !label || input.dataset.bound) return;
+    input.dataset.bound = "1";
     input.addEventListener("change", () => {
+      cakeState.mode = "own";
+      cakeState.filter = FILTER_OWN_IDEA;
+      cakeState.design = "";
+      cakeState.activeCake = null;
       cakeState.file = input.files && input.files[0] ? input.files[0] : null;
       cakeState.fileName = cakeState.file ? cakeState.file.name : "";
       label.textContent = cakeState.fileName || "Tap to attach a photo";
+      renderFilters();
+      renderMode();
+      renderGallery();
       renderSummary();
+      updateStepProgress();
     });
   }
 
@@ -4462,6 +4471,7 @@
         .filter(Boolean);
     }
     cakeState.mode = cake.mode || cakeState.mode;
+    if (cakeState.mode === "own") cakeState.filter = FILTER_OWN_IDEA;
     cakeState.design = cake.design || "";
     cakeState.theme = cake.theme || "";
     cakeState.addons = Array.isArray(cake.diet)

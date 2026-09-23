@@ -489,6 +489,21 @@
     save: function () { return null; },
   });
 
+  registerBlockType("tiny/landing-revised", {
+    apiVersion: 3,
+    title: "Tiny About Birthdays Revised",
+    icon: "star-filled",
+    category: "tiny-birthdays",
+    supports: { html: false, multiple: false, className: false },
+    edit: function () {
+      return appNote(
+        "About Birthdays Revised",
+        "This block renders the revised birthday landing (new hero, steps, slider, tasting section, folded FAQ, reviews at the end). Leave it as the only block on the About Birthdays Revised page."
+      );
+    },
+    save: function () { return null; },
+  });
+
   registerBlockType("tiny/party-builder", {
     apiVersion: 3,
     title: "Tiny Party Builder",

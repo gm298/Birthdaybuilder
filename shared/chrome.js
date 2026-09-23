@@ -15,6 +15,7 @@
   const PATHS = {
     landing: {
       birthdays: "./",
+      revised: "./about-birthdays-revised/",
       cakes: "../cakes/",
       builder: "./builder/",
       reserve: "../reserve/",
@@ -22,8 +23,19 @@
       logoDark: "img/logo-dark.png",
       logoLight: "img/logo-light.png",
     },
+    "landing-revised": {
+      birthdays: "../",
+      revised: "./",
+      cakes: "../../cakes/",
+      builder: "../builder/",
+      reserve: "../../reserve/",
+      booking: "../../booking/",
+      logoDark: "../img/logo-dark.png",
+      logoLight: "../img/logo-light.png",
+    },
     builder: {
       birthdays: "../",
+      revised: "../about-birthdays-revised/",
       cakes: "../../cakes/",
       builder: "./",
       reserve: "../../reserve/",
@@ -33,6 +45,7 @@
     },
     cakes: {
       birthdays: "../birthdays/",
+      revised: "../birthdays/about-birthdays-revised/",
       cakes: "./",
       builder: "../birthdays/builder/",
       reserve: "../reserve/",
@@ -42,6 +55,7 @@
     },
     reserve: {
       birthdays: "../birthdays/",
+      revised: "../birthdays/about-birthdays-revised/",
       cakes: "../cakes/",
       builder: "../birthdays/builder/",
       reserve: "./",
@@ -51,6 +65,7 @@
     },
     booking: {
       birthdays: "../birthdays/",
+      revised: "../birthdays/about-birthdays-revised/",
       cakes: "../cakes/",
       builder: "../birthdays/builder/",
       reserve: "../reserve/",
@@ -63,6 +78,7 @@
   if (window.TINY_WP && window.TINY_WP.birthdaysUrl) {
     const sharedPaths = {
       birthdays: window.TINY_WP.birthdaysUrl,
+      revised: window.TINY_WP.revisedUrl || window.TINY_WP.birthdaysUrl,
       cakes: window.TINY_WP.cakesUrl,
       builder: window.TINY_WP.builderUrl,
       reserve: window.TINY_WP.reserveUrl || "/reserve/",
@@ -71,6 +87,7 @@
       logoLight: window.TINY_WP.logoLight,
     };
     PATHS.landing = sharedPaths;
+    PATHS["landing-revised"] = sharedPaths;
     PATHS.builder = sharedPaths;
     PATHS.cakes = sharedPaths;
     PATHS.reserve = sharedPaths;
@@ -89,7 +106,12 @@
   }
 
   function birthdayOpen(page) {
-    return page === "landing" || page === "builder" || page === "cakes";
+    return (
+      page === "landing" ||
+      page === "landing-revised" ||
+      page === "builder" ||
+      page === "cakes"
+    );
   }
 
   function ctaHtml(page, p) {
@@ -124,6 +146,7 @@
           <a class="nav-drop__toggle${birthdayClass}" href="${p.birthdays}" aria-haspopup="true" aria-expanded="false">Birthdays</a>
           <div class="nav-drop__menu" role="menu">
             <a role="menuitem" class="${current(page, "landing").trim()}" href="${p.birthdays}">About Birthdays</a>
+            <a role="menuitem" class="${current(page, "landing-revised").trim()}" href="${p.revised}">About Birthdays Revised</a>
             <a role="menuitem" class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
             <a role="menuitem" class="${current(page, "cakes").trim()}" href="${p.cakes}">Cake Builder</a>
           </div>
@@ -144,6 +167,7 @@
         <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
         <a href="${CAFE.events}">Event Calendar</a>
         <a class="${current(page, "landing").trim()}" href="${p.birthdays}">About Birthdays</a>
+        <a class="${current(page, "landing-revised").trim()}" href="${p.revised}">About Birthdays Revised</a>
         <a class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
         <a class="${current(page, "cakes").trim()}" href="${p.cakes}">Cake Builder</a>
         ${

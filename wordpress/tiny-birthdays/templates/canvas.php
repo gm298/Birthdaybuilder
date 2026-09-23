@@ -8,10 +8,13 @@ if (!$type) {
     $type = 'landing';
 }
 
-$data_page = $type === 'builder' ? 'builder' : ($type === 'cakes' ? 'cakes' : 'landing');
+$data_page = $type === 'builder' ? 'builder' : ($type === 'cakes' ? 'cakes' : ($type === 'landing-revised' ? 'landing-revised' : 'landing'));
 $body_classes = ['tiny-canvas', 'tiny-canvas--' . $type];
 if ($type === 'builder') {
     $body_classes[] = 'is-wizard';
+}
+if ($type === 'landing-revised') {
+    $body_classes[] = 'tiny-canvas--landing';
 }
 if (is_admin_bar_showing()) {
     $body_classes[] = 'admin-bar';

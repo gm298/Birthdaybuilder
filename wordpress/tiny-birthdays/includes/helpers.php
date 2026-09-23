@@ -14,7 +14,7 @@ function tiny_birthdays_canvas_type($post_id = 0) {
         return '';
     }
     $type = get_post_meta($post_id, TINY_BIRTHDAYS_META, true);
-    return in_array($type, ['landing', 'builder', 'cakes'], true) ? $type : '';
+    return in_array($type, ['landing', 'landing-revised', 'builder', 'cakes'], true) ? $type : '';
 }
 
 function tiny_birthdays_is_canvas($post_id = 0) {
@@ -36,6 +36,7 @@ function tiny_birthdays_page_url($type) {
     }
     $map = [
         'landing' => home_url('/birthdays/'),
+        'landing-revised' => home_url('/birthdays/about-birthdays-revised/'),
         'builder' => home_url('/birthdays/builder/'),
         'cakes' => home_url('/cakes/'),
     ];
@@ -97,6 +98,7 @@ function tiny_birthdays_li_list($items, $class = '') {
 function tiny_birthdays_localize_config() {
     return [
         'birthdaysUrl' => tiny_birthdays_page_url('landing'),
+        'revisedUrl' => tiny_birthdays_page_url('landing-revised'),
         'builderUrl' => tiny_birthdays_page_url('builder'),
         'cakesUrl' => tiny_birthdays_page_url('cakes'),
         'reserveUrl' => home_url('/reserve/'),
