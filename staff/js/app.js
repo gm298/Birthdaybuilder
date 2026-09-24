@@ -2372,7 +2372,149 @@ function downloadBlob(blob, filename) {
   document.body.appendChild(link);
   link.click();
   link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 2000);
+  URL.revokeObjectURL(url);
+}
+
+function loadScriptOnce(src, ready) {
+  if (ready()) return Promise.resolve();
+  const existing = document.querySelector(`script[data-pdf-lib="${src}"]`);
+  if (existing) {
+    return new Promise((resolve, reject) => {
+      if (ready()) {
+        resolve();
+        return;
+      }
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener("error", () => reject(new Error("Could not load PDF tools.")), { once: true });
+    });
+  }
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = src;
+    script.async = true;
+    script.dataset.pdfLib = src;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Could not load PDF tools."));
+    document.head.appendChild(script);
+  });
+}
+
+async function loadCanvasPdfLibs() {
+  await loadScriptOnce(
+    "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js",
+    () => typeof window.html2canvas === "function"
+  );
+  await loadScriptOnce(
+    "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
+    () => !!(window.jspdf && window.jspdf.jsPDF)
+  );
+  if (typeof window.html2canvas !== "function" || !window.jspdf?.jsPDF) {
+    throw new Error("PDF tools did not load.");
+  }
+}
+
+async function elementToPdfBlob(element) {
+  await loadCanvasPdfLibs();
+  await inlineImages(element);
+  if (document.fonts?.ready) await document.fonts.ready;
+  await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  const canvas = await window.html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    allowTaint: true,
+    backgroundColor: "#ffffff",
+    scrollX: 0,
+    scrollY: -window.scrollY,
+    windowWidth: 794,
+    logging: false,
+  });
+  const img = canvas.toDataURL("image/jpeg", 0.95);
+  const JsPDF = window.jspdf.jsPDF;
+  const pdf = new JsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const imgHeight = (canvas.height * pageW) / canvas.width;
+  let heightLeft = imgHeight;
+  let position = 0;
+  pdf.addImage(img, "JPEG", 0, position, pageW, imgHeight);
+  heightLeft -= pageH;
+  while (heightLeft > 1) {
+    position = heightLeft - imgHeight;
+    pdf.addPage();
+    pdf.addImage(img, "JPEG", 0, position, pageW, imgHeight);
+    heightLeft -= pageH;
+  }
+  const blob = pdf.output("blob");
+  if (!(blob instanceof Blob) || !blob.size) throw new Error("PDF file was empty.");
+  return blob;
+}
+
+function buildInvoicePdfHost(form, row, extras) {
+  const colourList = extras.decor?.balloonColours || [];
+  const colours = colourList
+    .map(
+      (c) =>
+        `<span style="display:inline-block;width:12px;height:12px;background:${escapeHtml(
+          c.hex
+        )};border:1px solid #ccc;margin-right:6px;vertical-align:middle"></span>${escapeHtml(c.label)} ${escapeHtml(c.hex)}`
+    )
+    .join("<br>");
+  const host = document.createElement("div");
+  host.setAttribute("aria-hidden", "true");
+  host.style.cssText =
+    "position:absolute;left:0;top:0;width:794px;z-index:2147483000;pointer-events:none;padding:48px;box-sizing:border-box;font-family:Segoe UI,Helvetica Neue,Arial,sans-serif;color:#2c3a32;background:#fff;";
+  host.innerHTML = `<h2 style="margin:0 0 12px;font-size:28px;">Invoice · Tiny Healthy Cafe</h2>
+    <p>${escapeHtml(row.public_code)} · ${escapeHtml(form.child_name || form.contact_name)}</p>
+    <p>${escapeHtml(formatLongDate(form.party_date))} · ${escapeHtml(timeLabel(form.party_time))}</p>
+    <p>${escapeHtml(form.guest_kids || 0)} kids · ${escapeHtml(form.guest_adults || 0)} adults · ${escapeHtml(form.tableLabel || "")}</p>
+    <div>${form.quote.lines
+      .map(
+        (line) =>
+          `<p style="display:flex;justify-content:space-between;gap:16px;margin:6px 0;border-bottom:1px solid #e4ebe6;"><span>${escapeHtml(line.label)} × ${escapeHtml(line.qty)}</span><span>${escapeHtml(formatIdr(line.value))}</span></p>`
+      )
+      .join("")}
+      <p style="display:flex;justify-content:space-between;gap:16px;margin:6px 0;"><span>Subtotal</span><span>${escapeHtml(formatIdr(form.quote.subtotal))}</span></p>
+      <p style="display:flex;justify-content:space-between;gap:16px;margin:6px 0;"><span>Service 5%</span><span>${escapeHtml(formatIdr(form.quote.service))}</span></p>
+      <p style="display:flex;justify-content:space-between;gap:16px;margin:6px 0;"><span>Tax 10%</span><span>${escapeHtml(formatIdr(form.quote.tax))}</span></p>
+      <p style="display:flex;justify-content:space-between;gap:16px;margin:8px 0;font-weight:700;"><span>Total</span><span>${escapeHtml(formatIdr(form.quote.total))}</span></p>
+      <p style="display:flex;justify-content:space-between;gap:16px;margin:6px 0;"><span>Deposit 30%</span><span>${escapeHtml(formatIdr(form.quote.dp30))}</span></p>
+    </div>
+    <p><strong>Decoration</strong><br>Backdrop: ${escapeHtml(extras.decor?.backdropName || "—")}<br>${
+      colours || "Balloons: —"
+    }<br>${escapeHtml(form.decor.notes || "")}</p>
+    ${extras.backdropUrl ? `<img src="${escapeHtml(extras.backdropUrl)}" alt="Backdrop" style="max-width:320px;margin:8px 0">` : ""}
+    <p><strong>Cake</strong><br>${escapeHtml([form.cake.size, form.cake.design, form.cake.theme].filter(Boolean).join(" · ") || "—")}<br>${escapeHtml(
+      form.cake.notes || ""
+    )}</p>
+    ${extras.cakeUrl ? `<img src="${escapeHtml(extras.cakeUrl)}" alt="Cake" style="max-width:320px;margin:8px 0">` : ""}
+    ${
+      form.guests.length
+        ? `<p><strong>Guest list</strong></p>${form.guests
+            .map(
+              (guest) =>
+                `<p style="display:flex;justify-content:space-between;gap:16px;margin:6px 0;"><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</span><span>${escapeHtml(
+                  [guest.phone, guest.email].filter(Boolean).join(" · ") || "—"
+                )}</span></p>`
+            )
+            .join("")}`
+        : ""
+    }
+    <p><strong>Bank transfer</strong><br>${escapeHtml(form.quote.bank.bank)} · ${escapeHtml(
+      form.quote.bank.accountName
+    )}<br>${escapeHtml(form.quote.bank.accountNumber || "Account number TBC")}</p>
+    <p><strong>Payment</strong><br>${escapeHtml(paymentSummary(extras.payment))}</p>
+    <p>Please transfer the 30% deposit (${escapeHtml(formatIdr(form.quote.dp30))}) to confirm.</p>`;
+  return host;
+}
+
+async function createInvoicePdfBlob(form, row, extras) {
+  const host = buildInvoicePdfHost(form, row, extras);
+  document.body.appendChild(host);
+  try {
+    return await elementToPdfBlob(host);
+  } finally {
+    host.remove();
+  }
 }
 
 async function signedUrl(path) {
@@ -3077,6 +3219,7 @@ async function loadInvoice(id) {
       <p class="status" id="invoice-status"></p>
       <div class="contact-actions">
         <button class="btn" type="button" id="save-invoice">Save invoice</button>
+        <button class="btn btn--outline" type="button" id="download-invoice-pdf">Download PDF</button>
         <button class="btn btn--outline" type="button" id="send-invoice">Save & send invoice</button>
         <a class="btn btn--outline" href="#/payment/${escapeHtml(row.id)}">Track payment</a>
       </div>
@@ -3157,61 +3300,12 @@ async function loadInvoice(id) {
       const cakeFile = document.getElementById("invoice-cake-file")?.files?.[0];
       if (cakeFile) nextFiles.cakePhoto = await uploadStaffFile(row.id, "cake", cakeFile);
       if (send) {
-        const colourList = nextPayload.decor?.balloonColours || [];
-        const colours = colourList
-          .map(
-            (c) =>
-              `<span style="display:inline-block;width:12px;height:12px;background:${escapeHtml(
-                c.hex
-              )};border:1px solid #ccc;margin-right:6px;vertical-align:middle"></span>${escapeHtml(c.label)} ${escapeHtml(c.hex)}`
-          )
-          .join("<br>");
-        const host = document.createElement("div");
-        host.style.cssText = "padding:28px;font-family:Jost,sans-serif;color:#2c3a32;width:720px;background:#fff";
-        host.innerHTML = `<h2>Invoice · Tiny Healthy Cafe</h2>
-          <p>${escapeHtml(row.public_code)} · ${escapeHtml(form.child_name || form.contact_name)}</p>
-          <p>${escapeHtml(formatLongDate(form.party_date))} · ${escapeHtml(timeLabel(form.party_time))}</p>
-          <p>${escapeHtml(form.guest_kids || 0)} kids · ${escapeHtml(form.guest_adults || 0)} adults · ${escapeHtml(form.tableLabel || "")}</p>
-          <ul class="kv">${form.quote.lines
-            .map(
-              (line) =>
-                `<li><span>${escapeHtml(line.label)} × ${escapeHtml(line.qty)}</span><span>${escapeHtml(formatIdr(line.value))}</span></li>`
-            )
-            .join("")}
-            <li><span>Subtotal</span><span>${escapeHtml(formatIdr(form.quote.subtotal))}</span></li>
-            <li><span>Service 5%</span><span>${escapeHtml(formatIdr(form.quote.service))}</span></li>
-            <li><span>Tax 10%</span><span>${escapeHtml(formatIdr(form.quote.tax))}</span></li>
-            <li class="is-total"><span>Total</span><span>${escapeHtml(formatIdr(form.quote.total))}</span></li>
-            <li><span>Deposit 30%</span><span>${escapeHtml(formatIdr(form.quote.dp30))}</span></li>
-          </ul>
-          <p><strong>Decoration</strong><br>Backdrop: ${escapeHtml(nextPayload.decor?.backdropName || "—")}<br>${
-            colours || "Balloons: —"
-          }<br>${escapeHtml(form.decor.notes || "")}</p>
-          ${backdropUrl ? `<img src="${escapeHtml(backdropUrl)}" alt="Backdrop" style="max-width:320px;margin:8px 0">` : ""}
-          <p><strong>Cake</strong><br>${escapeHtml([form.cake.size, form.cake.design, form.cake.theme].filter(Boolean).join(" · ") || "—")}<br>${escapeHtml(
-            form.cake.notes || ""
-          )}</p>
-          ${cakeUrl ? `<img src="${escapeHtml(cakeUrl)}" alt="Cake" style="max-width:320px;margin:8px 0">` : ""}
-          ${
-            form.guests.length
-              ? `<p><strong>Guest list</strong></p><ul class="kv">${form.guests
-                  .map(
-                    (guest) =>
-                      `<li><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</span><span>${escapeHtml(
-                        [guest.phone, guest.email].filter(Boolean).join(" · ") || "—"
-                      )}</span></li>`
-                  )
-                  .join("")}</ul>`
-              : ""
-          }
-          <p><strong>Bank transfer</strong><br>${escapeHtml(form.quote.bank.bank)} · ${escapeHtml(
-            form.quote.bank.accountName
-          )}<br>${escapeHtml(form.quote.bank.accountNumber || "Account number TBC")}</p>
-          <p><strong>Payment</strong><br>${escapeHtml(paymentSummary(nextPayload.payment))}</p>
-          <p>Please transfer the 30% deposit (${escapeHtml(formatIdr(form.quote.dp30))}) to confirm.</p>`;
-        document.body.appendChild(host);
-        const blob = await htmlToPdfBlob(host, `${row.public_code}-invoice.pdf`);
-        host.remove();
+        const blob = await createInvoicePdfBlob(form, row, {
+          decor: nextPayload.decor,
+          cakeUrl,
+          backdropUrl,
+          payment: nextPayload.payment,
+        });
         const path = `${row.id}/invoice.pdf`;
         const pdfFile = new File([blob], `${row.public_code}-invoice.pdf`, { type: "application/pdf" });
         const { error: uploadError } = await supabase.storage.from("request-files").upload(path, pdfFile, {
@@ -3263,6 +3357,32 @@ async function loadInvoice(id) {
   }
 
   document.getElementById("save-invoice")?.addEventListener("click", () => persistInvoice(false));
+  document.getElementById("download-invoice-pdf")?.addEventListener("click", async () => {
+    const statusEl = document.getElementById("invoice-status");
+    if (statusEl) {
+      statusEl.textContent = "Preparing PDF…";
+      statusEl.className = "status";
+    }
+    try {
+      const form = readInvoiceForm(row);
+      const blob = await createInvoicePdfBlob(form, row, {
+        decor: { ...decor, notes: form.decor.notes },
+        cakeUrl,
+        backdropUrl,
+        payment: readPaymentForm(form.quote.dp30, Math.max(0, form.quote.total - form.quote.dp30)),
+      });
+      downloadBlob(blob, `${row.public_code || "invoice"}-invoice.pdf`);
+      if (statusEl) {
+        statusEl.textContent = "PDF downloaded.";
+        statusEl.className = "status is-success";
+      }
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = err.message || "Could not download PDF.";
+        statusEl.className = "status is-error";
+      }
+    }
+  });
   document.getElementById("send-invoice")?.addEventListener("click", () => persistInvoice(true));
 }
 
