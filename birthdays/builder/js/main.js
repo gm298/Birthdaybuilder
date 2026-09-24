@@ -308,6 +308,7 @@
   };
 
   let currentStepId = "intro";
+  let builderBooted = false;
   const staffRequestId = new URLSearchParams(window.location.search).get("staffRequest") || "";
   const editManageToken = new URLSearchParams(window.location.search).get("edit") || "";
   let staffDecorRestore = null;
@@ -500,14 +501,15 @@
     grid.innerHTML = "";
     Map.timeSlots().forEach((time) => {
       const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "time-chip" + (time === selected ? " is-active" : "");
-      btn.dataset.time = time;
-      const end = Map.addMinutes(time, PARTY_DURATION_HOURS * 60);
-      btn.innerHTML = `<strong>${time}</strong><span>until ${end}</span>`;
       const [hour, minute] = time.split(":").map(Number);
       const past = date === now.date && hour * 60 + minute <= now.hour * 60 + now.minute;
-      btn.disabled = past;
+      const booked = !past && partyTimeIsBooked(time);
+      btn.type = "button";
+      btn.className = "time-chip" + (time === selected ? " is-active" : "") + (booked ? " is-booked" : "");
+      btn.dataset.time = time;
+      const end = Map.addMinutes(time, PARTY_DURATION_HOURS * 60);
+      btn.innerHTML = `<strong>${time}</strong><span>${booked ? "Booked" : `until ${end}`}</span>`;
+      btn.disabled = past || booked;
       btn.addEventListener("click", () => {
         if (btn.disabled) return;
         setPartyTimeValue(time);
@@ -1799,6 +1801,16 @@
     return (partyState.tableIds || []).map((id) => Map?.findTable?.(id)).filter(Boolean);
   }
 
+  function partyTimeIsBooked(time) {
+    const Map = window.TinyReserveMap;
+    if (!Map?.slotIsBooked || !time) return false;
+    const guests = totalGuests() || 1;
+    const pkg = selectedPackage();
+    const required = pkg ? Map.birthdayTableIds?.(pkg.id, guests) || [] : [];
+    const ignore = editManageToken ? [...editOwnTableIds] : [];
+    return Map.slotIsBooked(partyState.occupancy, time, "birthday", guests, required, ignore);
+  }
+
   function heldPartyTableIds() {
     const Map = window.TinyReserveMap;
     if (!Map?.heldTableIds) return new Set();
@@ -1846,6 +1858,7 @@
       partyState.occupancy = Map?.withFixedHolds?.(date, []) || [];
     }
     renderPartyTables();
+    renderPartyTimes();
     updateStepProgress();
   }
 
@@ -2617,10 +2630,8 @@
     const compress = window.TinySubmit?.compressImage;
     const toBlob = window.TinySubmit?.canvasToBlob;
 
-    if (statusPreparing) statusPreparing("Preparing quotation PDF…");
+    if (statusPreparing) statusPreparing("Saving your request…");
     const cakeImage = await resolveCakeImageAssets();
-    const pdfBlob = await buildQuotationPdfBlobFromAssets(cakeImage);
-    files.quotePdf = new File([pdfBlob], "quotation.pdf", { type: "application/pdf" });
 
     const cfg = getBackdropConfig();
     const canvas = document.getElementById("backdrop-canvas");
@@ -2661,7 +2672,7 @@
     host.className = "quote-pdf-root";
     host.setAttribute("aria-hidden", "true");
     host.style.cssText =
-      "position:absolute;left:0;top:0;width:794px;z-index:2147483000;pointer-events:none;opacity:1;background:#fffaf6;";
+      "position:fixed;left:0;top:0;width:794px;transform:translateX(-140vw);pointer-events:none;opacity:1;background:#fffaf6;";
     host.innerHTML = buildQuotationPdfMarkup(cakeImage || null);
     document.body.appendChild(host);
 
@@ -2686,7 +2697,7 @@
 
       for (let i = 0; i < pages.length; i += 1) {
         const canvas = await window.html2canvas(pages[i], {
-          scale: 2,
+          scale: window.innerWidth < 800 ? 1 : 2,
           useCORS: true,
           allowTaint: true,
           backgroundColor: "#fffaf6",
@@ -3445,7 +3456,7 @@
           manageToken = result.booking?.manageToken || manageToken;
           editOwnTableIds = (partyState.tableIds || []).map(String);
         } else {
-          statusPreparing("Preparing quotation PDF…");
+          statusPreparing("Saving your request…");
           const files = await collectSubmitFiles();
           const result = await window.TinySubmit.submitRequest({
             source: "party_builder",
@@ -3476,6 +3487,7 @@
           edited: isEdit,
         });
         setStatus(code ? (isEdit ? `Updated ${code}.` : `Saved as ${code}.`) : "Saved.", "is-success");
+        try { sessionStorage.removeItem("tiny-builder-draft"); } catch (_) {}
         const waHref = `${WA_BASE}?text=${encodeURIComponent(composeWhatsAppMessage(code))}`;
         const manageHref = isEdit
           ? window.TinySubmit?.bookingUrl?.(manageToken)
@@ -3615,13 +3627,16 @@
     const ownField = document.getElementById("own-idea-field");
     if (!grid) return;
 
+    const moreWrap = moreBtn?.closest(".gallery-more-wrap");
     if (cakeState.filter === FILTER_OWN_IDEA || cakeState.mode === "own") {
       grid.innerHTML = "";
       if (moreBtn) moreBtn.hidden = true;
+      if (moreWrap) moreWrap.hidden = true;
       if (ownField) ownField.hidden = false;
       return;
     }
     if (ownField) ownField.hidden = true;
+    if (moreWrap) moreWrap.hidden = false;
 
     const GALLERY_PREVIEW = 6;
     const visibleCakes = cakeData.cakes.filter((cake) =>
@@ -3944,7 +3959,7 @@
     } else if (fromHistory && location.hash !== hash) {
       history.replaceState({ step: nextId }, "", hash);
     }
-    const heading = document.querySelector(`#${nextId} h1, #${nextId} h2`);
+    const heading = nextId === "intro" ? null : document.querySelector(`#${nextId} h1, #${nextId} h2`);
     if (heading) {
       if (!heading.hasAttribute("tabindex")) heading.setAttribute("tabindex", "-1");
       heading.focus({ preventScroll: true });
@@ -4012,6 +4027,70 @@
       track.setAttribute("aria-valuemax", String(total));
     }
     updateStepChips();
+    saveBuilderDraft();
+  }
+
+  function saveBuilderDraft() {
+    if (editManageToken || staffRequestId || !builderBooted) return;
+    const fields = {};
+    [
+      "party-date",
+      "party-time",
+      "child-name",
+      "child-age",
+      "guest-kids",
+      "guest-adults",
+      "contact-email",
+      "contact-phone",
+      "contact-dial",
+      "cake-theme",
+      "food-notes",
+      "party-notes",
+    ].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) fields[id] = el.value;
+    });
+    try {
+      sessionStorage.setItem(
+        "tiny-builder-draft",
+        JSON.stringify({
+          step: currentStepId,
+          fields,
+          party: { ...partyState, occupancy: [] },
+          cake: {
+            size: cakeState.size,
+            sponges: cakeState.sponges,
+            sugarSponge: cakeState.sugarSponge,
+            mode: cakeState.mode,
+            design: cakeState.design,
+            theme: cakeState.theme,
+            filter: cakeState.filter,
+            fileName: cakeState.fileName,
+            addons: cakeState.addons,
+          },
+        })
+      );
+    } catch (_) {}
+  }
+
+  function restoreBuilderDraft() {
+    if (editManageToken || staffRequestId) return;
+    let draft;
+    try {
+      draft = JSON.parse(sessionStorage.getItem("tiny-builder-draft") || "");
+    } catch (_) {
+      return;
+    }
+    if (!draft?.fields) return;
+    Object.entries(draft.fields).forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if (!el || value == null || value === "") return;
+      el.value = value;
+      paintCountValue(id);
+    });
+    if (draft.party) Object.assign(partyState, draft.party, { occupancy: [] });
+    if (draft.cake) Object.assign(cakeState, draft.cake, { file: cakeState.file || null });
+    updatePartyTimeTrigger();
   }
 
   function initCollapsibleAddons() {
@@ -4104,6 +4183,109 @@
       renderSummary();
       updateStepProgress();
     });
+  }
+
+  const COUNT_SLIDERS = {
+    "guest-kids": {
+      title: "About how many little guests?",
+      note: "A ballpark is fine. It sizes the cake, the table and the team.",
+      unit: "Little guests",
+      min: 0,
+      max: 30,
+      start: 8,
+      label: (n) => `${n} ${n === 1 ? "kid" : "kids"}`,
+      confirm: (n) => `Got it — we will size everything for ${n} ${n === 1 ? "guest" : "guests"}.`,
+    },
+    "guest-adults": {
+      title: "How many adults?",
+      note: "Parents and other grown-ups joining the party.",
+      unit: "Adults",
+      min: 0,
+      max: 20,
+      start: 2,
+      label: (n) => `${n} ${n === 1 ? "adult" : "adults"}`,
+      confirm: (n) => `Got it — ${n} ${n === 1 ? "adult" : "adults"} joining.`,
+    },
+    "child-age": {
+      title: "How old are they turning?",
+      note: "This sets the cake size and the party tone.",
+      unit: "Years",
+      min: 1,
+      max: 18,
+      start: 5,
+      label: (n) => `Turning ${n}`,
+      confirm: (n) => `Got it — turning ${n}.`,
+    },
+  };
+
+  function paintCountValue(id) {
+    const spec = COUNT_SLIDERS[id];
+    const input = document.getElementById(id);
+    const label = document.getElementById(`${id}-value`);
+    if (!spec || !input || !label) return;
+    const value = input.value;
+    label.textContent = value === "" ? "Slide to choose" : spec.label(Number(value));
+  }
+
+  function initCountSliders() {
+    const modal = document.getElementById("count-modal");
+    const range = document.getElementById("count-modal-range");
+    const title = document.getElementById("count-modal-title");
+    const note = document.getElementById("count-modal-note");
+    const valueEl = document.getElementById("count-modal-value");
+    const unit = document.getElementById("count-modal-unit");
+    const minLabel = document.getElementById("count-modal-min");
+    const maxLabel = document.getElementById("count-modal-max");
+    const confirm = document.getElementById("count-modal-confirm");
+    if (!modal || !range) return;
+    let activeId = "";
+
+    const paint = () => {
+      const spec = COUNT_SLIDERS[activeId];
+      if (!spec) return;
+      const n = Number(range.value);
+      if (valueEl) valueEl.textContent = String(n);
+      if (confirm) confirm.textContent = spec.confirm(n);
+    };
+
+    const close = () => {
+      modal.hidden = true;
+      activeId = "";
+    };
+
+    const open = (id) => {
+      const spec = COUNT_SLIDERS[id];
+      const input = document.getElementById(id);
+      if (!spec || !input) return;
+      activeId = id;
+      range.min = String(spec.min);
+      range.max = String(spec.max);
+      range.value = input.value === "" ? String(spec.start) : String(input.value);
+      if (title) title.textContent = spec.title;
+      if (note) note.textContent = spec.note;
+      if (unit) unit.textContent = spec.unit;
+      if (minLabel) minLabel.textContent = String(spec.min);
+      if (maxLabel) maxLabel.textContent = spec.max >= 30 && id === "guest-kids" ? `${spec.max}+` : String(spec.max);
+      paint();
+      modal.hidden = false;
+    };
+
+    Object.keys(COUNT_SLIDERS).forEach((id) => {
+      paintCountValue(id);
+      document.getElementById(`${id}-trigger`)?.addEventListener("click", () => open(id));
+    });
+    range.addEventListener("input", paint);
+    document.getElementById("count-modal-done")?.addEventListener("click", () => {
+      const input = document.getElementById(activeId);
+      if (input) {
+        input.value = range.value;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        paintCountValue(activeId);
+      }
+      close();
+    });
+    modal.querySelectorAll("[data-close-count]").forEach((el) => el.addEventListener("click", close));
   }
 
   function initGuestLimit() {
@@ -4285,7 +4467,18 @@
   }
 
   function initModeToggle() {
-    /* Mode is chosen via the "My own idea" gallery filter. */
+    document.getElementById("custom-cake-open")?.addEventListener("click", () => {
+      cakeState.mode = "own";
+      cakeState.filter = FILTER_OWN_IDEA;
+      cakeState.design = "";
+      cakeState.activeCake = null;
+      renderFilters();
+      renderMode();
+      renderGallery();
+      renderSummary();
+      updateStepProgress();
+      document.getElementById("own-idea-field")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }
 
   function initFileInput() {
@@ -4450,6 +4643,7 @@
     const setVal = (fieldId, value) => {
       const el = document.getElementById(fieldId);
       if (el && value != null && value !== "") el.value = value;
+      paintCountValue(fieldId);
     };
     setVal("party-date", booking.partyDate || party.date || "");
     setPartyTimeValue(String(booking.partyTime || party.time || "").slice(0, 5));
@@ -4544,6 +4738,7 @@
     const setVal = (fieldId, value) => {
       const el = document.getElementById(fieldId);
       if (el && value != null && value !== "") el.value = value;
+      paintCountValue(fieldId);
     };
     setVal("party-date", row.party_date || party.date || "");
     setVal("party-time", String(row.party_time || party.time || "").slice(0, 5));
@@ -4707,6 +4902,7 @@
       if (pkg?.decorId) partyState.decorPackageId = pkg.decorId;
     }
 
+    restoreBuilderDraft();
     renderPackages();
     renderPackageHint();
     initPartyDate();
@@ -4718,6 +4914,7 @@
     initBuilderModals();
     initCollapsibleAddons();
     initGuestLimit();
+    initCountSliders();
     initPartyTables();
     renderMasterclasses();
     renderExtras();
@@ -4780,5 +4977,7 @@
     }
     updateStepProgress();
     checkTerraceGuestLimit();
+    builderBooted = true;
+    saveBuilderDraft();
   });
 })();

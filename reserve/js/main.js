@@ -342,6 +342,7 @@
       state.occupancy = [];
       pruneSelection();
       renderPlan();
+      renderTimes();
       return;
     }
     try {
@@ -362,6 +363,7 @@
     }
     pruneSelection();
     renderPlan();
+    renderTimes();
   }
 
   function setDate(value) {
@@ -412,7 +414,9 @@
     buttons.forEach((btn) => {
       const [hour, minute] = btn.dataset.time.split(":").map(Number);
       const past = state.date === now.date && hour * 60 + minute <= now.hour * 60 + now.minute;
-      btn.disabled = past;
+      const booked = btn.dataset.booked === "1";
+      btn.disabled = past || booked;
+      btn.classList.toggle("is-booked", booked);
       if (past && state.time === btn.dataset.time) {
         const next = [...buttons].find((item) => !item.disabled);
         state.time = next ? next.dataset.time : "";
@@ -465,11 +469,15 @@
     grid.innerHTML = "";
     Map.timeSlots().forEach((time) => {
       const btn = document.createElement("button");
+      const booked = Map.slotIsBooked?.(state.occupancy, time, "reservation", state.guests || 1);
       btn.type = "button";
-      btn.className = "time-chip" + (time === state.time ? " is-active" : "");
+      btn.className = "time-chip" + (time === state.time ? " is-active" : "") + (booked ? " is-booked" : "");
       btn.dataset.time = time;
-      btn.innerHTML = `<strong>${time}</strong><span>until ${Map.addMinutes(time, Map.SLOT_MINUTES)}</span>`;
+      btn.dataset.booked = booked ? "1" : "";
+      btn.innerHTML = `<strong>${time}</strong><span>${booked ? "Booked" : `until ${Map.addMinutes(time, Map.SLOT_MINUTES)}`}</span>`;
+      if (booked) btn.disabled = true;
       btn.addEventListener("click", () => {
+        if (btn.disabled) return;
         state.time = time;
         grid.querySelectorAll(".time-chip").forEach((item) => {
           item.classList.toggle("is-active", item === btn);

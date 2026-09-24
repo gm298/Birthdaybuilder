@@ -302,7 +302,7 @@ textarea {
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
   gap: 10px;
   margin-bottom: 18px;
 }
@@ -882,7 +882,7 @@ textarea {
   .inbox td:nth-child(5),
   .inbox th:nth-child(2),
   .inbox td:nth-child(2) { display: none; }
-  .stat-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .stat-grid { grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 6px; }
   .stat-card { padding: 10px 6px; }
   .stat-card strong { font-size: 22px; margin-bottom: 4px; }
   .stat-card span { font-size: 11px; }

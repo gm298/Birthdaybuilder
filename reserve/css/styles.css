@@ -1208,6 +1208,17 @@ h3 {
   opacity: 0.35;
 }
 
+.time-chip.is-booked,
+.time-chip.is-booked:disabled,
+.wizard .time-chip.is-booked,
+.wizard .time-chip.is-booked:disabled {
+  opacity: 1;
+  background: #111;
+  color: #e23b3b;
+  border-color: #111;
+  cursor: not-allowed;
+}
+
 .form-row--name {
   grid-template-columns: 110px 1fr;
 }

@@ -102,15 +102,35 @@ export async function sendBookingEmail(input: BookingEmailInput) {
     .filter(Boolean)
     .join("<br>");
 
-  const html = `
-    <div style="font-family:Georgia,serif;color:#33413a;line-height:1.5">
-      <p>Hi ${escapeHtml(input.guestName || "there")},</p>
-      <p>${escapeHtml(copy.saved).replace("Tiny Healthy Cafe", "<strong>Tiny Healthy Cafe</strong>")}</p>
-      <p>${htmlDetails}</p>
-      <p><a href="${escapeHtml(link)}" style="color:#647c6e">${escapeHtml(copy.linkLabel)}</a></p>
-      <p style="color:#8a9c8f;font-size:14px">Tiny Healthy Cafe · Berawa, Bali · +62 822 6648 4226</p>
+  const html = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@500;600&family=Tenor+Sans&display=swap" rel="stylesheet">
+</head>
+<body style="margin:0;padding:0;background:#f7f5ee;">
+  <div style="margin:0;padding:32px 16px;background:#f7f5ee;font-family:'Tenor Sans',Georgia,serif;color:#33413a;">
+    <div style="max-width:560px;margin:0 auto;background:#fbfaf7;border-radius:18px;overflow:hidden;border:1px solid rgba(100,124,110,0.16);">
+      <div style="padding:28px 28px 8px;">
+        <img src="https://gm298.github.io/Birthdaybuilder/birthdays/builder/img/quote/logo-tiny.png" alt="Tiny" width="54" height="54" style="display:block;width:54px;height:auto;margin:0 0 14px;">
+        <p style="margin:0;font-family:'Jost',sans-serif;font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#647c6e;">Tiny Healthy Cafe</p>
+        <h1 style="margin:8px 0 0;font-family:'Jost',sans-serif;font-size:32px;line-height:1.1;font-weight:500;color:#647c6e;">Birthday Bash<br>at Tiny</h1>
+      </div>
+      <div style="padding:8px 28px 28px;">
+        <p style="margin:0 0 8px;font-size:16px;color:#3d4f45;">Hi ${escapeHtml(input.guestName || "there")},</p>
+        <p style="margin:0 0 18px;font-size:15px;line-height:1.6;">${escapeHtml(copy.saved)}</p>
+        <div style="padding:14px 16px;border-radius:12px;background:#ffffff;border:1px solid rgba(100,124,110,0.16);font-size:14px;line-height:1.7;color:#3d4f45;">
+          ${htmlDetails}
+        </div>
+        <p style="margin:22px 0;">
+          <a href="${escapeHtml(link)}" style="display:inline-block;background:#647c6e;color:#ffffff;text-decoration:none;border-radius:999px;padding:12px 20px;font-family:'Jost',sans-serif;font-weight:500;">${escapeHtml(copy.linkLabel)}</a>
+        </p>
+        <p style="margin:0;color:#8a9c8f;font-size:13px;line-height:1.5;">Tiny Healthy Cafe · Berawa, Bali<br>+62 822 6648 4226</p>
+      </div>
     </div>
-  `;
+  </div>
+</body>
+</html>`;
 
   try {
     const res = await fetch("https://api.resend.com/emails", {

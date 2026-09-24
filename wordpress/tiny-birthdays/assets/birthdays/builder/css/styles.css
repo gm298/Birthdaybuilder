@@ -944,6 +944,15 @@ body.time-modal-open {
   cursor: not-allowed;
 }
 
+.time-modal .time-chip.is-booked,
+.time-modal .time-chip.is-booked:disabled {
+  opacity: 1;
+  background: #111;
+  color: #e23b3b;
+  border-color: #111;
+  cursor: not-allowed;
+}
+
 .field.is-invalid input,
 .field.is-invalid textarea {
   border-color: #c45c4a;

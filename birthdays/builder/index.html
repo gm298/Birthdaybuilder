@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../cakes/css/styles.css?v=20260831f">
-  <link rel="stylesheet" href="css/styles.css?v=20260917e">
+  <link rel="stylesheet" href="css/styles.css?v=20260924g">
   <link rel="stylesheet" href="../../shared/chrome.css?v=20260917e">
   <script src="../../shared/analytics.js?v=20260905a"></script>
 </head>
@@ -37,7 +37,7 @@
       <img class="builder-hero__img" src="img/hero.jpg" alt="Children celebrating at Tiny with balloon photozone and tropical terrace" width="1800" height="1200">
       <div class="builder-hero__copy">
         <p class="builder-hero__brand">Tiny</p>
-        <h1 tabindex="-1">Welcome to our birthday builder where you can build your birthday from custom decoration designs and custom birthday cake.</h1>
+        <h1>Welcome to our birthday builder where you can build your birthday from custom decoration designs and custom birthday cake.</h1>
         <p class="builder-hero__note">Please note this process will take approximately 5 minutes</p>
         <a class="btn btn--lg" href="#details" id="intro-continue">Continue</a>
       </div>
@@ -79,12 +79,18 @@
             <span class="field__label">How many people? <span class="field__req">*</span></span>
             <div class="guest-pair">
               <div class="field">
-                <label class="field__label field__label--soft" for="guest-kids">Kids</label>
-                <input type="number" id="guest-kids" name="guest-kids" min="0" placeholder="e.g. 12" inputmode="numeric" required>
+                <span class="field__label field__label--soft" id="guest-kids-label">Kids</span>
+                <button type="button" class="count-trigger" id="guest-kids-trigger" aria-haspopup="dialog" aria-labelledby="guest-kids-label">
+                  <strong id="guest-kids-value">Slide to choose</strong>
+                </button>
+                <input type="hidden" id="guest-kids" name="guest-kids" value="">
               </div>
               <div class="field">
-                <label class="field__label field__label--soft" for="guest-adults">Adults</label>
-                <input type="number" id="guest-adults" name="guest-adults" min="0" placeholder="e.g. 8" inputmode="numeric">
+                <span class="field__label field__label--soft" id="guest-adults-label">Adults</span>
+                <button type="button" class="count-trigger" id="guest-adults-trigger" aria-haspopup="dialog" aria-labelledby="guest-adults-label">
+                  <strong id="guest-adults-value">Slide to choose</strong>
+                </button>
+                <input type="hidden" id="guest-adults" name="guest-adults" value="">
               </div>
             </div>
           </div>
@@ -109,8 +115,11 @@
           <input type="text" id="child-name" name="child-name" placeholder="e.g. Mira" required>
         </div>
         <div class="field">
-          <label class="field__label" for="child-age">Turning <span class="field__req">*</span></label>
-          <input type="text" id="child-age" name="child-age" placeholder="e.g. 5" required>
+          <span class="field__label" id="child-age-label">Turning <span class="field__req">*</span></span>
+          <button type="button" class="count-trigger" id="child-age-trigger" aria-haspopup="dialog" aria-labelledby="child-age-label">
+            <strong id="child-age-value">Slide to choose</strong>
+          </button>
+          <input type="hidden" id="child-age" name="child-age" value="">
         </div>
         <div class="details-row details-row--contact field--full" id="contact-fields">
           <div class="field">
@@ -194,7 +203,11 @@
 
       <section class="gallery" id="gallery" aria-label="Cake gallery">
         <div class="gallery__head">
-          <h2>Cakes we bake</h2>
+          <div>
+            <h2>Cakes we bake</h2>
+            <p class="section-note">Click a cake &amp; we can make it!</p>
+          </div>
+          <button type="button" class="btn btn--outline" id="custom-cake-open">Add your own custom design</button>
           <div class="filters" id="filters" role="tablist" aria-label="Filter by theme"></div>
         </div>
         <div class="gallery__grid" id="gallery-grid"></div>
@@ -422,6 +435,20 @@
     </div>
   </div>
 
+  <div class="count-modal" id="count-modal" hidden>
+    <button type="button" class="count-modal__backdrop" data-close-count aria-label="Close"></button>
+    <div class="count-modal__panel" role="dialog" aria-modal="true" aria-labelledby="count-modal-title">
+      <h3 id="count-modal-title">How many?</h3>
+      <p class="count-modal__note" id="count-modal-note"></p>
+      <div class="count-modal__value" id="count-modal-value">0</div>
+      <div class="count-modal__unit" id="count-modal-unit"></div>
+      <input type="range" id="count-modal-range" min="0" max="30" value="0">
+      <div class="count-modal__scale"><span id="count-modal-min">0</span><span id="count-modal-max">30</span></div>
+      <p class="count-modal__confirm" id="count-modal-confirm"></p>
+      <button type="button" class="btn count-modal__done" id="count-modal-done">Continue</button>
+    </div>
+  </div>
+
   <div class="lightbox lightbox--photo" id="photo-lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="photo-lightbox-name">
     <button class="lightbox__close" type="button" aria-label="Close" data-close-photo>&times;</button>
     <div class="lightbox__panel lightbox__panel--photo">
@@ -437,7 +464,7 @@
   <script src="../../shared/supabase-config.js?v=20260917e" defer></script>
   <script src="../../shared/submit-request.js?v=20260917e" defer></script>
   <script src="../../shared/success-modal.js?v=20260917e" defer></script>
-  <script src="../../shared/reserve-tables.js?v=20260917e" defer></script>
-  <script src="js/main.js?v=20260917e" defer></script>
+  <script src="../../shared/reserve-tables.js?v=20260924e" defer></script>
+  <script src="js/main.js?v=20260924h" defer></script>
 </body>
 </html>

@@ -500,14 +500,15 @@
     grid.innerHTML = "";
     Map.timeSlots().forEach((time) => {
       const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "time-chip" + (time === selected ? " is-active" : "");
-      btn.dataset.time = time;
-      const end = Map.addMinutes(time, PARTY_DURATION_HOURS * 60);
-      btn.innerHTML = `<strong>${time}</strong><span>until ${end}</span>`;
       const [hour, minute] = time.split(":").map(Number);
       const past = date === now.date && hour * 60 + minute <= now.hour * 60 + now.minute;
-      btn.disabled = past;
+      const booked = !past && partyTimeIsBooked(time);
+      btn.type = "button";
+      btn.className = "time-chip" + (time === selected ? " is-active" : "") + (booked ? " is-booked" : "");
+      btn.dataset.time = time;
+      const end = Map.addMinutes(time, PARTY_DURATION_HOURS * 60);
+      btn.innerHTML = `<strong>${time}</strong><span>${booked ? "Booked" : `until ${end}`}</span>`;
+      btn.disabled = past || booked;
       btn.addEventListener("click", () => {
         if (btn.disabled) return;
         setPartyTimeValue(time);
@@ -1799,6 +1800,16 @@
     return (partyState.tableIds || []).map((id) => Map?.findTable?.(id)).filter(Boolean);
   }
 
+  function partyTimeIsBooked(time) {
+    const Map = window.TinyReserveMap;
+    if (!Map?.slotIsBooked || !time) return false;
+    const guests = totalGuests() || 1;
+    const pkg = selectedPackage();
+    const required = pkg ? Map.birthdayTableIds?.(pkg.id, guests) || [] : [];
+    const ignore = editManageToken ? [...editOwnTableIds] : [];
+    return Map.slotIsBooked(partyState.occupancy, time, "birthday", guests, required, ignore);
+  }
+
   function heldPartyTableIds() {
     const Map = window.TinyReserveMap;
     if (!Map?.heldTableIds) return new Set();
@@ -1846,6 +1857,7 @@
       partyState.occupancy = Map?.withFixedHolds?.(date, []) || [];
     }
     renderPartyTables();
+    renderPartyTimes();
     updateStepProgress();
   }
 

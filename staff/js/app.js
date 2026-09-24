@@ -703,7 +703,9 @@ function renderOverview() {
   const selectedFilter = state.overviewStatus;
   const stats = [
     ["booked", "booked", "Confirmed", countBy(statPool, (r) => r.status === "booked")],
-    ["new", "pending", "New booking", countBy(statPool, (r) => PENDING_STATUSES.includes(r.status))],
+    ["new", "new", "New booking", countBy(statPool, (r) => r.status === "new")],
+    ["contacted", "contacted", "Contacted", countBy(statPool, (r) => r.status === "contacted")],
+    ["quoted", "quoted", "Quoted", countBy(statPool, (r) => r.status === "quoted")],
     ["cancelled", "cancelled", "Cancelled", countBy(statPool, (r) => r.status === "cancelled")],
     ["noshow", "noshow", "No-show", countBy(statPool, (r) => r.status === "noshow")],
     ["rejected", "rejected", "Rejected", countBy(statPool, (r) => r.status === "rejected")],
@@ -2413,98 +2415,214 @@ async function loadCanvasPdfLibs() {
   }
 }
 
-async function createInvoicePdfBlob(form, row, extras) {
-  await loadScriptOnce(
-    "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
-    () => !!(window.jspdf && window.jspdf.jsPDF)
-  );
-  if (!window.jspdf?.jsPDF) throw new Error("PDF tools did not load.");
-  const JsPDF = window.jspdf.jsPDF;
-  const pdf = new JsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-  const margin = 16;
-  const pageW = pdf.internal.pageSize.getWidth();
-  const pageH = pdf.internal.pageSize.getHeight();
-  const contentW = pageW - margin * 2;
-  let y = 18;
+function quoteAsset(file) {
+  return new URL(`../../birthdays/builder/img/quote/${file}`, import.meta.url).href;
+}
 
-  function ensureSpace(height) {
-    if (y + height <= pageH - 16) return;
-    pdf.addPage();
-    y = 18;
-  }
+function ensureInvoicePdfStyles() {
+  if (document.getElementById("invoice-pdf-styles")) return;
+  const style = document.createElement("style");
+  style.id = "invoice-pdf-styles";
+  style.textContent = `
+.quote-pdf-root { box-sizing: border-box; width: 794px; margin: 0; padding: 0; color: #5f7367 !important; background: #fffaf6; font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+.quote-pdf-root *, .quote-pdf-root *::before, .quote-pdf-root *::after { box-sizing: border-box; }
+.quote-pdf-root .qp-page { width: 794px; height: 1123px; padding: 68px 68px 82px; position: relative; overflow: hidden; background: #fffaf6; color: #5f7367 !important; }
+.quote-pdf-root .qp-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 28px; }
+.quote-pdf-root .qp-logo { width: 58px; height: auto; display: block; }
+.quote-pdf-root .qp-title { margin: 0; text-align: right; font-size: 34px; line-height: 1.05; font-weight: 600; color: #7a9a86 !important; }
+.quote-pdf-root .qp-meta { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 18px 24px; margin-bottom: 34px; font-size: 14px; line-height: 1.7; color: #5f7367 !important; }
+.quote-pdf-root .qp-meta-left div, .quote-pdf-root .qp-meta-right div { margin: 0 0 2px; }
+.quote-pdf-root .qp-meta strong { font-weight: 600; }
+.quote-pdf-root table.qp-items { width: 100%; border-collapse: collapse; font-size: 13px; color: #5f7367 !important; }
+.quote-pdf-root table.qp-items thead th { text-align: left; font-weight: 600; color: #7a9a86 !important; padding: 0 8px 10px 0; border-bottom: 1.5px solid #5f7367; }
+.quote-pdf-root table.qp-items .qp-num, .quote-pdf-root table.qp-items .qp-qty { text-align: right; white-space: nowrap; }
+.quote-pdf-root table.qp-items .qp-qty { width: 48px; padding-left: 12px; }
+.quote-pdf-root table.qp-items .qp-num { width: 120px; }
+.quote-pdf-root table.qp-items tbody td { padding: 11px 8px 11px 0; vertical-align: top; border-bottom: 1px solid rgba(95, 115, 103, 0.18); color: #5f7367 !important; }
+.quote-pdf-root .qp-note { margin-top: 3px; font-size: 11px; color: rgba(95, 115, 103, 0.72) !important; line-height: 1.4; }
+.quote-pdf-root .qp-totals-wrap { margin-top: 18px; display: flex; justify-content: flex-end; }
+.quote-pdf-root .qp-totals { width: 270px; font-size: 14px; color: #5f7367 !important; }
+.quote-pdf-root .qp-totals-row { display: flex; justify-content: space-between; gap: 18px; padding: 5px 0; }
+.quote-pdf-root .qp-totals-row.is-grand { margin-top: 8px; font-weight: 700; font-size: 16px; }
+.quote-pdf-root .qp-totals-row.is-grand .qp-amount { border-bottom: 3px double #5f7367; padding-bottom: 2px; }
+.quote-pdf-root .qp-totals-row.is-dp { margin-top: 10px; font-weight: 600; }
+.quote-pdf-root .qp-flowers { position: absolute; left: 46px; bottom: 38px; width: 180px; height: auto; pointer-events: none; }
+.quote-pdf-root .qp-flowers--right { left: auto; right: 38px; width: 196px; }
+.quote-pdf-root .qp-mockup { display: block; width: 100%; height: auto; margin-top: 4px; border-radius: 4px; }
+.quote-pdf-root .qp-cake { display: block; width: auto; max-width: 420px; max-height: 520px; margin: 8px auto 0; border-radius: 4px; object-fit: contain; }
+.quote-pdf-root .qp-rules-title { margin: 8px 0 18px; font-size: 18px; font-weight: 700; color: #5f7367 !important; }
+.quote-pdf-root .qp-rules-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 28px; }
+.quote-pdf-root .qp-rule h4 { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: #5f7367 !important; }
+.quote-pdf-root .qp-rule p { margin: 0; font-size: 12px; line-height: 1.55; color: #5f7367 !important; }
+.quote-pdf-root .qp-estimate { margin-top: 22px; font-size: 11px; color: rgba(95, 115, 103, 0.75) !important; max-width: 420px; }
+`;
+  document.head.appendChild(style);
+}
 
-  function writeLine(text, { size = 11, bold = false, gap = 2.2, color = [44, 58, 50] } = {}) {
-    const value = String(text || "").replace(/\s+/g, " ").trim();
-    if (!value) return;
-    pdf.setFont("helvetica", bold ? "bold" : "normal");
-    pdf.setFontSize(size);
-    pdf.setTextColor(...color);
-    const lines = pdf.splitTextToSize(value, contentW);
-    const height = lines.length * size * 0.45;
-    ensureSpace(height);
-    pdf.text(lines, margin, y);
-    y += height + gap;
-  }
+function invoiceThemeLine(form, extras) {
+  const decor = extras.decor || {};
+  const parts = [];
+  if (decor.themeLabel && decor.themeLabel !== "Not chosen yet") parts.push(decor.themeLabel);
+  if ((decor.balloonColours || []).length) parts.push("custom balloon colours");
+  if (decor.backdropName) parts.push(`name "${decor.backdropName}"`);
+  if (form.cake?.theme) parts.push(form.cake.theme);
+  else if (form.cake?.design) parts.push(form.cake.design);
+  return parts.join(" · ");
+}
 
-  function writePair(label, amount, { bold = false } = {}) {
-    pdf.setFont("helvetica", bold ? "bold" : "normal");
-    pdf.setFontSize(11);
-    pdf.setTextColor(44, 58, 50);
-    ensureSpace(7);
-    pdf.text(String(label || ""), margin, y);
-    pdf.text(String(amount || ""), pageW - margin, y, { align: "right" });
-    y += 7;
-  }
-
-  writeLine("Invoice · Tiny Healthy Cafe", { size: 18, bold: true, gap: 4, color: [90, 122, 104] });
-  writeLine(`${row.public_code || ""} · ${form.child_name || form.contact_name || ""}`.replace(/^ · | · $/g, ""));
-  writeLine(`${formatLongDate(form.party_date)} · ${timeLabel(form.party_time)}`);
-  writeLine(`${form.guest_kids || 0} kids · ${form.guest_adults || 0} adults${form.tableLabel ? ` · ${form.tableLabel}` : ""}`, { gap: 5 });
-
-  (form.quote.lines || []).forEach((line) => {
-    writePair(`${line.label || "Item"} × ${line.qty || 1}`, formatIdr(line.value));
-  });
-  y += 1;
-  writePair("Subtotal", formatIdr(form.quote.subtotal));
-  writePair("Service 5%", formatIdr(form.quote.service));
-  writePair("Tax 10%", formatIdr(form.quote.tax));
-  writePair("Total", formatIdr(form.quote.total), { bold: true });
-  writePair("Deposit 30%", formatIdr(form.quote.dp30));
-  y += 3;
-
-  const colours = (extras.decor?.balloonColours || [])
-    .map((colour) => [colour.label, colour.hex].filter(Boolean).join(" "))
-    .filter(Boolean)
-    .join(", ");
-  writeLine("Decoration", { bold: true, gap: 1.2 });
-  writeLine(`Backdrop: ${extras.decor?.backdropName || "—"}`);
-  writeLine(colours ? `Balloons: ${colours}` : "Balloons: —");
-  if (form.decor?.notes) writeLine(form.decor.notes);
-
-  const cakeBits = [form.cake?.size, form.cake?.design, form.cake?.theme].filter(Boolean).join(" · ");
-  writeLine("Cake", { bold: true, gap: 1.2 });
-  writeLine(cakeBits || "—");
-  if (form.cake?.notes) writeLine(form.cake.notes);
-
-  if (form.guests?.length) {
-    writeLine("Guest list", { bold: true, gap: 1.2 });
-    form.guests.forEach((guest) => {
-      const contact = [guest.phone, guest.email].filter(Boolean).join(" · ") || "—";
-      writePair(`${guest.name || "Guest"} · ${guest.pax || 1} pax`, contact);
-    });
-  }
-
+function invoicePdfMarkup(form, row, extras) {
+  const logoSrc = quoteAsset("logo-tiny.png");
+  const flowers1 = quoteAsset("flowers-page1.png");
+  const flowers2 = quoteAsset("flowers-page2.png");
+  const kids = form.guest_kids || 0;
+  const adults = form.guest_adults || 0;
+  const header = `<div class="qp-header"><img class="qp-logo" src="${logoSrc}" alt="Tiny"><h1 class="qp-title">Birthday Bash<br>at Tiny</h1></div>`;
+  const meta = `<div class="qp-meta">
+    <div class="qp-meta-left">
+      <div><strong>Name</strong> : ${escapeHtml(form.child_name || form.contact_name || "")}</div>
+      <div><strong>Phone</strong> : ${escapeHtml(row.phone || "")}</div>
+      <div><strong>Email</strong> : ${escapeHtml(row.email || "")}</div>
+      <div><strong>Time</strong> : ${escapeHtml(timeLabel(form.party_time) === "—" ? "" : timeLabel(form.party_time))}</div>
+      <div><strong>Total Pax</strong> : ${escapeHtml(`${kids} kids ${adults} adults`)}</div>
+      <div><strong>Theme</strong> : ${escapeHtml(invoiceThemeLine(form, extras))}</div>
+    </div>
+    <div class="qp-meta-right"><div><strong>Date</strong> : ${escapeHtml(formatLongDate(form.party_date))}</div></div>
+  </div>`;
+  const rows = (form.quote.lines || [])
+    .map((line) => {
+      const qty = Number(line.qty) || 1;
+      const total = Number(line.value) || qty * (Number(line.price) || 0);
+      const unit = Number(line.price) || (qty ? Math.round(total / qty) : total);
+      return `<tr>
+        <td class="qp-details">${escapeHtml(line.label || "Item")}${line.detail ? `<div class="qp-note">${escapeHtml(line.detail)}</div>` : ""}</td>
+        <td class="qp-num">${escapeHtml(formatIdr(unit))}</td>
+        <td class="qp-qty">${escapeHtml(qty)}</td>
+        <td class="qp-num">${escapeHtml(formatIdr(total))}</td>
+      </tr>`;
+    })
+    .join("");
   const bank = form.quote.bank || {};
-  writeLine("Bank transfer", { bold: true, gap: 1.2 });
-  writeLine(`${bank.bank || ""} · ${bank.accountName || ""}`.replace(/^ · | · $/g, ""));
-  writeLine(bank.accountNumber || "Account number TBC");
-  writeLine("Payment", { bold: true, gap: 1.2 });
-  writeLine(paymentSummary(extras.payment));
-  writeLine(`Please transfer the 30% deposit (${formatIdr(form.quote.dp30)}) to confirm.`, { gap: 4 });
+  const bankLine = [bank.bank, bank.accountName, bank.accountNumber].filter(Boolean).join(" · ");
+  const pages = [`<div class="qp-page">${header}${meta}
+    <table class="qp-items"><thead><tr><th>Details</th><th class="qp-num">Price</th><th class="qp-qty">Qty</th><th class="qp-num">Total</th></tr></thead>
+    <tbody>${rows || `<tr><td class="qp-details">No items</td><td class="qp-num">—</td><td class="qp-qty">—</td><td class="qp-num">—</td></tr>`}</tbody></table>
+    <div class="qp-totals-wrap"><div class="qp-totals">
+      <div class="qp-totals-row"><span>Total :</span><span>${escapeHtml(formatIdr(form.quote.subtotal))}</span></div>
+      <div class="qp-totals-row"><span>Service (+5%) :</span><span>${escapeHtml(formatIdr(form.quote.service))}</span></div>
+      <div class="qp-totals-row"><span>Tax (+10%) :</span><span>${escapeHtml(formatIdr(form.quote.tax))}</span></div>
+      <div class="qp-totals-row is-grand"><span>TOTAL:</span><span class="qp-amount">${escapeHtml(formatIdr(form.quote.total))}</span></div>
+      <div class="qp-totals-row is-dp"><span>DP 30% :</span><span>${escapeHtml(formatIdr(form.quote.dp30))}</span></div>
+    </div></div>
+    <p class="qp-estimate">Estimate only — final quotation confirmed by Tiny. Items marked TBC are priced on request.${bankLine ? ` Bank transfer: ${escapeHtml(bankLine)}.` : ""}</p>
+    <img class="qp-flowers" src="${flowers1}" alt="">
+  </div>`, `<div class="qp-page">${header}${meta}
+    <h2 class="qp-rules-title">Reservation Rules:</h2>
+    <div class="qp-rules-grid">
+      <div class="qp-rule"><h4>Hold Time for Reservations:</h4><p>Reservations will be held for a maximum of 20 minutes after the designated reservation time. If guests fail to arrive within this time frame, the reservation may be released to accommodate other diners.</p></div>
+      <div class="qp-rule"><h4>Cancellation Policy:</h4><p>Guests are kindly requested to provide at least 24 hours notice for any cancellations or changes to their reservation. Failure to do so may result in a cancellation fee or restriction on future reservations. There is no refund for any cancellations.</p></div>
+      <div class="qp-rule"><h4>Outside Food and Drinks:</h4><p>No outside food or drinks are permitted.</p></div>
+      <div class="qp-rule"><h4>Service Charge and Taxes:</h4><p>All reservations are subject to a 5% service charge and a 10% tax, as per local regulations. Prices exclude service charge and taxes unless otherwise stated.</p></div>
+      <div class="qp-rule"><h4>Availability and Capacity:</h4><p>Reservations are subject to availability and capacity limits.</p></div>
+      <div class="qp-rule"><h4>Special Requests:</h4><p>Guests must ensure all special requests are communicated and provide mandatory details at least 4 days before the event.</p></div>
+    </div>
+    <img class="qp-flowers qp-flowers--right" src="${flowers2}" alt="">
+  </div>`];
+  if (extras.backdropUrl) {
+    const colours = (extras.decor?.balloonColours || [])
+      .map((colour) => colour.label || colour.hex)
+      .filter(Boolean)
+      .join(", ");
+    pages.push(`<div class="qp-page">${header}${meta}
+      <h2 class="qp-rules-title">Backdrop mockup</h2>
+      <img class="qp-mockup" src="${escapeHtml(extras.backdropUrl)}" alt="Backdrop">
+      <p class="qp-estimate">${escapeHtml([extras.decor?.backdropName ? `Name: ${extras.decor.backdropName}` : "", colours ? `Balloon colours: ${colours}` : "", form.decor?.notes || ""].filter(Boolean).join(". "))}</p>
+    </div>`);
+  }
+  if (extras.cakeUrl) {
+    const cakeBits = [form.cake?.size ? `Size ${form.cake.size}` : "", form.cake?.design || "", form.cake?.theme ? `Theme ${form.cake.theme}` : ""].filter(Boolean);
+    pages.push(`<div class="qp-page">${header}${meta}
+      <h2 class="qp-rules-title">Cake design</h2>
+      <img class="qp-cake" src="${escapeHtml(extras.cakeUrl)}" alt="Cake design">
+      <p class="qp-estimate">${escapeHtml(cakeBits.join(". ") || "Cake reference")}. Reference for Tiny — final cake may vary.</p>
+    </div>`);
+  }
+  return pages.join("");
+}
 
-  const blob = pdf.output("blob");
-  if (!(blob instanceof Blob) || !blob.size) throw new Error("PDF file was empty.");
-  return blob;
+async function createInvoicePdfBlob(form, row, extras) {
+  await loadCanvasPdfLibs();
+  ensureInvoicePdfStyles();
+  const host = document.createElement("div");
+  host.id = "invoice-pdf-root";
+  host.className = "quote-pdf-root";
+  host.setAttribute("aria-hidden", "true");
+  host.style.cssText = "position:absolute;left:0;top:0;width:794px;z-index:2147483000;pointer-events:none;opacity:1;background:#fffaf6;";
+  host.innerHTML = invoicePdfMarkup(form, row, extras);
+  document.body.appendChild(host);
+  const sheets = [...document.styleSheets];
+  const disabled = sheets.map((sheet) => sheet.disabled);
+  sheets.forEach((sheet) => {
+    if (sheet.ownerNode?.id !== "invoice-pdf-styles") sheet.disabled = true;
+  });
+  try {
+    await inlineImages(host);
+    const images = [...host.querySelectorAll("img")];
+    await Promise.all(
+      images.map(
+        (img) =>
+          new Promise((resolve) => {
+            if (img.complete) resolve();
+            else {
+              img.onload = resolve;
+              img.onerror = resolve;
+            }
+          })
+      )
+    );
+    if (document.fonts?.ready) await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const pages = [...host.querySelectorAll(".qp-page")];
+    if (!pages.length) throw new Error("No invoice pages to export");
+    const JsPDF = window.jspdf.jsPDF;
+    const pdf = new JsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    for (let i = 0; i < pages.length; i += 1) {
+      const canvas = await window.html2canvas(pages[i], {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#fffaf6",
+        scrollX: 0,
+        scrollY: -window.scrollY,
+        windowWidth: 794,
+        logging: false,
+        onclone: (doc) => {
+          doc.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
+            if (node.id !== "invoice-pdf-styles") node.remove();
+          });
+          const cloned = doc.getElementById("invoice-pdf-root");
+          if (cloned) {
+            cloned.style.position = "static";
+            cloned.style.left = "0";
+            cloned.style.top = "0";
+            cloned.style.opacity = "1";
+          }
+        },
+      });
+      const img = canvas.toDataURL("image/jpeg", 0.98);
+      if (i > 0) pdf.addPage();
+      pdf.addImage(img, "JPEG", 0, 0, pageW, pageH, undefined, "FAST");
+    }
+    const blob = pdf.output("blob");
+    if (!(blob instanceof Blob) || !blob.size) throw new Error("PDF file was empty.");
+    return blob;
+  } finally {
+    sheets.forEach((sheet, index) => {
+      sheet.disabled = disabled[index];
+    });
+    host.remove();
+  }
 }
 
 async function signedUrl(path) {
