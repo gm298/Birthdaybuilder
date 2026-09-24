@@ -73,6 +73,17 @@
       logoDark: "../reserve/img/logo-dark.png",
       logoLight: "../reserve/img/logo-light.png",
     },
+    events: {
+      birthdays: "../birthdays/",
+      revised: "../birthdays/about-birthdays-revised/",
+      cakes: "../cakes/",
+      builder: "../birthdays/builder/",
+      reserve: "../reserve/",
+      booking: "../booking/",
+      eventsPage: "./",
+      logoDark: "../birthdays/img/logo-dark.png",
+      logoLight: "../birthdays/img/logo-light.png",
+    },
   };
 
   if (window.TINY_WP && window.TINY_WP.birthdaysUrl) {
@@ -83,6 +94,7 @@
       builder: window.TINY_WP.builderUrl,
       reserve: window.TINY_WP.reserveUrl || "/reserve/",
       booking: window.TINY_WP.bookingUrl || "/booking/",
+      eventsPage: window.TINY_WP.eventsUrl || "/events/",
       logoDark: window.TINY_WP.logoDark,
       logoLight: window.TINY_WP.logoLight,
     };
@@ -92,6 +104,13 @@
     PATHS.cakes = sharedPaths;
     PATHS.reserve = sharedPaths;
     PATHS.booking = sharedPaths;
+    PATHS.events = sharedPaths;
+  }
+
+  function eventsLink(page, p) {
+    if (p.eventsPage) return p.eventsPage;
+    if (page === "events") return "./";
+    return CAFE.events;
   }
 
   const ICON_WA =
@@ -141,7 +160,7 @@
         <a href="${CAFE.home}">Home</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
         <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
-        <a href="${CAFE.events}">Event Calendar</a>
+        <a class="${current(page, "events").trim()}" href="${eventsLink(page, p)}">Events</a>
         <div class="nav-drop">
           <a class="nav-drop__toggle${birthdayClass}" href="${p.birthdays}" aria-haspopup="true" aria-expanded="false">Birthdays</a>
           <div class="nav-drop__menu" role="menu">
@@ -165,7 +184,7 @@
         <a href="${CAFE.home}">Home</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
         <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
-        <a href="${CAFE.events}">Event Calendar</a>
+        <a class="${current(page, "events").trim()}" href="${eventsLink(page, p)}">Events</a>
         <a class="${current(page, "landing").trim()}" href="${p.birthdays}">About Birthdays</a>
         <a class="${current(page, "landing-revised").trim()}" href="${p.revised}">About Birthdays Revised</a>
         <a class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
@@ -195,7 +214,7 @@
         <a class="${current(page, "landing").trim()}" href="${p.birthdays}">Birthdays</a>
         <a class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
         <a class="${current(page, "cakes").trim()}" href="${p.cakes}">Cake Builder</a>
-        <a href="${CAFE.events}">Events</a>
+        <a class="${current(page, "events").trim()}" href="${eventsLink(page, p)}">Events</a>
       </nav>
       <div class="site-footer__links">
         <a class="footer-link" href="${WA_CONTACT}" target="_blank" rel="noopener noreferrer" data-wa="footer_whatsapp" aria-label="WhatsApp +62 822 6648 4226">

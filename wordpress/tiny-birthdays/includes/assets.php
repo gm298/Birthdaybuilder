@@ -73,6 +73,15 @@ function tiny_birthdays_enqueue_front() {
         );
     }
 
+    if ($type === 'events') {
+        wp_enqueue_style(
+            'tiny-birthdays-events',
+            tiny_birthdays_asset('events/css/styles.css'),
+            ['tiny-birthdays-chrome'],
+            $ver
+        );
+    }
+
     wp_enqueue_script(
         'tiny-birthdays-analytics',
         tiny_birthdays_asset('shared/analytics.js'),
@@ -89,7 +98,7 @@ function tiny_birthdays_enqueue_front() {
     );
     wp_localize_script('tiny-birthdays-chrome', 'TINY_WP', $config);
 
-    $needs_supabase = ($type === 'builder' || $type === 'cakes');
+    $needs_supabase = ($type === 'builder' || $type === 'cakes' || $type === 'events');
     if ($needs_supabase) {
         wp_enqueue_script(
             'tiny-birthdays-supabase',
@@ -153,6 +162,16 @@ function tiny_birthdays_enqueue_front() {
             true
         );
     }
+
+    if ($type === 'events') {
+        wp_enqueue_script(
+            'tiny-birthdays-events',
+            tiny_birthdays_asset('events/js/main.js'),
+            ['tiny-birthdays-chrome', 'tiny-birthdays-supabase'],
+            $ver,
+            true
+        );
+    }
 }
 
 function tiny_birthdays_strip_theme_assets() {
@@ -168,6 +187,7 @@ function tiny_birthdays_strip_theme_assets() {
         'tiny-birthdays-landing-revised',
         'tiny-birthdays-cakes',
         'tiny-birthdays-builder',
+        'tiny-birthdays-events',
         'admin-bar',
         'dashicons',
     ];
@@ -181,6 +201,7 @@ function tiny_birthdays_strip_theme_assets() {
         'tiny-birthdays-landing-revised',
         'tiny-birthdays-cakes',
         'tiny-birthdays-builder',
+        'tiny-birthdays-events',
         'jquery',
         'jquery-core',
         'jquery-migrate',

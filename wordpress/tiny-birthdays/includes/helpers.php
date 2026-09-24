@@ -14,7 +14,7 @@ function tiny_birthdays_canvas_type($post_id = 0) {
         return '';
     }
     $type = get_post_meta($post_id, TINY_BIRTHDAYS_META, true);
-    return in_array($type, ['landing', 'landing-revised', 'builder', 'cakes'], true) ? $type : '';
+    return in_array($type, ['landing', 'landing-revised', 'builder', 'cakes', 'events'], true) ? $type : '';
 }
 
 function tiny_birthdays_is_canvas($post_id = 0) {
@@ -39,6 +39,7 @@ function tiny_birthdays_page_url($type) {
         'landing-revised' => home_url('/birthdays/about-birthdays-revised/'),
         'builder' => home_url('/birthdays/builder/'),
         'cakes' => home_url('/cakes/'),
+        'events' => home_url('/events/'),
     ];
     return $map[$type] ?? home_url('/');
 }
@@ -103,6 +104,7 @@ function tiny_birthdays_localize_config() {
         'cakesUrl' => tiny_birthdays_page_url('cakes'),
         'reserveUrl' => home_url('/reserve/'),
         'bookingUrl' => home_url('/booking/'),
+        'eventsUrl' => tiny_birthdays_page_url('events'),
         'logoDark' => tiny_birthdays_asset('birthdays/img/logo-dark.png'),
         'logoLight' => tiny_birthdays_asset('birthdays/img/logo-light.png'),
         'cakesAssetBase' => tiny_birthdays_asset('cakes/'),

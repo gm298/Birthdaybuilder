@@ -44,6 +44,7 @@ $config = @"
     anonKey: "$($env:SUPABASE_ANON_KEY)",
     submitUrl: "$($env:SUPABASE_URL)/functions/v1/submit-request",
     manageUrl: "$($env:SUPABASE_URL)/functions/v1/manage-request",
+    joinEventUrl: "$($env:SUPABASE_URL)/functions/v1/join-event",
     googleCalendarUrl: "$($env:GOOGLE_CALENDAR_SUBSCRIBE_URL)",
   };
 })();
@@ -80,6 +81,9 @@ npx supabase functions deploy manage-request --project-ref $env:SUPABASE_PROJECT
 
 Write-Host "Deploying sync-google-calendar function…"
 npx supabase functions deploy sync-google-calendar --project-ref $env:SUPABASE_PROJECT_REF --no-verify-jwt
+
+Write-Host "Deploying join-event function…"
+npx supabase functions deploy join-event --project-ref $env:SUPABASE_PROJECT_REF --no-verify-jwt
 
 if ($env:GOOGLE_CALENDAR_ID) {
   npx supabase secrets set "GOOGLE_CALENDAR_ID=$env:GOOGLE_CALENDAR_ID" --project-ref $env:SUPABASE_PROJECT_REF

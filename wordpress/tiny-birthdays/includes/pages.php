@@ -98,11 +98,20 @@ function tiny_birthdays_ensure_pages() {
         'content' => tiny_birthdays_default_cakes_content(),
     ]);
 
+    $events_id = tiny_birthdays_upsert_page([
+        'slug' => 'events',
+        'title' => 'Events | Tiny Healthy Cafe',
+        'excerpt' => 'Workshops, gatherings and happenings at Tiny Healthy Cafe in Berawa, Bali. See what’s on this week and join the guest list.',
+        'type' => 'events',
+        'content' => "<!-- wp:tiny/events /-->\n",
+    ]);
+
     update_option('tiny_birthdays_pages', [
         'landing' => $landing_id,
         'landing-revised' => $revised_id,
         'builder' => $builder_id,
         'cakes' => $cakes_id,
+        'events' => $events_id,
     ]);
 
     update_option('tiny_birthdays_show_notice', 1);
@@ -185,6 +194,7 @@ function tiny_birthdays_allowed_blocks($allowed, $context) {
         'tiny/cakes-hero',
         'tiny/cakes-facts',
         'tiny/cake-app',
+        'tiny/events',
     ];
     return $blocks;
 }

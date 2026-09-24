@@ -1,4 +1,4 @@
-export type BookingEmailKind = "reservation" | "birthday" | "cake";
+export type BookingEmailKind = "reservation" | "birthday" | "cake" | "event";
 
 export type BookingEmailInput = {
   kind?: BookingEmailKind;
@@ -13,13 +13,16 @@ export type BookingEmailInput = {
   purpose?: string;
   packageName?: string;
   cakeLabel?: string;
+  eventName?: string;
+  link?: string;
 };
 
 function siteOrigin() {
   return (Deno.env.get("PUBLIC_SITE_ORIGIN") || "https://tinyhealthycafe.com").replace(/\/$/, "");
 }
 
-function manageLink(token: string) {
+function manageLink(token: string, explicit?: string) {
+  if (explicit) return explicit;
   return `${siteOrigin()}/booking/?t=${encodeURIComponent(token)}`;
 }
 
@@ -46,6 +49,13 @@ function copyForKind(kind: BookingEmailKind) {
       linkLabel: "View, edit or cancel your cake request",
     };
   }
+  if (kind === "event") {
+    return {
+      subject: (code: string) => `Your Tiny guest list ${code}`,
+      saved: "You're on the guest list. Tiny will confirm your place.",
+      linkLabel: "View your guest list request",
+    };
+  }
   return {
     subject: (code: string) => `Your Tiny reservation ${code}`,
     saved: "Your table request at Tiny Healthy Cafe is saved.",
@@ -63,7 +73,7 @@ export async function sendBookingEmail(input: BookingEmailInput) {
   const copy = copyForKind(kind);
   const from =
     Deno.env.get("BOOKING_FROM_EMAIL") || "Tiny Healthy Cafe <onboarding@resend.dev>";
-  const link = manageLink(input.manageToken);
+  const link = manageLink(input.manageToken, input.link);
   const subject = copy.subject(input.publicCode);
   const detailLines = [
     `Code: ${input.publicCode}`,
@@ -74,6 +84,7 @@ export async function sendBookingEmail(input: BookingEmailInput) {
     input.tableLabel ? `Table: ${input.tableLabel}` : "",
     input.cakeLabel ? `Cake: ${input.cakeLabel}` : "",
     input.purpose ? `Purpose: ${input.purpose}` : "",
+    input.eventName ? `Event: ${input.eventName}` : "",
   ].filter(Boolean);
 
   const text = [
@@ -98,6 +109,7 @@ export async function sendBookingEmail(input: BookingEmailInput) {
     input.tableLabel ? `<strong>Table:</strong> ${escapeHtml(input.tableLabel)}` : "",
     input.cakeLabel ? `<strong>Cake:</strong> ${escapeHtml(input.cakeLabel)}` : "",
     input.purpose ? `<strong>Purpose:</strong> ${escapeHtml(input.purpose)}` : "",
+    input.eventName ? `<strong>Event:</strong> ${escapeHtml(input.eventName)}` : "",
   ]
     .filter(Boolean)
     .join("<br>");
@@ -114,7 +126,7 @@ export async function sendBookingEmail(input: BookingEmailInput) {
       <div style="padding:28px 28px 8px;">
         <img src="https://gm298.github.io/Birthdaybuilder/birthdays/builder/img/quote/logo-tiny.png" alt="Tiny" width="54" height="54" style="display:block;width:54px;height:auto;margin:0 0 14px;">
         <p style="margin:0;font-family:'Jost',sans-serif;font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#647c6e;">Tiny Healthy Cafe</p>
-        <h1 style="margin:8px 0 0;font-family:'Jost',sans-serif;font-size:32px;line-height:1.1;font-weight:500;color:#647c6e;">Birthday Bash<br>at Tiny</h1>
+        <h1 style="margin:8px 0 0;font-family:'Jost',sans-serif;font-size:32px;line-height:1.1;font-weight:500;color:#647c6e;">${kind === "event" ? "Guest list<br>at Tiny" : "Birthday Bash<br>at Tiny"}</h1>
       </div>
       <div style="padding:8px 28px 28px;">
         <p style="margin:0 0 8px;font-size:16px;color:#3d4f45;">Hi ${escapeHtml(input.guestName || "there")},</p>

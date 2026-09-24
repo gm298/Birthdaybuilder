@@ -8,7 +8,7 @@ if (!$type) {
     $type = 'landing';
 }
 
-$data_page = $type === 'builder' ? 'builder' : ($type === 'cakes' ? 'cakes' : ($type === 'landing-revised' ? 'landing-revised' : 'landing'));
+$data_page = $type === 'builder' ? 'builder' : ($type === 'cakes' ? 'cakes' : ($type === 'landing-revised' ? 'landing-revised' : ($type === 'events' ? 'events' : 'landing')));
 $body_classes = ['tiny-canvas', 'tiny-canvas--' . $type];
 if ($type === 'builder') {
     $body_classes[] = 'is-wizard';

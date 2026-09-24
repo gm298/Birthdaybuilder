@@ -88,6 +88,11 @@ function tiny_birthdays_register_blocks() {
             'render_callback' => 'tiny_birthdays_render_cake_app',
             'attributes' => tiny_birthdays_cake_app_attributes(),
         ],
+        'tiny/events' => [
+            'title' => 'Tiny Events',
+            'render_callback' => 'tiny_birthdays_render_events',
+            'attributes' => [],
+        ],
     ];
 
     foreach ($blocks as $name => $args) {

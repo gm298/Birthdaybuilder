@@ -680,6 +680,11 @@ function bookingCard(row, opts = {}) {
     </div>
     <div>
       <span class="badge badge--${statusClass(row.status)}">${escapeHtml(statusLabel(row.status))}</span>
+      ${
+        row.source === "event" && pendingGuestCount(row)
+          ? `<div class="muted">${pendingGuestCount(row)} guest list request${pendingGuestCount(row) === 1 ? "" : "s"}</div>`
+          : ""
+      }
       <div class="muted">${escapeHtml(typeLabel(eventType(row)))} · ${escapeHtml(displaySubtitle(row))}</div>
     </div>
     <div class="time">${escapeHtml(slotRange(row))}
@@ -1647,8 +1652,17 @@ function closeBlockModal() {
   blockModal.hidden = true;
 }
 
+function pendingGuestCount(row) {
+  return (row?.payload?.event?.guests || []).filter((guest) => guest.status === "pending").length;
+}
+
 function guestRowHtml(guest = {}) {
   return `<div class="guest-row">
+    <input type="hidden" name="guest-id" value="${escapeHtml(guest.id || "")}">
+    <input type="hidden" name="guest-token" value="${escapeHtml(guest.token || "")}">
+    <input type="hidden" name="guest-status" value="${escapeHtml(guest.status || "")}">
+    <input type="hidden" name="guest-source" value="${escapeHtml(guest.source || "")}">
+    <input type="hidden" name="guest-created" value="${escapeHtml(guest.created_at || "")}">
     <input type="text" name="guest-name" placeholder="Name" value="${escapeHtml(guest.name || "")}">
     <input type="number" name="guest-pax" min="1" placeholder="PAX" value="${escapeHtml(guest.pax || 1)}">
     <input type="tel" name="guest-phone" placeholder="Phone" value="${escapeHtml(guest.phone || "")}">
@@ -1658,16 +1672,33 @@ function guestRowHtml(guest = {}) {
   </div>`;
 }
 
-function readGuestList() {
-  return [...document.querySelectorAll("#event-guests .guest-row")]
-    .map((row) => ({
-      name: row.querySelector('[name="guest-name"]')?.value.trim() || "",
-      pax: Number(row.querySelector('[name="guest-pax"]')?.value) || 1,
-      phone: row.querySelector('[name="guest-phone"]')?.value.trim() || "",
-      email: row.querySelector('[name="guest-email"]')?.value.trim() || "",
-      notes: row.querySelector('[name="guest-notes"]')?.value.trim() || "",
-    }))
+function readGuestRows(selector) {
+  return [...document.querySelectorAll(selector)]
+    .map((row) => {
+      const guest = {
+        name: row.querySelector('[name="guest-name"]')?.value.trim() || "",
+        pax: Number(row.querySelector('[name="guest-pax"]')?.value) || 1,
+        phone: row.querySelector('[name="guest-phone"]')?.value.trim() || "",
+        email: row.querySelector('[name="guest-email"]')?.value.trim() || "",
+        notes: row.querySelector('[name="guest-notes"]')?.value.trim() || "",
+      };
+      const id = row.querySelector('[name="guest-id"]')?.value.trim() || "";
+      const token = row.querySelector('[name="guest-token"]')?.value.trim() || "";
+      const status = row.querySelector('[name="guest-status"]')?.value.trim() || "";
+      const source = row.querySelector('[name="guest-source"]')?.value.trim() || "";
+      const createdAt = row.querySelector('[name="guest-created"]')?.value.trim() || "";
+      if (id) guest.id = id;
+      if (token) guest.token = token;
+      if (status) guest.status = status;
+      if (source) guest.source = source;
+      if (createdAt) guest.created_at = createdAt;
+      return guest;
+    })
     .filter((guest) => guest.name || guest.phone || guest.email);
+}
+
+function readGuestList() {
+  return readGuestRows("#event-guests .guest-row");
 }
 
 function fillEventTableList(selected = []) {
@@ -1868,6 +1899,20 @@ async function uploadEventPhotos(requestId, fileList) {
   return paths;
 }
 
+async function uploadEventCover(requestId, fileList) {
+  const image = [...(fileList || [])].find((file) => String(file.type || "").startsWith("image/"));
+  if (!image) return "";
+  const ext = (image.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  const path = `${requestId}/cover.${ext}`;
+  const { error } = await supabase.storage.from("event-images").upload(path, image, {
+    contentType: image.type || "image/jpeg",
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data } = supabase.storage.from("event-images").getPublicUrl(path);
+  return data?.publicUrl ? `${data.publicUrl}?v=${Date.now()}` : "";
+}
+
 async function saveStaffEvent() {
   const statusEl = document.getElementById("event-status");
   const name = document.getElementById("event-name")?.value.trim() || "";
@@ -1989,11 +2034,28 @@ async function saveStaffEvent() {
   }
   try {
     const uploaded = await uploadEventPhotos(requestId, photos);
-    if (uploaded.length) {
-      const { data: current } = await supabase.from("requests").select("files").eq("id", requestId).maybeSingle();
+    let coverUrl = "";
+    try {
+      coverUrl = await uploadEventCover(requestId, photos);
+    } catch (coverErr) {
+      coverUrl = "";
+    }
+    if (uploaded.length || coverUrl) {
+      const { data: current } = await supabase
+        .from("requests")
+        .select("files, payload")
+        .eq("id", requestId)
+        .maybeSingle();
       const files = { ...(current?.files || {}) };
-      files.eventPhotos = [...(files.eventPhotos || []), ...uploaded];
-      const { error: fileError } = await supabase.from("requests").update({ files }).eq("id", requestId);
+      if (uploaded.length) files.eventPhotos = [...(files.eventPhotos || []), ...uploaded];
+      const nextPayload = { ...(current?.payload || payload) };
+      if (coverUrl) {
+        nextPayload.event = { ...(nextPayload.event || {}), coverUrl };
+      }
+      const { error: fileError } = await supabase
+        .from("requests")
+        .update({ files, payload: nextPayload })
+        .eq("id", requestId);
       if (fileError) throw fileError;
     }
   } catch (err) {
@@ -2856,12 +2918,20 @@ async function loadDetail(id) {
           ${
             (payload.event?.guests || []).length
               ? `<ul class="kv">${payload.event.guests
-                  .map(
-                    (guest) =>
-                      `<li><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</span><span>${escapeHtml(
-                        [guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—"
-                      )}</span></li>`
-                  )
+                  .map((guest, index) => {
+                    const pending = guest.status === "pending";
+                    const confirmed = guest.status === "confirmed";
+                    const stateLabel = pending ? "Pending" : confirmed ? "Confirmed" : "";
+                    return `<li><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax${
+                      stateLabel ? ` · ${stateLabel}` : ""
+                    }</span><span>${escapeHtml(
+                      [guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—"
+                    )}${
+                      pending
+                        ? ` <button class="btn" type="button" data-confirm-guest="${index}">Confirm</button>`
+                        : ""
+                    }</span></li>`;
+                  })
                   .join("")}</ul>`
               : `<p class="muted">No guests added.</p>`
           }
@@ -3037,6 +3107,32 @@ async function loadDetail(id) {
       guests: event.guests || [],
       repeat: event.repeat,
       pricing: event.pricing || eventPricingFromRow(row),
+    });
+  });
+  document.querySelectorAll("[data-confirm-guest]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const index = Number(button.getAttribute("data-confirm-guest"));
+      const guests = [...(payload.event?.guests || [])];
+      if (!guests[index]) return;
+      guests[index] = { ...guests[index], status: "confirmed" };
+      const nextPayload = { ...payload, event: { ...(payload.event || {}), guests } };
+      button.disabled = true;
+      const { error: confirmError } = await supabase
+        .from("requests")
+        .update({ payload: nextPayload })
+        .eq("id", row.id)
+        .eq("source", "event");
+      if (confirmError) {
+        button.disabled = false;
+        const statusEl = document.getElementById("detail-status");
+        if (statusEl) {
+          statusEl.textContent = confirmError.message;
+          statusEl.className = "status is-error";
+        }
+        return;
+      }
+      await loadRows();
+      await loadDetail(row.id);
     });
   });
   document.getElementById("add-guest-detail")?.addEventListener("click", () => {

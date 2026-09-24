@@ -33,11 +33,19 @@ function tiny_birthdays_activate() {
     flush_rewrite_rules();
 }
 
+function tiny_birthdays_maybe_ensure_events() {
+    $pages = get_option('tiny_birthdays_pages', []);
+    if (empty($pages['events'])) {
+        tiny_birthdays_ensure_pages();
+    }
+}
+
 function tiny_birthdays_deactivate() {
     flush_rewrite_rules();
 }
 
 add_action('init', 'tiny_birthdays_register_meta');
+add_action('init', 'tiny_birthdays_maybe_ensure_events', 5);
 add_action('init', 'tiny_birthdays_register_blocks', 20);
 add_action('admin_notices', 'tiny_birthdays_admin_notice');
 

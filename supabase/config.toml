@@ -14,3 +14,8 @@ entrypoint = "./functions/manage-request/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/sync-google-calendar/index.ts"
+
+[functions.join-event]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/join-event/index.ts"
