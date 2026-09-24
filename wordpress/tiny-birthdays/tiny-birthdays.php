@@ -33,6 +33,25 @@ function tiny_birthdays_activate() {
     flush_rewrite_rules();
 }
 
+function tiny_birthdays_rename_events_menu($items) {
+    if (!is_array($items)) {
+        return $items;
+    }
+    $events_url = tiny_birthdays_page_url('events');
+    foreach ($items as $item) {
+        $title = isset($item->title) ? html_entity_decode(wp_strip_all_tags($item->title)) : '';
+        $url = isset($item->url) ? (string) $item->url : '';
+        $is_calendar = (bool) preg_match('/event\s*calendar/i', $title);
+        $points_at_events = (bool) preg_match('#/events/?($|\?)#i', $url);
+        if (!$is_calendar && !($points_at_events && preg_match('/calendar|event/i', $title))) {
+            continue;
+        }
+        $item->title = 'Events';
+        $item->url = $events_url;
+    }
+    return $items;
+}
+
 function tiny_birthdays_maybe_ensure_events() {
     $pages = get_option('tiny_birthdays_pages', []);
     if (empty($pages['events'])) {
@@ -50,6 +69,7 @@ add_action('init', 'tiny_birthdays_register_blocks', 20);
 add_action('admin_notices', 'tiny_birthdays_admin_notice');
 
 add_filter('template_include', 'tiny_birthdays_template_include', 99);
+add_filter('wp_nav_menu_objects', 'tiny_birthdays_rename_events_menu');
 add_filter('body_class', 'tiny_birthdays_body_class');
 add_filter('allowed_block_types_all', 'tiny_birthdays_allowed_blocks', 10, 2);
 add_filter('block_categories_all', 'tiny_birthdays_block_categories');
