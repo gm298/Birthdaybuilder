@@ -519,6 +519,8 @@ async function eventBody(token: string, row: RequestRow) {
     event.location === "masterclass" ? "Location: In masterclass" : event.location === "service" ? "Location: In service area" : "",
     event.fullTerrace ? "Block: Full terrace" : "",
     event.payment === "vendor" ? "Payment: By vendor" : event.payment === "tiny" ? "Payment: By Tiny" : "",
+    event.about ? `About: ${asString(event.about)}` : "",
+    event.promo ? `Promo (staff): ${asString(event.promo)}` : "",
     ...eventPricingLines(row),
     pay ? `Payment: ${pay}` : "",
     ...paymentLines(row),

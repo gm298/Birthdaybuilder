@@ -134,7 +134,7 @@
             <div class="pkg__guests">${escapeHtml(pkg.guests)}</div>
             <div class="pkg__price">${escapeHtml(pkg.price)}</div>
             <ul class="pkg__features">${features}</ul>
-            <div class="pkg__cta">Build with this →</div>
+            <div class="pkg__cta">Customise this →</div>
           </a>`;
       })
       .join("");
@@ -161,7 +161,7 @@
           </button>
           <div class="pkg-compact__panel"${isOpen ? "" : " hidden"}>
             <span class="pkg-compact__summary">${escapeHtml(pkg.mobileSummary || "")}</span>
-            <a class="pkg-compact__cta" href="${packageBuilderUrl(pkg)}">Build with this →</a>
+            <a class="pkg-compact__cta" href="${packageBuilderUrl(pkg)}">Customise this →</a>
           </div>
         </div>`;
       })

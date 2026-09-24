@@ -1808,6 +1808,8 @@ function openEventModal(opts = {}) {
   document.getElementById("event-end").value = opts.end || "17:00";
   document.getElementById("event-location").value = opts.location || "service";
   document.getElementById("event-full-terrace").checked = Boolean(opts.fullTerrace);
+  document.getElementById("event-about").value = opts.about || "";
+  document.getElementById("event-promo").value = opts.promo || "";
   document.getElementById("event-notes").value = opts.notes || "";
   document.getElementById("event-photos").value = "";
   document.getElementById("event-repeat").value = opts.repeat?.freq || "none";
@@ -1872,6 +1874,8 @@ async function saveStaffEvent() {
   const end = document.getElementById("event-end")?.value;
   const location = document.getElementById("event-location")?.value || "service";
   const fullTerrace = Boolean(document.getElementById("event-full-terrace")?.checked);
+  const about = document.getElementById("event-about")?.value.trim() || "";
+  const promo = document.getElementById("event-promo")?.value.trim() || "";
   const notes = document.getElementById("event-notes")?.value.trim() || "";
   const payment = document.querySelector('input[name="event-payment"]:checked')?.value || "tiny";
   const pricing = readEventPricing();
@@ -1904,6 +1908,8 @@ async function saveStaffEvent() {
   const payload = {
     event: {
       name,
+      about,
+      promo,
       notes,
       location,
       fullTerrace: location === "service" && fullTerrace,
@@ -2280,16 +2286,82 @@ function colourRowHtml(colour = {}) {
   </div>`;
 }
 
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error || new Error("Could not read image."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function inlineImages(root) {
+  const images = [...root.querySelectorAll("img")];
+  await Promise.all(
+    images.map(async (img) => {
+      const src = img.getAttribute("src") || "";
+      if (!src || src.startsWith("data:")) return;
+      try {
+        const response = await fetch(src);
+        if (!response.ok) throw new Error("Image request failed.");
+        img.src = await blobToDataUrl(await response.blob());
+      } catch {
+        img.remove();
+      }
+    })
+  );
+}
+
+function pdfResultToBlob(result) {
+  if (result instanceof Blob) {
+    if (!result.size) throw new Error("PDF file was empty.");
+    return result.type ? result : new Blob([result], { type: "application/pdf" });
+  }
+  if (result instanceof ArrayBuffer) return new Blob([result], { type: "application/pdf" });
+  if (typeof result === "string") {
+    const payload = result.includes(",") ? result.split(",")[1] : result;
+    const binary = atob(payload);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+    if (!bytes.length) throw new Error("PDF file was empty.");
+    return new Blob([bytes], { type: "application/pdf" });
+  }
+  throw new Error("PDF library returned an empty file.");
+}
+
 async function htmlToPdfBlob(element, filename) {
   if (!window.html2pdf) throw new Error("PDF library did not load.");
-  const blob = await window.html2pdf().set({
-    margin: 12,
-    filename,
-    image: { type: "jpeg", quality: 0.95 },
-    html2canvas: { scale: 2, useCORS: true },
-    jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-  }).from(element).outputPdf("blob");
-  return blob;
+  await inlineImages(element);
+  const sheets = [...document.styleSheets];
+  const disabled = sheets.map((sheet) => sheet.disabled);
+  sheets.forEach((sheet) => {
+    sheet.disabled = true;
+  });
+  try {
+    const result = await window
+      .html2pdf()
+      .set({
+        margin: 12,
+        filename,
+        image: { type: "jpeg", quality: 0.95 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+          onclone: (doc) => {
+            doc.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => node.remove());
+          },
+        },
+        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
+      })
+      .from(element)
+      .outputPdf("blob");
+    return pdfResultToBlob(result);
+  } finally {
+    sheets.forEach((sheet, index) => {
+      sheet.disabled = disabled[index];
+    });
+  }
 }
 
 function downloadBlob(blob, filename) {
@@ -2297,8 +2369,10 @@ function downloadBlob(blob, filename) {
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;
+  document.body.appendChild(link);
   link.click();
-  URL.revokeObjectURL(url);
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 async function signedUrl(path) {
@@ -2498,6 +2572,20 @@ async function loadDetail(id) {
           </ul>
         </section>
         ${
+          isEvent
+            ? `<section>
+          <h3>About event</h3>
+          <p class="muted" style="margin-top:0">Customer-facing copy for the events site.</p>
+          <p style="white-space:pre-wrap">${escapeHtml(payload.event?.about || "—")}</p>
+        </section>
+        <section>
+          <h3>Promo</h3>
+          <p class="muted" style="margin-top:0">Staff only.</p>
+          <p style="white-space:pre-wrap">${escapeHtml(payload.event?.promo || "—")}</p>
+        </section>`
+            : ""
+        }
+        ${
           showLayout
             ? `<section>
           <h3>Table layout</h3>
@@ -2691,6 +2779,8 @@ async function loadDetail(id) {
       end: reservation.endTime || "17:00",
       location: event.location || "service",
       fullTerrace: event.fullTerrace,
+      about: event.about || "",
+      promo: event.promo || "",
       notes: event.notes || reservation.notes || "",
       payment: event.payment || "tiny",
       tableIds: reservation.tableIds || [],
@@ -2709,6 +2799,8 @@ async function loadDetail(id) {
       end: reservation.endTime || "17:00",
       location: event.location || "service",
       fullTerrace: event.fullTerrace,
+      about: event.about || "",
+      promo: event.promo || "",
       notes: event.notes || reservation.notes || "",
       payment: event.payment || "tiny",
       tableIds: reservation.tableIds || [],
@@ -3121,9 +3213,14 @@ async function loadInvoice(id) {
         const blob = await htmlToPdfBlob(host, `${row.public_code}-invoice.pdf`);
         host.remove();
         const path = `${row.id}/invoice.pdf`;
-        await supabase.storage.from("request-files").upload(path, blob, { contentType: "application/pdf", upsert: true });
+        const pdfFile = new File([blob], `${row.public_code}-invoice.pdf`, { type: "application/pdf" });
+        const { error: uploadError } = await supabase.storage.from("request-files").upload(path, pdfFile, {
+          contentType: "application/pdf",
+          upsert: true,
+        });
+        if (uploadError) throw uploadError;
         nextFiles.invoicePdf = path;
-        downloadBlob(blob, `${row.public_code}-invoice.pdf`);
+        downloadBlob(pdfFile, `${row.public_code}-invoice.pdf`);
         const url = await signedUrl(path);
         const text = `Hello ${form.contact_name || "there"}, here is the invoice for your Birthday at Tiny Healthy Cafe. Total ${formatIdr(
           form.quote.total

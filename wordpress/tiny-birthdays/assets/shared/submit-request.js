@@ -210,6 +210,26 @@
     }
   }
 
+  function builderEditUrl(manageToken) {
+    const token = String(manageToken || "").trim();
+    if (!token) return "";
+    if (window.TINY_WP?.builderUrl) {
+      const base = String(window.TINY_WP.builderUrl).replace(/\?.*$/, "").replace(/\/?$/, "/");
+      return `${base}?edit=${encodeURIComponent(token)}`;
+    }
+    try {
+      const path = String(window.location.pathname || "");
+      let prefix = "";
+      const pages = path.match(/^(.*?\/Birthdaybuilder)(?:\/|$)/i);
+      if (pages) prefix = pages[1];
+      const url = new URL(`${prefix}/birthdays/builder/`, window.location.origin);
+      url.searchParams.set("edit", token);
+      return url.href;
+    } catch (_) {
+      return `${window.location.origin}/birthdays/builder/?edit=${encodeURIComponent(token)}`;
+    }
+  }
+
   function rememberManage(source, { publicCode, manageToken, requestId }) {
     try {
       sessionStorage.setItem(
@@ -507,6 +527,7 @@
     submitRequest,
     manageRequest,
     bookingUrl,
+    builderEditUrl,
     rememberManage,
     readManage,
     compressImage,

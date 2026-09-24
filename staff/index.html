@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/staff.css?v=20260917o">
+  <link rel="stylesheet" href="css/staff.css?v=20260919a">
 </head>
 <body>
   <div class="staff-shell">
@@ -335,6 +335,16 @@
           <div id="event-pricing-preview" class="event-pricing-preview"></div>
         </fieldset>
         <label class="field">
+          <span>About event</span>
+          <textarea id="event-about" rows="4" placeholder="Customer-facing description for the event site…"></textarea>
+          <span class="muted">Shown on the public events page.</span>
+        </label>
+        <label class="field">
+          <span>Promo</span>
+          <textarea id="event-promo" rows="2" placeholder="e.g. Free cupcake for each child"></textarea>
+          <span class="muted">Staff only — not shown to customers.</span>
+        </label>
+        <label class="field">
           <span>Notes</span>
           <textarea id="event-notes" rows="3" placeholder="Setup, vendor, timing…"></textarea>
         </label>
@@ -359,6 +369,6 @@
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/reserve-tables.js?v=20260917f"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js"></script>
-  <script type="module" src="js/app.js?v=20260917o"></script>
+  <script type="module" src="js/app.js?v=20260924a"></script>
 </body>
 </html>
