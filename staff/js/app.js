@@ -9,7 +9,7 @@ const EVENT_STATUSES = ["booked", "cancelled", "closed"];
 const PENDING_STATUSES = ["new", "contacted", "quoted"];
 const INACTIVE_STATUSES = ["cancelled", "rejected", "closed", "noshow"];
 const REQUEST_SELECT =
-  "id, created_at, source, status, public_code, email, phone, contact_name, child_name, child_age, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload, files, google_event_id";
+  "id, created_at, source, status, public_code, email, phone, contact_name, child_name, child_age, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload, files, google_event_id, google_event_ids";
 
 const loginCard = document.getElementById("login-card");
 const app = document.getElementById("app");
@@ -2867,7 +2867,11 @@ async function loadDetail(id) {
           <h2>${escapeHtml(row.public_code)}</h2>
           <p class="muted">Submitted ${escapeHtml(formatWhen(row.created_at))}${
             row.status === "booked" && row.google_event_id
-              ? " · Synced to Google Calendar"
+              ? ` · Synced to Google Calendar${
+                  Array.isArray(row.google_event_ids) && row.google_event_ids.length > 1
+                    ? ` · ${row.google_event_ids.length} times`
+                    : ""
+                }`
               : row.status === "booked"
                 ? " · Waiting to sync to Google Calendar"
                 : ""

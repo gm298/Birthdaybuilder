@@ -27,7 +27,7 @@ const PHONE_RE = /^\+[1-9][0-9]{7,14}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const SELECT_COLS =
-  "id, source, status, public_code, manage_token, email, phone, contact_name, child_name, child_age, party_date, party_time, package_name, guest_adults, guest_kids, payload, google_event_id";
+  "id, source, status, public_code, manage_token, email, phone, contact_name, child_name, child_age, party_date, party_time, package_name, guest_adults, guest_kids, payload, google_event_id, google_event_ids";
 
 function corsHeaders(origin: string | null) {
   const allow = origin && ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0];

@@ -27,6 +27,7 @@ type RequestRow = {
   guest_kids?: number | null;
   staff_notes?: string | null;
   google_event_id?: string | null;
+  google_event_ids?: unknown;
   files?: {
     quotePdf?: string;
     invoicePdf?: string;
@@ -58,6 +59,7 @@ type RequestRow = {
       };
       guests?: { name?: string; pax?: number; phone?: string; email?: string; notes?: string }[];
       repeat?: { freq?: string; until?: string; interval?: number };
+      slots?: { start?: string; end?: string }[];
     };
     party?: { notes?: string; foodNotes?: string; guests?: { name?: string; pax?: number; phone?: string; email?: string; notes?: string }[] };
     payment?: {
@@ -209,6 +211,7 @@ function relevantSnapshot(row: RequestRow | null | undefined) {
     invoicePdf: row.files?.invoicePdf || "",
     eventPhotos: row.files?.eventPhotos || [],
     repeat: row.payload?.event?.repeat || null,
+    slots: row.payload?.event?.slots || null,
     payment: row.payload?.payment || null,
   });
 }
@@ -484,11 +487,48 @@ function googleRrule(row: RequestRow) {
   return undefined;
 }
 
-async function eventBody(token: string, row: RequestRow) {
+function eventSlots(row: RequestRow) {
+  const raw = row.payload?.event?.slots;
+  if (Array.isArray(raw) && raw.length) {
+    const slots = raw
+      .map((slot) => ({
+        start: asString(slot?.start).slice(0, 5),
+        end: asString(slot?.end).slice(0, 5),
+      }))
+      .filter((slot) => slot.start && slot.end);
+    if (slots.length) return slots;
+  }
+  const start = asString(row.party_time).slice(0, 5);
+  const end = asString(row.payload?.reservation?.endTime).slice(0, 5);
+  if (!start) return [];
+  return [{ start, end }];
+}
+
+function storedEventIds(row: RequestRow) {
+  const raw = row.google_event_ids;
+  const ids = Array.isArray(raw) ? raw.map((id) => asString(id)).filter(Boolean) : [];
+  if (ids.length) return ids;
+  const first = asString(row.google_event_id);
+  return first ? [first] : [];
+}
+
+function slotCountMatches(row: RequestRow | null) {
+  if (!row || String(row.source) !== "event") return true;
+  return storedEventIds(row).length === eventSlots(row).length;
+}
+
+async function eventBody(
+  token: string,
+  row: RequestRow,
+  slot?: { start: string; end: string },
+  slotIndex = 0,
+  prepared?: Awaited<ReturnType<typeof calendarAttachments>>,
+) {
   const source = String(row.source || "reservation");
   const kind = occupyKind(source);
-  const endTime = asString(row.payload?.reservation?.endTime);
-  const range = occupyRange(asString(row.party_time), kind, endTime);
+  const startTime = slot?.start || asString(row.party_time);
+  const endTime = slot?.end || asString(row.payload?.reservation?.endTime);
+  const range = occupyRange(startTime, kind, endTime);
   const date = asString(row.party_date);
   if (!range || !date) return null;
   const name = displayName(row);
@@ -511,7 +551,7 @@ async function eventBody(token: string, row: RequestRow) {
     })
     .filter(Boolean);
   const pay = paymentSummary(row);
-  const { attachments, links } = await calendarAttachments(token, row);
+  const { attachments, links } = prepared || (await calendarAttachments(token, row));
   const description = [
     row.public_code ? `Code: ${row.public_code}` : "",
     guests ? `Guests: ${guests}` : "",
@@ -534,14 +574,23 @@ async function eventBody(token: string, row: RequestRow) {
     .filter(Boolean)
     .join("\n");
   const recurrence = googleRrule(row);
+  const slotLabel = slot ? `${slot.start.slice(0, 5)}–${slot.end.slice(0, 5)}` : "";
+  const summary = source === "event" && slotLabel
+    ? [typeLabel(source), name, slotLabel, tables, pay].filter(Boolean).join(" · ")
+    : [typeLabel(source), name, tables, pay].filter(Boolean).join(" · ");
   return {
-    summary: [typeLabel(source), name, tables, pay].filter(Boolean).join(" · "),
+    summary,
     description,
     location: CAFE_LOCATION,
     start: { dateTime: dateTimeAt(date, range.start), timeZone: TZ },
     end: { dateTime: dateTimeAt(date, range.end), timeZone: TZ },
     colorId: colorId(source),
-    extendedProperties: { private: { requestId: String(row.id || "") } },
+    extendedProperties: {
+      private: {
+        requestId: String(row.id || ""),
+        ...(source === "event" ? { slotIndex: String(slotIndex) } : {}),
+      },
+    },
     ...(attachments.length ? { attachments } : {}),
     ...(recurrence ? { recurrence } : {}),
   };
@@ -553,9 +602,12 @@ function adminClient() {
   });
 }
 
-async function saveEventId(id: string, googleEventId: string | null) {
+async function saveEventIds(id: string, ids: string[]) {
   const supabase = adminClient();
-  await supabase.from("requests").update({ google_event_id: googleEventId }).eq("id", id);
+  await supabase
+    .from("requests")
+    .update({ google_event_id: ids[0] || null, google_event_ids: ids })
+    .eq("id", id);
 }
 
 async function upsertEvent(token: string, row: RequestRow) {
@@ -574,20 +626,61 @@ async function upsertEvent(token: string, row: RequestRow) {
   if (!created.ok || !eventId) {
     throw new Error(googleError(created.data) || "Could not create Google event");
   }
-  await saveEventId(row.id, eventId);
+  await saveEventIds(row.id, [eventId]);
   return { action: "created" as const, id: eventId };
 }
 
+async function upsertEventSlots(token: string, row: RequestRow) {
+  const slots = eventSlots(row);
+  if (!slots.length || !row.id) return { action: "skip" as const };
+  const existing = storedEventIds(row);
+  const attachQuery = "?supportsAttachments=true";
+  const prepared = await calendarAttachments(token, row);
+  const ids: string[] = [];
+  for (let i = 0; i < slots.length; i += 1) {
+    const body = await eventBody(token, row, slots[i], i, prepared);
+    if (!body) continue;
+    const currentId = existing[i] || "";
+    if (currentId) {
+      const patched = await gcal(token, "PATCH", `/${encodeURIComponent(currentId)}`, body, attachQuery);
+      if (patched.ok) {
+        ids.push(currentId);
+        continue;
+      }
+      if (patched.status !== 404) {
+        throw new Error(googleError(patched.data) || "Could not update Google event");
+      }
+    }
+    const created = await gcal(token, "POST", "", body, attachQuery);
+    const eventId = asString(created.data.id);
+    if (!created.ok || !eventId) {
+      throw new Error(googleError(created.data) || "Could not create Google event");
+    }
+    ids.push(eventId);
+  }
+  for (const extra of existing.slice(slots.length)) {
+    await gcal(token, "DELETE", `/${encodeURIComponent(extra)}`);
+  }
+  await saveEventIds(row.id, ids);
+  return { action: existing.length ? ("updated" as const) : ("created" as const), ids };
+}
+
 async function deleteEvent(token: string, row: RequestRow, persist = true) {
-  if (!row.google_event_id) return { action: "skip" as const };
-  await gcal(token, "DELETE", `/${encodeURIComponent(row.google_event_id)}`);
-  if (persist && row.id) await saveEventId(row.id, null);
-  return { action: "deleted" as const, id: row.google_event_id };
+  const ids = storedEventIds(row);
+  if (!ids.length) return { action: "skip" as const };
+  for (const id of ids) {
+    await gcal(token, "DELETE", `/${encodeURIComponent(id)}`);
+  }
+  if (persist && row.id) await saveEventIds(row.id, []);
+  return { action: "deleted" as const, ids };
 }
 
 async function syncRow(token: string, row: RequestRow | null) {
   if (!row?.id) return { action: "skip" as const };
-  if (shouldHaveEvent(row)) return upsertEvent(token, row);
+  if (shouldHaveEvent(row)) {
+    if (String(row.source) === "event") return upsertEventSlots(token, row);
+    return upsertEvent(token, row);
+  }
   if (shouldKeepEvent(row)) return { action: "kept" as const, id: row.google_event_id };
   return deleteEvent(token, row);
 }
@@ -637,7 +730,7 @@ async function backfill(token: string) {
   const { data, error } = await supabase
     .from("requests")
     .select(
-      "id, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, staff_notes, google_event_id, payload, files"
+      "id, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, staff_notes, google_event_id, google_event_ids, payload, files"
     )
     .eq("status", "booked")
     .not("party_date", "is", null)
@@ -693,7 +786,12 @@ Deno.serve(async (req) => {
       return json({ ok: true, result });
     }
 
-    if (type === "UPDATE" && relevantSnapshot(record) === relevantSnapshot(oldRecord) && record?.google_event_id) {
+    if (
+      type === "UPDATE" &&
+      relevantSnapshot(record) === relevantSnapshot(oldRecord) &&
+      record?.google_event_id &&
+      slotCountMatches(record)
+    ) {
       return json({ ok: true, result: { action: "noop" } });
     }
 
