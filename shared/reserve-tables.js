@@ -88,22 +88,12 @@
     return new Date(Date.UTC(year, month - 1, day)).getUTCDay() === 6;
   }
 
-  function cookingClassItem(iso) {
-    if (!isSaturday(iso)) return null;
-    return {
-      id: `cooking-${iso}`,
-      time: "14:00",
-      endTime: "17:00",
-      tableIds: COOKING_TABLES.slice(),
-      kind: "event",
-      synthetic: true,
-      label: "Cooking class",
-    };
+  function cookingClassItem() {
+    return null;
   }
 
-  function withFixedHolds(iso, occupancy) {
-    const extra = cookingClassItem(iso);
-    return extra ? [...(occupancy || []), extra] : occupancy || [];
+  function withFixedHolds(_iso, occupancy) {
+    return occupancy || [];
   }
 
   function terraceTableIds() {

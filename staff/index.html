@@ -94,7 +94,7 @@
           </label>
         </div>
         <div id="overview-view">
-          <p class="muted" id="res-policy">Reservations occupy 3 hours (30 minutes before, 2 hours dining, 30 minutes after) and cancel if the guest has not arrived after 15 minutes. Birthday parties occupy 4 hours (1 hour prep + 3 hours from start). Tables 18 and 19 are held every Saturday 14:00–17:00 for cooking class.</p>
+          <p class="muted" id="res-policy">Reservations occupy 3 hours (30 minutes before, 2 hours dining, 30 minutes after) and cancel if the guest has not arrived after 15 minutes. Birthday parties occupy 4 hours (1 hour prep + 3 hours from start). Cooking classes are events created in Events.</p>
           <div class="stat-grid" id="stat-grid"></div>
           <div class="booking-list" id="booking-list"></div>
           <section class="noshow-section" id="noshow-section" hidden>
@@ -273,14 +273,12 @@
             <span>Date</span>
             <input type="date" id="event-date" required>
           </label>
-          <label class="field">
-            <span>Start</span>
-            <input type="time" id="event-start" required>
-          </label>
-          <label class="field">
-            <span>End</span>
-            <input type="time" id="event-end" required>
-          </label>
+        </div>
+        <div class="field">
+          <span>Time slots</span>
+          <div id="event-slots"></div>
+          <button class="btn btn--outline" type="button" id="event-slot-add">Add time slot</button>
+          <span class="muted">Each slot is bookable on this date, and on each repeat.</span>
         </div>
         <label class="field">
           <span>Repeats</span>

@@ -37,6 +37,20 @@ function occupyKind(source: string) {
   return "reservation";
 }
 
+function eventWindows(row: { source?: string; party_time?: string; payload?: unknown }) {
+  const payload = (row.payload || {}) as {
+    event?: { slots?: { start?: string; end?: string }[] };
+    reservation?: { endTime?: unknown };
+  };
+  const slots = payload.event?.slots;
+  if (row.source === "event" && Array.isArray(slots) && slots.length) {
+    return slots
+      .map((slot) => ({ start: asString(slot.start).slice(0, 5), end: asString(slot.end).slice(0, 5) }))
+      .filter((slot) => slot.start);
+  }
+  return [{ start: asString(row.party_time).slice(0, 5), end: asString(payload.reservation?.endTime).slice(0, 5) }];
+}
+
 function occupyRange(time: string, kind = "reservation", endTime = "") {
   const start = timeToMinutes(time);
   if (start == null) return null;
@@ -66,11 +80,8 @@ function isSaturday(date: string) {
   return new Date(Date.UTC(year, month - 1, day)).getUTCDay() === 6;
 }
 
-function cookingClassClash(date: string, time: string, tableIds: string[], kind: string, endTime = "") {
-  if (!isSaturday(date) || !tableIds.some((id) => COOKING_TABLES.has(id))) return false;
-  const wanted = occupyRange(time, kind, endTime);
-  if (!wanted) return false;
-  return wanted.start < COOKING_END && COOKING_START < wanted.end;
+function cookingClassClash() {
+  return false;
 }
 
 function isReleasedNoShow(status: string | null | undefined, date: string, time: string) {
@@ -247,17 +258,17 @@ Deno.serve(async (req) => {
       .eq("party_date", wantedDate)
       .not("status", "in", "(cancelled,rejected,closed)");
     return (clashes || []).some((row) => {
-      const rowTime = asString(row.party_time);
-      const rowPayload = (row.payload as { reservation?: { tableIds?: unknown[]; endTime?: unknown } })
-        ?.reservation || {};
-      const held = rowPayload.tableIds || [];
+      const held = ((row.payload as { reservation?: { tableIds?: unknown[] } })?.reservation || {}).tableIds || [];
+      if (!held.some((id) => wanted.has(String(id)))) return false;
       const rowKind = occupyKind(String(row.source || ""));
-      const rowEnd = asString(rowPayload.endTime);
-      if (!rangesOverlap(rowTime, wantedTime, rowKind, kind, rowEnd, endTime)) return false;
-      if (row.source === "reservation" && isReleasedNoShow(row.status as string, wantedDate, rowTime)) {
-        return false;
-      }
-      return held.some((id) => wanted.has(String(id)));
+      const windows = eventWindows(row);
+      return windows.some((window) => {
+        if (!rangesOverlap(window.start, wantedTime, rowKind, kind, window.end, endTime)) return false;
+        if (row.source === "reservation" && isReleasedNoShow(row.status as string, wantedDate, window.start)) {
+          return false;
+        }
+        return true;
+      });
     });
   }
 

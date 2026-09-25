@@ -268,6 +268,10 @@ function baliNowParts() {
 }
 
 function slotRange(row) {
+  if (row?.source === "event" && row.slotIndex == null) {
+    const slots = eventTimeSlots(row);
+    if (slots.length > 1) return slots.map((slot) => `${slot.start}–${slot.end}`).join(", ");
+  }
   const Map = window.TinyReserveMap;
   const time = timeLabel(row.party_time);
   const endTime = row.payload?.reservation?.endTime;
@@ -489,12 +493,49 @@ function filteredRows() {
 }
 
 function rowsOnDate(iso) {
-  const rows = filteredRows()
-    .filter((row) => occursOn(row, iso))
-    .map((row) => instanceOnDate(row, iso));
-  const cooking = cookingRow(iso);
-  if (cooking && matchesFilters(cooking) && !rows.some((row) => row.synthetic)) rows.push(cooking);
+  const rows = [];
+  filteredRows().forEach((row) => {
+    if (!occursOn(row, iso)) return;
+    if (row.source !== "event") {
+      rows.push(instanceOnDate(row, iso));
+      return;
+    }
+    const slots = eventTimeSlots(row);
+    if (!slots.length) {
+      rows.push(instanceOnDate(row, iso));
+      return;
+    }
+    slots.forEach((slot, index) => rows.push(applyEventSlot(instanceOnDate(row, iso), slot, index)));
+  });
   return rows;
+}
+
+function eventTimeSlots(row) {
+  const stored = row?.payload?.event?.slots;
+  if (Array.isArray(stored) && stored.length) {
+    return stored
+      .map((slot) => ({
+        start: String(slot.start || "").slice(0, 5),
+        end: String(slot.end || "").slice(0, 5),
+      }))
+      .filter((slot) => slot.start && slot.end);
+  }
+  const start = timeLabel(row?.party_time);
+  const end = String(row?.payload?.reservation?.endTime || "").slice(0, 5);
+  if (!start || start === "—") return [];
+  return [{ start, end: end || start }];
+}
+
+function applyEventSlot(row, slot, index) {
+  return {
+    ...row,
+    party_time: slot.start,
+    slotIndex: index,
+    payload: {
+      ...(row.payload || {}),
+      reservation: { ...(row.payload?.reservation || {}), endTime: slot.end },
+    },
+  };
 }
 
 function overviewDated(pred) {
@@ -830,7 +871,6 @@ function renderCalendar() {
     ["birthday-pending", "Birthday (unconfirmed)"],
     ["birthday", "Birthday"],
     ["event", "Event"],
-    ["cooking", "Cooking class"],
   ]
     .map(([kind, text]) => `<span><span class="dot dot--${kind}"></span> ${text}</span>`)
     .join("");
@@ -1055,7 +1095,6 @@ function renderTablesLayout() {
       <span><i class="swatch swatch--reservation"></i> Reservation</span>
       <span><i class="swatch swatch--birthday"></i> Birthday</span>
       <span><i class="swatch swatch--event"></i> Event</span>
-      <span><i class="swatch swatch--cooking"></i> Cooking class</span>
     </div>
     <div class="plan__stage">
       <div class="plan__canvas" id="tables-canvas"></div>
@@ -1832,13 +1871,36 @@ function fillEventPricing(pricing = {}) {
   refreshEventPricingPreview();
 }
 
+function slotRowHtml(slot = {}) {
+  return `<div class="guest-row event-slot">
+    <label class="field"><span>Start</span><input type="time" name="slot-start" required value="${escapeHtml(slot.start || "14:00")}"></label>
+    <label class="field"><span>End</span><input type="time" name="slot-end" required value="${escapeHtml(slot.end || "17:00")}"></label>
+    <button class="btn btn--outline" type="button" data-remove-slot>Remove</button>
+  </div>`;
+}
+
+function readEventSlots() {
+  return [...document.querySelectorAll("#event-slots .event-slot")]
+    .map((row) => ({
+      start: row.querySelector('[name="slot-start"]')?.value || "",
+      end: row.querySelector('[name="slot-end"]')?.value || "",
+    }))
+    .filter((slot) => slot.start && slot.end);
+}
+
+function fillEventSlots(slots) {
+  const host = document.getElementById("event-slots");
+  if (!host) return;
+  const list = slots?.length ? slots : [{ start: "14:00", end: "17:00" }];
+  host.innerHTML = list.map((slot) => slotRowHtml(slot)).join("");
+}
+
 function openEventModal(opts = {}) {
   state.editingEventId = opts.id || null;
   document.getElementById("event-modal-title").textContent = opts.id ? "Edit event" : "Add event";
   document.getElementById("event-name").value = opts.name || "";
   document.getElementById("event-date").value = opts.date || state.selectedDate;
-  document.getElementById("event-start").value = opts.start || "14:00";
-  document.getElementById("event-end").value = opts.end || "17:00";
+  fillEventSlots(opts.slots?.length ? opts.slots : [{ start: opts.start || "14:00", end: opts.end || "17:00" }]);
   document.getElementById("event-location").value = opts.location || "service";
   document.getElementById("event-full-terrace").checked = Boolean(opts.fullTerrace);
   document.getElementById("event-about").value = opts.about || "";
@@ -1917,8 +1979,9 @@ async function saveStaffEvent() {
   const statusEl = document.getElementById("event-status");
   const name = document.getElementById("event-name")?.value.trim() || "";
   const date = document.getElementById("event-date")?.value;
-  const start = document.getElementById("event-start")?.value;
-  const end = document.getElementById("event-end")?.value;
+  const slots = readEventSlots();
+  const start = slots[0]?.start || "";
+  const end = slots[0]?.end || "";
   const location = document.getElementById("event-location")?.value || "service";
   const fullTerrace = Boolean(document.getElementById("event-full-terrace")?.checked);
   const about = document.getElementById("event-about")?.value.trim() || "";
@@ -1935,8 +1998,8 @@ async function saveStaffEvent() {
   let tableIds = [...document.querySelectorAll('input[name="event-table"]:checked')].map((input) => input.value);
   if (location === "masterclass") tableIds = [];
   else if (fullTerrace) tableIds = Map?.terraceTableIds?.() || tableIds;
-  if (!name || !date || !start || !end) {
-    statusEl.textContent = "Name, date, and time are required.";
+  if (!name || !date || !slots.length) {
+    statusEl.textContent = "Name, date, and at least one time slot are required.";
     statusEl.className = "status is-error";
     return;
   }
@@ -1964,6 +2027,7 @@ async function saveStaffEvent() {
       pricing: hasPricing ? pricing : null,
       guests,
       repeat,
+      slots,
     },
     reservation: {
       name,
@@ -3097,6 +3161,7 @@ async function loadDetail(id) {
       date: row.party_date,
       start: timeLabel(row.party_time),
       end: reservation.endTime || "17:00",
+      slots: event.slots || eventTimeSlots(row),
       location: event.location || "service",
       fullTerrace: event.fullTerrace,
       about: event.about || "",
@@ -3143,6 +3208,7 @@ async function loadDetail(id) {
       date: row.party_date,
       start: timeLabel(row.party_time),
       end: reservation.endTime || "17:00",
+      slots: event.slots || eventTimeSlots(row),
       location: event.location || "service",
       fullTerrace: event.fullTerrace,
       about: event.about || "",
@@ -3928,6 +3994,16 @@ document.getElementById("event-location")?.addEventListener("change", syncEventL
 document.getElementById("event-full-terrace")?.addEventListener("change", applyFullTerrace);
 document.getElementById("event-guest-add")?.addEventListener("click", () => {
   document.getElementById("event-guests")?.insertAdjacentHTML("beforeend", guestRowHtml());
+});
+document.getElementById("event-slot-add")?.addEventListener("click", () => {
+  document.getElementById("event-slots")?.insertAdjacentHTML("beforeend", slotRowHtml());
+});
+document.getElementById("event-slots")?.addEventListener("click", (e) => {
+  if (!e.target.closest("[data-remove-slot]")) return;
+  const row = e.target.closest(".event-slot");
+  const host = document.getElementById("event-slots");
+  if (host && host.querySelectorAll(".event-slot").length <= 1) return;
+  row?.remove();
 });
 document.getElementById("event-guests")?.addEventListener("click", (e) => {
   if (!e.target.closest("[data-remove-guest]")) return;

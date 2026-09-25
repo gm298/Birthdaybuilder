@@ -956,9 +956,14 @@ body.time-modal-open {
 .time-modal .time-chip.is-booked:disabled {
   opacity: 1;
   background: #111;
-  color: #e23b3b;
+  color: #b5b5b5;
   border-color: #111;
   cursor: not-allowed;
+}
+
+.time-modal .time-chip.is-booked strong,
+.time-modal .time-chip.is-booked span {
+  color: #b5b5b5;
 }
 
 .count-trigger {

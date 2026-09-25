@@ -670,8 +670,7 @@ Deno.serve(async (req) => {
       return json({ ok: true, ...(await backfill(token)) });
     }
     if (url.searchParams.get("seed_cooking_class") === "1") {
-      if (req.method !== "POST") return json({ ok: false, error: "POST required" }, 405);
-      return json({ ok: true, cookingClass: await seedCookingClass(token) });
+      return json({ ok: true, cookingClass: { action: "removed" } });
     }
 
     if (req.method === "GET") {

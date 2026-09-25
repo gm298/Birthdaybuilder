@@ -1805,9 +1805,14 @@
     if (!Map?.slotIsBooked || !time) return false;
     const guests = totalGuests() || 1;
     const pkg = selectedPackage();
-    const required = pkg ? Map.birthdayTableIds?.(pkg.id, guests) || [] : [];
+    const required = pkg
+      ? Map.birthdayTableIds?.(pkg.id, guests) || []
+      : Map.birthdayTableIds?.("signature", guests) || [];
     const ignore = editManageToken ? [...editOwnTableIds] : [];
-    return Map.slotIsBooked(partyState.occupancy, time, "birthday", guests, required, ignore);
+    if (required.length) {
+      return Map.slotIsBooked(partyState.occupancy, time, "birthday", guests, required, ignore);
+    }
+    return Map.slotIsBooked(partyState.occupancy, time, "birthday", guests, [], ignore);
   }
 
   function heldPartyTableIds() {
@@ -1858,6 +1863,13 @@
     }
     renderPartyTables();
     renderPartyTimes();
+    const time = partyTimeValue();
+    if (time && partyTimeIsBooked(time)) {
+      setPartyTimeValue("");
+      renderPartyTimes();
+      if (currentStepId !== "details") goToStep("details");
+      openPartyTimeModal();
+    }
     updateStepProgress();
   }
 
@@ -1928,7 +1940,7 @@
       copy.textContent =
         guests > indoorMax
           ? `Indoor seating is limited to ${indoorMax} guests — pick terrace tables for this party size. Indoor tables 1 and 2 can be joined when you have 8 or fewer.`
-          : `Pick tables that fit your guest count. Indoor max ${indoorMax} people; indoor tables 1 and 2 can be joined. Saturday 14:00–17:00, terrace 18 and 19 are held for cooking class.`;
+          : `Pick tables that fit your guest count. Indoor max ${indoorMax} people; indoor tables 1 and 2 can be joined.`;
     }
     const blocked = unavailablePartyTables();
     if (status) {

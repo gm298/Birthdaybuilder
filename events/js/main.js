@@ -176,11 +176,25 @@
     return dates;
   }
 
+  function eventSlots(event) {
+    const raw = Array.isArray(event?.slots) ? event.slots : [];
+    const slots = raw
+      .map((slot) => ({
+        start: String(slot.start || "").slice(0, 5),
+        end: String(slot.end || "").slice(0, 5),
+      }))
+      .filter((slot) => slot.start && slot.end);
+    if (slots.length) return slots;
+    return [{ start: String(event?.start_time || "").slice(0, 5), end: String(event?.end_time || "").slice(0, 5) }];
+  }
+
   function expanded(fromIso, toIso) {
     const items = [];
     state.events.forEach((event) => {
       occurrences(event, fromIso, toIso).forEach((date) => {
-        items.push({ ...event, occurs_on: date });
+        eventSlots(event).forEach((slot) => {
+          items.push({ ...event, occurs_on: date, start_time: slot.start, end_time: slot.end });
+        });
       });
     });
     return items.sort((a, b) => (a.occurs_on + a.start_time).localeCompare(b.occurs_on + b.start_time));
@@ -334,7 +348,9 @@
         </div>
         <aside class="ticket">
           <h2>Guest list</h2>
-          <p class="ticket__when">${escapeHtml(prettyDate(event.party_date))}<br>${escapeHtml(timeRange(event))}</p>
+          <p class="ticket__when">${escapeHtml(prettyDate(event.party_date))}<br>${eventSlots(event)
+            .map((slot) => escapeHtml(timeRange({ start_time: slot.start, end_time: slot.end })))
+            .join("<br>")}</p>
           ${price ? `<p class="ticket__price">${escapeHtml(price)} <span class="muted" style="font-size:16px">per ticket</span></p>` : ""}
           <form id="guest-form">
             <label class="honeypot">Website<input name="website" tabindex="-1" autocomplete="off"></label>
