@@ -38,6 +38,7 @@ function copyForKind(kind: BookingEmailKind) {
   if (kind === "birthday") {
     return {
       subject: (code: string) => `Your Tiny birthday plan ${code}`,
+      headline: "Birthday Bash<br>at Tiny",
       saved: "Your birthday plan at Tiny Healthy Cafe is saved.",
       linkLabel: "View, edit or cancel your birthday plan",
     };
@@ -45,6 +46,7 @@ function copyForKind(kind: BookingEmailKind) {
   if (kind === "cake") {
     return {
       subject: (code: string) => `Your Tiny cake order ${code}`,
+      headline: "Cake order<br>at Tiny",
       saved: "Your cake request at Tiny Healthy Cafe is saved.",
       linkLabel: "View, edit or cancel your cake request",
     };
@@ -52,12 +54,14 @@ function copyForKind(kind: BookingEmailKind) {
   if (kind === "event") {
     return {
       subject: (code: string) => `Your Tiny guest list ${code}`,
+      headline: "Guest list<br>at Tiny",
       saved: "You're on the guest list. Tiny will confirm your place.",
       linkLabel: "View your guest list request",
     };
   }
   return {
     subject: (code: string) => `Your Tiny reservation ${code}`,
+    headline: "Table reserved<br>at Tiny",
     saved: "Your table request at Tiny Healthy Cafe is saved.",
     linkLabel: "View, edit or cancel your reservation",
   };
@@ -126,7 +130,7 @@ export async function sendBookingEmail(input: BookingEmailInput) {
       <div style="padding:28px 28px 8px;">
         <img src="https://gm298.github.io/Birthdaybuilder/birthdays/builder/img/quote/logo-tiny.png" alt="Tiny" width="54" height="54" style="display:block;width:54px;height:auto;margin:0 0 14px;">
         <p style="margin:0;font-family:'Jost',sans-serif;font-size:12px;letter-spacing:0.2em;text-transform:uppercase;color:#647c6e;">Tiny Healthy Cafe</p>
-        <h1 style="margin:8px 0 0;font-family:'Jost',sans-serif;font-size:32px;line-height:1.1;font-weight:500;color:#647c6e;">${kind === "event" ? "Guest list<br>at Tiny" : "Birthday Bash<br>at Tiny"}</h1>
+        <h1 style="margin:8px 0 0;font-family:'Jost',sans-serif;font-size:32px;line-height:1.1;font-weight:500;color:#647c6e;">${copy.headline}</h1>
       </div>
       <div style="padding:8px 28px 28px;">
         <p style="margin:0 0 8px;font-size:16px;color:#3d4f45;">Hi ${escapeHtml(input.guestName || "there")},</p>

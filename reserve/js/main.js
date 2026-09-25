@@ -15,11 +15,12 @@
     area: "indoor",
     selected: new Set(),
     kids: 0,
-    adults: 2,
-    guests: 2,
+    adults: 0,
+    guests: 0,
     time: "",
     date: "",
     occupancy: [],
+    occupancyOk: false,
     submitting: false,
     saved: false,
     manageToken: "",
@@ -164,8 +165,10 @@
   }
 
   function readGuests() {
-    const kids = Math.max(0, Number(document.getElementById("guest-kids")?.value) || 0);
-    const adults = Math.max(0, Number(document.getElementById("guest-adults")?.value) || 0);
+    const kidsRaw = document.getElementById("guest-kids")?.value;
+    const adultsRaw = document.getElementById("guest-adults")?.value;
+    const kids = kidsRaw === "" || kidsRaw == null ? 0 : Math.max(0, Number(kidsRaw) || 0);
+    const adults = adultsRaw === "" || adultsRaw == null ? 0 : Math.max(0, Number(adultsRaw) || 0);
     state.kids = kids;
     state.adults = adults;
     state.guests = kids + adults;
@@ -181,8 +184,106 @@
     const adultsInput = document.getElementById("guest-adults");
     if (kidsInput) kidsInput.value = String(state.kids);
     if (adultsInput) adultsInput.value = String(state.adults);
+    paintCountValue("guest-kids");
+    paintCountValue("guest-adults");
     pruneSelection();
     renderPlan();
+  }
+
+  const COUNT_SLIDERS = {
+    "guest-kids": {
+      title: "How many kids?",
+      note: "Little guests joining the table.",
+      unit: "Kids",
+      min: 0,
+      max: 30,
+      start: 2,
+      label: (n) => `${n} ${n === 1 ? "kid" : "kids"}`,
+      confirm: (n) => `Got it — ${n} ${n === 1 ? "kid" : "kids"}.`,
+    },
+    "guest-adults": {
+      title: "How many adults?",
+      note: "Grown-ups joining the table.",
+      unit: "Adults",
+      min: 0,
+      max: 20,
+      start: 2,
+      label: (n) => `${n} ${n === 1 ? "adult" : "adults"}`,
+      confirm: (n) => `Got it — ${n} ${n === 1 ? "adult" : "adults"}.`,
+    },
+  };
+
+  function paintCountValue(id) {
+    const spec = COUNT_SLIDERS[id];
+    const input = document.getElementById(id);
+    const label = document.getElementById(`${id}-value`);
+    if (!spec || !input || !label) return;
+    const value = input.value;
+    label.textContent = value === "" ? "Slide to choose" : spec.label(Number(value));
+  }
+
+  function initCountSliders() {
+    const modal = document.getElementById("count-modal");
+    const range = document.getElementById("count-modal-range");
+    const title = document.getElementById("count-modal-title");
+    const note = document.getElementById("count-modal-note");
+    const valueEl = document.getElementById("count-modal-value");
+    const unit = document.getElementById("count-modal-unit");
+    const minLabel = document.getElementById("count-modal-min");
+    const maxLabel = document.getElementById("count-modal-max");
+    const confirm = document.getElementById("count-modal-confirm");
+    if (!modal || !range) return;
+    let activeId = "";
+
+    const paint = () => {
+      const spec = COUNT_SLIDERS[activeId];
+      if (!spec) return;
+      const n = Number(range.value);
+      if (valueEl) valueEl.textContent = String(n);
+      if (confirm) confirm.textContent = spec.confirm(n);
+    };
+
+    const close = () => {
+      modal.hidden = true;
+      activeId = "";
+    };
+
+    const open = (id) => {
+      const spec = COUNT_SLIDERS[id];
+      const input = document.getElementById(id);
+      if (!spec || !input) return;
+      activeId = id;
+      range.min = String(spec.min);
+      range.max = String(spec.max);
+      range.value = input.value === "" ? String(spec.start) : String(input.value);
+      if (title) title.textContent = spec.title;
+      if (note) note.textContent = spec.note;
+      if (unit) unit.textContent = spec.unit;
+      if (minLabel) minLabel.textContent = String(spec.min);
+      if (maxLabel) maxLabel.textContent = String(spec.max);
+      paint();
+      modal.hidden = false;
+    };
+
+    Object.keys(COUNT_SLIDERS).forEach((id) => {
+      paintCountValue(id);
+      document.getElementById(`${id}-trigger`)?.addEventListener("click", () => open(id));
+    });
+    range.addEventListener("input", paint);
+    document.getElementById("count-modal-done")?.addEventListener("click", () => {
+      const input = document.getElementById(activeId);
+      if (input) {
+        input.value = range.value;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        paintCountValue(activeId);
+      }
+      close();
+    });
+    modal.querySelectorAll("[data-close-count]").forEach((el) => el.addEventListener("click", close));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !modal.hidden) close();
+    });
   }
 
   function baliNowParts() {
@@ -307,23 +408,18 @@
   function validateStep(step) {
     if (step === 1) {
       if (!state.date) return "Please choose a date.";
+      if (!state.occupancyOk) return "Couldn’t check availability — try again.";
       if (!state.time) return "Please choose a time.";
-      if (state.guests < 1) return "Please add how many kids and adults are coming.";
+      if (state.guests < 1) return "Please choose how many kids and adults are coming.";
+      if (Map.slotIsBooked?.(state.occupancy, state.time, "reservation", state.guests || 1)) {
+        return "That time isn’t free. Please pick another slot.";
+      }
       return "";
     }
     if (step === 2) {
-      if (!document.getElementById("reserve-name")?.value.trim()) return "Please add your name.";
-      const contact = window.TinyContact?.validateContact?.();
-      if (!contact?.ok) return contact?.message || "Please add an email or WhatsApp number.";
-      const email = contact.email || "";
-      const phone = contact.phone || "";
-      if (!email) return "Please add your email so we can send your reservation link.";
-      if (!phone) return "Please add your WhatsApp number.";
-      return "";
-    }
-    if (step === 3) {
       const tables = selectedTables();
       const seats = selectedSeats();
+      if (!state.occupancyOk) return "Couldn’t check availability — try again.";
       if (!tables.length) return "Please tap a table on the floor plan.";
       if (seats < state.guests) {
         return `That table seats ${seats}. Pick a larger table or join indoor tables 1 and 2.`;
@@ -333,13 +429,38 @@
       }
       return "";
     }
+    if (step === 3) {
+      if (!document.getElementById("reserve-name")?.value.trim()) return "Please add your name.";
+      const contact = window.TinyContact?.validateContact?.();
+      if (!contact?.ok) return contact?.message || "Please add an email or WhatsApp number.";
+      const email = contact.email || "";
+      const phone = contact.phone || "";
+      if (!email) return "Please add your email so we can send your reservation link.";
+      if (!phone) return "Please add your WhatsApp number.";
+      return "";
+    }
     return "";
+  }
+
+  function setScheduleOccupancyStatus(message, kind) {
+    const el = document.getElementById("schedule-occupancy-status");
+    if (!el) return;
+    if (!message) {
+      el.hidden = true;
+      el.textContent = "";
+      el.className = "form-status";
+      return;
+    }
+    el.hidden = false;
+    el.textContent = message;
+    el.className = kind ? `form-status is-${kind}` : "form-status";
   }
 
   async function loadOccupancy() {
     const cfg = window.TINY_SUPABASE || {};
     if (!cfg.url || !cfg.anonKey || !state.date) {
-      state.occupancy = [];
+      state.occupancy = Map.withFixedHolds ? Map.withFixedHolds(state.date, []) : [];
+      state.occupancyOk = Boolean(state.date);
       pruneSelection();
       renderPlan();
       renderTimes();
@@ -355,11 +476,15 @@
         },
         body: JSON.stringify({ target_date: state.date }),
       });
+      if (!res.ok) throw new Error("occupancy failed");
       const data = await res.json();
       const rows = Array.isArray(data) ? data : [];
       state.occupancy = Map.withFixedHolds ? Map.withFixedHolds(state.date, rows) : rows;
+      state.occupancyOk = true;
+      setScheduleOccupancyStatus("");
     } catch (_) {
-      state.occupancy = [];
+      state.occupancyOk = false;
+      setScheduleOccupancyStatus("Couldn’t check availability — try again.", "error");
     }
     pruneSelection();
     renderPlan();
@@ -443,6 +568,11 @@
   }
 
   function openTimeModal() {
+    if (!state.occupancyOk) {
+      setStatus("Couldn’t check availability — try again.", "error");
+      loadOccupancy();
+      return;
+    }
     const modal = document.getElementById("time-modal");
     const trigger = document.getElementById("time-trigger");
     if (!modal) return;
@@ -516,12 +646,12 @@
     if (submit) submit.hidden = state.step !== 4 || state.saved;
     if (wa) wa.hidden = !(state.saved && state.step === 4);
     if (manage) manage.hidden = !(state.saved && state.step === 4);
-    if (state.step === 3) renderPlan();
+    if (state.step === 2) renderPlan();
     if (state.step === 4) renderSummary();
     if (!options?.silent) {
       document.getElementById("book")?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-    if (state.step === 3) requestAnimationFrame(fitPlanToPage);
+    if (state.step === 2) requestAnimationFrame(fitPlanToPage);
   }
 
   function renderSummary() {
@@ -550,15 +680,20 @@
       </div>
       <div class="summary-block">
         <div class="summary-head">
-          <h3>Reservation details</h3>
+          <h3>Table</h3>
           <button class="summary-edit" type="button" data-goto="2">Edit</button>
+        </div>
+        <p>${Map.tableLabel(selectedTables())}</p>
+      </div>
+      <div class="summary-block">
+        <div class="summary-head">
+          <h3>Reservation details</h3>
+          <button class="summary-edit" type="button" data-goto="3">Edit</button>
         </div>
         <p><strong>${guestName()}</strong></p>
         <p class="field__hint">${[email, phone].filter(Boolean).join(" · ") || "—"}</p>
         <p class="summary-kicker">Purpose</p>
         <p>${purpose || "—"}</p>
-        <p class="summary-kicker">Table</p>
-        <p>${Map.tableLabel(selectedTables())} <button class="summary-edit" type="button" data-goto="3">Edit</button></p>
         <p class="summary-kicker">Notes</p>
         <p>${notes}</p>
       </div>
@@ -581,7 +716,11 @@
     state.selected = new Set();
     state.area = "indoor";
     state.saved = false;
-    setGuests(0, 2);
+    document.getElementById("guest-kids").value = "";
+    document.getElementById("guest-adults").value = "";
+    paintCountValue("guest-kids");
+    paintCountValue("guest-adults");
+    readGuests();
     setDate(baliNowParts().date);
     setStep(1);
     setStatus("");
@@ -609,7 +748,11 @@
       setStatus("");
       setStep(state.step - 1);
     });
-    document.getElementById("wizard-next")?.addEventListener("click", () => {
+    document.getElementById("wizard-next")?.addEventListener("click", async () => {
+      if (state.step === 1 || state.step === 2) {
+        setStatus("Checking availability…");
+        await loadOccupancy();
+      }
       const error = validateStep(state.step);
       if (error) {
         setStatus(error, "error");
@@ -631,12 +774,18 @@
     document.getElementById("reserve-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       if (state.submitting) return;
+      setStatus("Checking availability…");
+      await loadOccupancy();
       const error = validateStep(1) || validateStep(2) || validateStep(3);
       if (error) {
         setStatus(error, "error");
-        if (error.includes("time") || error.includes("date")) setStep(1);
-        else if (error.includes("name") || error.includes("email") || error.includes("WhatsApp") || error.includes("number")) setStep(2);
-        else setStep(3);
+        if (error.includes("time") || error.includes("date") || error.includes("availability") || error.includes("slot")) {
+          setStep(1);
+        } else if (error.includes("table") || error.includes("seats") || error.includes("reserved")) {
+          setStep(2);
+        } else {
+          setStep(3);
+        }
         return;
       }
       const submitBtn = document.getElementById("wizard-submit");
@@ -767,6 +916,7 @@
   function boot() {
     if (!document.getElementById("floorplan") || !Map) return;
     bindForm();
+    initCountSliders();
     renderTimes();
     setDate(baliNowParts().date);
     renderPlan();

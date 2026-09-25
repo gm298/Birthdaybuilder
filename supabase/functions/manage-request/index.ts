@@ -351,6 +351,7 @@ Deno.serve(async (req) => {
       .select("id, source, status, party_time, payload")
       .in("source", OCCUPY_SOURCES)
       .eq("party_date", wantedDate)
+      .is("archived_at", null)
       .not("status", "in", "(cancelled,rejected,closed,noshow)");
     return (clashes || []).some((item) => {
       if (excludeId && item.id === excludeId) return false;

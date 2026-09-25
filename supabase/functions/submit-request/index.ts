@@ -256,7 +256,8 @@ Deno.serve(async (req) => {
       .select("id, source, status, party_time, payload")
       .in("source", OCCUPY_SOURCES)
       .eq("party_date", wantedDate)
-      .not("status", "in", "(cancelled,rejected,closed)");
+      .is("archived_at", null)
+      .not("status", "in", "(cancelled,rejected,closed,noshow)");
     return (clashes || []).some((row) => {
       const held = ((row.payload as { reservation?: { tableIds?: unknown[] } })?.reservation || {}).tableIds || [];
       if (!held.some((id) => wanted.has(String(id)))) return false;

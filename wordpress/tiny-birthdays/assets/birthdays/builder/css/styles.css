@@ -190,6 +190,14 @@ h3 {
   color: #fff;
   text-wrap: pretty;
   max-width: 28ch;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.builder-hero h1:focus,
+.builder-hero h1:focus-visible {
+  outline: none;
 }
 
 /* Programmatic step focus must not show a Windows focus rectangle */
@@ -506,6 +514,34 @@ body.steps-pinned .site-header {
 
 .gallery__own-idea .file-drop {
   display: flex;
+  border: none;
+  border-radius: 999px;
+  padding: 14px 22px;
+  gap: 6px;
+  background: var(--deep);
+  color: var(--white);
+  box-shadow: none;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.gallery__own-idea .file-drop:hover {
+  background: var(--sage-hover);
+}
+
+.gallery__own-idea .file-drop:focus-within {
+  outline: 2px solid var(--sage);
+  outline-offset: 3px;
+}
+
+.gallery__own-idea .file-drop__label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--white);
+}
+
+.gallery__own-idea .file-drop__hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
 }
 
 .addon-collapse {
@@ -820,6 +856,25 @@ body.steps-pinned .site-header {
   align-items: end;
 }
 
+.details-package {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+.details-package__note {
+  margin: 0 0 12px;
+}
+
+.details-package__day {
+  margin: 0 0 16px;
+}
+
+.details-package.is-invalid .pkg-grid {
+  outline: 2px solid #c45c4a;
+  outline-offset: 6px;
+  border-radius: 12px;
+}
+
 .time-trigger {
   display: flex;
   flex-direction: column;
@@ -835,6 +890,13 @@ body.steps-pinned .site-header {
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.time-trigger:disabled,
+.time-trigger[aria-disabled="true"] {
+  cursor: not-allowed;
+  opacity: 0.72;
+  background: #f3f1ea;
 }
 
 .time-trigger__label {
@@ -956,6 +1018,114 @@ body.time-modal-open {
 .time-modal .time-chip.is-booked strong,
 .time-modal .time-chip.is-booked span {
   color: #b5b5b5;
+}
+
+.count-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(100, 124, 110, 0.28);
+  background: #fff;
+  color: var(--deep);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.count-trigger strong {
+  font-weight: 600;
+}
+
+.count-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: grid;
+  place-items: end center;
+}
+
+.count-modal[hidden] { display: none; }
+
+.count-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(28, 36, 32, 0.45);
+}
+
+.count-modal__panel {
+  position: relative;
+  width: min(560px, 100%);
+  margin: 0;
+  padding: 28px 24px 22px;
+  border-radius: 28px 28px 0 0;
+  background: #fff;
+  color: #1c1c1c;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.16);
+}
+
+.count-modal__panel h3 {
+  margin: 0 0 8px;
+  font-size: 32px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.count-modal__note {
+  margin: 0 0 18px;
+  color: #8a8a8a;
+  font-size: 16px;
+}
+
+.count-modal__value {
+  font-size: 72px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+}
+
+.count-modal__unit {
+  margin-top: 4px;
+  text-align: center;
+  letter-spacing: 0.14em;
+  font-size: 12px;
+  color: #8a8a8a;
+}
+
+.count-modal__panel input[type="range"] {
+  width: 100%;
+  margin: 22px 0 6px;
+  accent-color: #e28aa8;
+}
+
+.count-modal__scale {
+  display: flex;
+  justify-content: space-between;
+  color: #8a8a8a;
+  font-size: 14px;
+}
+
+.count-modal__confirm {
+  margin: 18px 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #fde8ef;
+  color: #c45b7a;
+  font-weight: 600;
+}
+
+.count-modal__done {
+  margin-left: auto;
+  display: block;
+  border-radius: 999px;
+  background: #e28aa8;
+  color: #fff;
+  border: 0;
+  padding: 12px 22px;
 }
 
 .field.is-invalid input,
@@ -2334,6 +2504,14 @@ body.time-modal-open {
 
 .builder-section .gallery__head {
   padding: 0 0 22px;
+}
+
+.builder-section .gallery__head .section-note {
+  margin: 6px 0 0;
+}
+
+.builder-section .gallery__head .btn {
+  align-self: flex-start;
 }
 
 .builder-section .gallery__grid {

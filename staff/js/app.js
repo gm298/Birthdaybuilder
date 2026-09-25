@@ -9,7 +9,7 @@ const EVENT_STATUSES = ["booked", "cancelled", "closed"];
 const PENDING_STATUSES = ["new", "contacted", "quoted"];
 const INACTIVE_STATUSES = ["cancelled", "rejected", "closed", "noshow"];
 const REQUEST_SELECT =
-  "id, created_at, source, status, public_code, email, phone, contact_name, child_name, child_age, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload, files, google_event_id, google_event_ids";
+  "id, created_at, source, status, public_code, email, phone, contact_name, child_name, child_age, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload, files, google_event_id, google_event_ids, archived_at, archived_by";
 
 const loginCard = document.getElementById("login-card");
 const app = document.getElementById("app");
@@ -21,8 +21,10 @@ const viewNav = document.getElementById("view-nav");
 const pageTitle = document.getElementById("page-title");
 const blockModal = document.getElementById("block-modal");
 const eventModal = document.getElementById("event-modal");
+const confirmModal = document.getElementById("confirm-modal");
+let confirmResolver = null;
 
-const VIEWS = ["overview", "calendar", "day", "timeline", "tables", "events", "payments", "customers"];
+const VIEWS = ["overview", "calendar", "day", "timeline", "tables", "events", "payments", "customers", "archive"];
 const STAFF_DAY_START = 8 * 60;
 const STAFF_DAY_END = 21 * 60;
 const BANK = {
@@ -54,6 +56,7 @@ const state = {
   tablesFocusId: "",
   customerQuery: "",
   customerFilters: { name: "", country: "", phone: "", email: "", type: "all" },
+  customersShowArchived: false,
   paymentFilter: "all",
   editingEventId: null,
 };
@@ -312,7 +315,7 @@ function isNoShowExpired(row) {
 }
 
 async function expireNoShows() {
-  const expired = state.rows.filter(isNoShowExpired);
+  const expired = activeRows().filter(isNoShowExpired);
   if (!expired.length) return;
   const { data: sessionData } = await supabase.auth.getSession();
   const uid = sessionData.session?.user?.id || null;
@@ -343,7 +346,7 @@ function isPastConfirmedReservation(row) {
 }
 
 async function closeFinishedReservations() {
-  const due = state.rows.filter(isPastConfirmedReservation);
+  const due = activeRows().filter(isPastConfirmedReservation);
   if (!due.length) return;
   const { data: sessionData } = await supabase.auth.getSession();
   const uid = sessionData.session?.user?.id || null;
@@ -493,7 +496,7 @@ function instanceOnDate(row, iso) {
 }
 
 function filteredRows() {
-  return state.rows.filter(matchesFilters);
+  return activeRows().filter(matchesFilters);
 }
 
 function rowsOnDate(iso) {
@@ -544,7 +547,7 @@ function applyEventSlot(row, slot, index) {
 
 function overviewDated(pred) {
   const today = todayIso();
-  return state.rows
+  return activeRows()
     .filter(pred)
     .filter((row) => {
       if (!row.party_date) return false;
@@ -561,7 +564,7 @@ function overviewDated(pred) {
 }
 
 function overviewUndated(pred) {
-  return state.rows.filter(pred).filter((row) => !row.party_date);
+  return activeRows().filter(pred).filter((row) => !row.party_date);
 }
 
 function overviewRows() {
@@ -658,6 +661,99 @@ async function loadRows() {
   await closeFinishedReservations();
 }
 
+function isArchived(row) {
+  return Boolean(row?.archived_at);
+}
+
+function activeRows() {
+  return state.rows.filter((row) => !isArchived(row));
+}
+
+function archivedRows() {
+  return state.rows.filter((row) => isArchived(row));
+}
+
+async function currentStaffId() {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user?.id || null;
+}
+
+function closeConfirmModal(result = false) {
+  if (!confirmModal) return;
+  confirmModal.hidden = true;
+  const resolve = confirmResolver;
+  confirmResolver = null;
+  resolve?.(result);
+}
+
+function confirmAction({
+  title = "Are you sure?",
+  message = "This cannot be undone.",
+  confirmLabel = "Delete",
+} = {}) {
+  return new Promise((resolve) => {
+    if (!confirmModal) {
+      resolve(window.confirm(`${title}\n\n${message}`));
+      return;
+    }
+    if (confirmResolver) closeConfirmModal(false);
+    confirmResolver = resolve;
+    const titleEl = document.getElementById("confirm-title");
+    const messageEl = document.getElementById("confirm-message");
+    const okBtn = document.getElementById("confirm-ok");
+    if (titleEl) titleEl.textContent = title;
+    if (messageEl) messageEl.textContent = message;
+    if (okBtn) okBtn.textContent = confirmLabel;
+    confirmModal.hidden = false;
+    okBtn?.focus();
+  });
+}
+
+async function archiveRequest(id) {
+  const row = state.rows.find((item) => item.id === id);
+  const label = row?.public_code || displayName(row) || "this request";
+  const ok = await confirmAction({
+    title: "Are you sure?",
+    message: `Archive ${label}? You can restore it later from Archive.`,
+    confirmLabel: "Archive",
+  });
+  if (!ok) return false;
+  const uid = await currentStaffId();
+  const { error } = await supabase
+    .from("requests")
+    .update({ archived_at: new Date().toISOString(), archived_by: uid })
+    .eq("id", id);
+  if (error) throw error;
+  await loadRows();
+  return true;
+}
+
+async function restoreRequest(id) {
+  const { error } = await supabase
+    .from("requests")
+    .update({ archived_at: null, archived_by: null })
+    .eq("id", id);
+  if (error) throw error;
+  await loadRows();
+  return true;
+}
+
+async function deleteRequest(id) {
+  const row = state.rows.find((item) => item.id === id);
+  const label = row?.public_code || displayName(row) || "this request";
+  const kind = typeLabel(eventType(row)).toLowerCase();
+  const ok = await confirmAction({
+    title: "Are you sure?",
+    message: `Delete this ${kind} (${label}) permanently? This cannot be undone.`,
+    confirmLabel: "Delete",
+  });
+  if (!ok) return false;
+  const { error } = await supabase.from("requests").delete().eq("id", id);
+  if (error) throw error;
+  await loadRows();
+  return true;
+}
+
 function renderNav(view) {
   if (viewNav) {
     viewNav.hidden =
@@ -680,7 +776,9 @@ function renderNav(view) {
           ? "Customer details"
           : view === "payments"
             ? "Payments"
-            : "Inbox";
+            : view === "archive"
+              ? "Archive"
+              : "Inbox";
   }
 }
 
@@ -696,16 +794,18 @@ function syncFilterInputs() {
   const onCalendar = state.view === "calendar";
   const onCustomers = state.view === "customers";
   const onPayments = state.view === "payments";
+  const onArchive = state.view === "archive";
   const toolbar = document.querySelector(".toolbar--inbox");
-  if (toolbar) toolbar.hidden = onCustomers || onPayments;
+  if (toolbar) toolbar.hidden = onCustomers || onPayments || onArchive;
   if (modeWrap) modeWrap.hidden = !onOverview;
   if (modeInput) modeInput.value = state.dateMode;
-  if (dateWrap) dateWrap.hidden = onCalendar || onCustomers || onPayments || (onOverview && state.dateMode !== "day");
+  if (dateWrap) dateWrap.hidden = onCalendar || onCustomers || onPayments || onArchive || (onOverview && state.dateMode !== "day");
   if (dateInput) dateInput.value = state.selectedDate;
   if (typeInput) typeInput.value = state.filters.type;
   if (statusInput) statusInput.value = onOverview ? state.overviewStatus : state.filters.status;
   if (label) {
     if (onCalendar) label.textContent = "Calendar";
+    else if (onArchive) label.textContent = "Archived requests";
     else if (onOverview && state.dateMode === "all") label.textContent = "All requests";
     else if (onOverview && state.dateMode === "upcoming") label.textContent = `From ${formatLongDate(todayIso())}`;
     else label.textContent = formatLongDate(state.selectedDate);
@@ -717,6 +817,8 @@ function bookingCard(row, opts = {}) {
     ? `<div class="muted">${escapeHtml(row.party_date ? formatShortDate(row.party_date) : "No date")}</div>`
     : "";
   const showNoShow = opts.allowNoShow && canMarkNoShow(row);
+  const archived = isArchived(row);
+  const showActions = opts.actions !== false && !row.synthetic;
   const card = `<button class="booking-card" type="button" data-open="${escapeHtml(row.synthetic ? `cooking/${row.party_date}` : `request/${row.id}`)}">
     <div>
       <div class="code">${escapeHtml(row.public_code)}</div>
@@ -737,10 +839,29 @@ function bookingCard(row, opts = {}) {
       <div class="muted">${escapeHtml(displayGuests(row))}</div>
     </div>
   </button>`;
-  if (!showNoShow) return card;
-  return `<div class="booking-card-wrap">${card}<button class="btn btn--outline" type="button" data-noshow="${escapeHtml(
-    row.id
-  )}">No-show</button></div>`;
+  if (!showActions && !showNoShow) return card;
+  const actionBtns = [];
+  if (showNoShow) {
+    actionBtns.push(
+      `<button class="btn btn--outline" type="button" data-noshow="${escapeHtml(row.id)}">No-show</button>`
+    );
+  }
+  if (showActions && archived) {
+    actionBtns.push(
+      `<button class="btn btn--outline" type="button" data-restore-request="${escapeHtml(row.id)}">Restore</button>`
+    );
+    actionBtns.push(
+      `<button class="btn btn--outline" type="button" data-delete-request="${escapeHtml(row.id)}">Delete</button>`
+    );
+  } else if (showActions) {
+    actionBtns.push(
+      `<button class="btn btn--outline" type="button" data-archive-request="${escapeHtml(row.id)}">Archive</button>`
+    );
+    actionBtns.push(
+      `<button class="btn btn--outline" type="button" data-delete-request="${escapeHtml(row.id)}">Delete</button>`
+    );
+  }
+  return `<div class="booking-card-wrap">${card}<div class="booking-card-actions">${actionBtns.join("")}</div></div>`;
 }
 
 function renderOverview() {
@@ -1214,10 +1335,18 @@ function customerName(row) {
   return (
     row.contact_name ||
     row.payload?.reservation?.name ||
-    row.payload?.event?.name ||
     row.child_name ||
     "Guest"
   );
+}
+
+function normalizeCustomerPhone(raw) {
+  let digits = String(raw || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("0")) digits = `62${digits.slice(1)}`;
+  else if (/^8\d{7,12}$/.test(digits)) digits = `62${digits}`;
+  const phone = `+${digits}`;
+  return /^\+[1-9][0-9]{7,14}$/.test(phone) ? phone : "";
 }
 
 function splitPhone(raw) {
@@ -1245,12 +1374,15 @@ function isPaidInFull(row) {
   return payment.deposit?.status === "paid" && payment.balance?.status === "paid";
 }
 
-function customerRecords() {
+function customerRecords(opts = {}) {
+  const includeArchived = Boolean(opts.archived);
+  const source = includeArchived ? archivedRows() : activeRows();
   const groups = new Map();
-  state.rows
+  source
     .slice()
     .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")))
     .forEach((row) => {
+      if (eventType(row) === "event") return;
       const key = guestKey(row);
       if (!groups.has(key)) {
         const phoneParts = splitPhone(row.phone);
@@ -1285,7 +1417,7 @@ function customerRecords() {
 }
 
 function usageTypesLabel(guest) {
-  return ["birthday", "reservation", "event"]
+  return ["birthday", "reservation"]
     .filter((type) => guest.types.has(type))
     .map(typeLabel)
     .join(", ");
@@ -1294,7 +1426,8 @@ function usageTypesLabel(guest) {
 function renderCustomers() {
   syncFilterInputs();
   const filters = state.customerFilters;
-  const guests = customerRecords().filter((guest) => {
+  const showArchived = state.customersShowArchived;
+  const guests = customerRecords({ archived: showArchived }).filter((guest) => {
     if (filters.name && !String(guest.name || "").toLowerCase().includes(filters.name.toLowerCase())) return false;
     if (filters.country && guest.countryCode !== filters.country) return false;
     if (filters.phone && !`${guest.nationalPhone} ${guest.phone}`.includes(filters.phone.replace(/\s/g, ""))) return false;
@@ -1302,12 +1435,21 @@ function renderCustomers() {
     if (filters.type !== "all" && !guest.types.has(filters.type)) return false;
     return true;
   });
-  const allGuests = customerRecords();
-  const completed = state.rows.filter(isCompletedVisit).length;
+  const allGuests = customerRecords({ archived: showArchived });
+  const completed = (showArchived ? archivedRows() : activeRows()).filter(
+    (row) => eventType(row) !== "event" && isCompletedVisit(row)
+  ).length;
+  const modeToggle = document.getElementById("customers-archive-toggle");
+  if (modeToggle) {
+    modeToggle.textContent = showArchived ? "Show active" : "Show archived";
+    modeToggle.setAttribute("aria-pressed", showArchived ? "true" : "false");
+  }
+  const modeLabel = document.getElementById("customers-mode-label");
+  if (modeLabel) modeLabel.textContent = showArchived ? "Archived customers" : "Active customers";
   const stats = document.getElementById("customers-stats");
   if (stats) {
     stats.innerHTML = `<article class="member-stat">
-        <div><span>Total members</span><strong>${allGuests.length}</strong></div>
+        <div><span>${showArchived ? "Archived members" : "Total members"}</span><strong>${allGuests.length}</strong></div>
       </article>
       <article class="member-stat">
         <div><span>No. completed</span><strong>${completed}</strong></div>
@@ -1327,6 +1469,11 @@ function renderCustomers() {
     ? guests
         .map((guest, index) => {
           const types = usageTypesLabel(guest) || "—";
+          const actions = showArchived
+            ? `<button class="btn btn--outline" type="button" data-restore-customer="${escapeHtml(guest.key)}">Restore</button>
+              <button class="btn btn--outline" type="button" data-delete-customer="${escapeHtml(guest.key)}">Delete</button>`
+            : `<button class="btn btn--outline" type="button" data-archive-customer="${escapeHtml(guest.key)}">Archive</button>
+              <button class="btn btn--outline" type="button" data-delete-customer="${escapeHtml(guest.key)}">Delete</button>`;
           return `<tr class="member-row" data-customer="${escapeHtml(guest.key)}">
             <td>${index + 1}</td>
             <td>${escapeHtml(guest.name || "Guest")}</td>
@@ -1335,13 +1482,11 @@ function renderCustomers() {
             <td>${escapeHtml(guest.email || "—")}</td>
             <td>${escapeHtml(guest.birthdayDate ? formatShortDate(guest.birthdayDate) : "—")}</td>
             <td><span class="usage-pill">${escapeHtml(types)}</span></td>
-            <td class="member-actions">
-              <button class="btn btn--outline" type="button" data-delete-customer="${escapeHtml(guest.key)}">Delete</button>
-            </td>
+            <td class="member-actions">${actions}</td>
           </tr>`;
         })
         .join("")
-    : `<tr><td colspan="8" class="muted">No matching guests.</td></tr>`;
+    : `<tr><td colspan="8" class="muted">${showArchived ? "No archived guests." : "No matching guests."}</td></tr>`;
 }
 
 function visitGroupLabel(type) {
@@ -1354,16 +1499,20 @@ function loadCustomer(key) {
   inboxViews.hidden = true;
   if (viewNav) viewNav.hidden = true;
   detailView.hidden = false;
-  const guest = customerRecords().find((item) => item.key === key);
+  const showArchived = state.customersShowArchived;
+  const guest =
+    customerRecords({ archived: showArchived }).find((item) => item.key === key) ||
+    customerRecords({ archived: !showArchived }).find((item) => item.key === key);
   if (!guest) {
     detailView.innerHTML = `<p class="status is-error">Guest not found.</p>
       <button class="btn btn--outline back" type="button" id="back-list">Back</button>`;
     document.getElementById("back-list")?.addEventListener("click", () => go("customers"));
     return;
   }
+  const guestArchived = guest.visits.every((row) => isArchived(row));
   const waDigits = String(guest.phone || "").replace(/\D/g, "");
   const wa = waDigits ? `https://wa.me/${waDigits}` : "";
-  const groups = ["birthday", "reservation", "event"].map((type) => ({
+  const groups = ["birthday", "reservation"].map((type) => ({
     type,
     rows: guest.visits.filter((row) => eventType(row) === type),
   }));
@@ -1372,12 +1521,39 @@ function loadCustomer(key) {
     <button class="btn btn--outline back" type="button" id="back-list">Back</button>
     <article class="detail">
       <h2>${escapeHtml(guest.name || "Guest")}</h2>
-      <p class="muted">${escapeHtml([guest.countryCode, guest.nationalPhone || guest.phone, guest.email].filter(Boolean).join(" · ") || "No contact")}</p>
+      <p class="muted">${escapeHtml([guest.countryCode, guest.nationalPhone || guest.phone, guest.email].filter(Boolean).join(" · ") || "No contact")}${
+        guestArchived ? " · Archived" : ""
+      }</p>
       <div class="contact-actions">
         ${guest.email ? `<a class="btn" href="mailto:${escapeHtml(guest.email)}">Email</a>` : ""}
         ${wa ? `<a class="btn" href="${escapeHtml(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
+        ${
+          guestArchived
+            ? `<button class="btn btn--outline" type="button" id="restore-customer">Restore customer</button>`
+            : `<button class="btn btn--outline" type="button" id="archive-customer">Archive customer</button>`
+        }
         <button class="btn btn--outline" type="button" id="delete-customer">Delete customer</button>
       </div>
+      <section class="customer-edit">
+        <h3>Edit customer details</h3>
+        <form id="customer-edit-form">
+          <label class="field"><span>Name</span><input id="customer-edit-name" type="text" required value="${escapeHtml(
+            guest.name || ""
+          )}"></label>
+          <div class="field-row">
+            <label class="field"><span>Email</span><input id="customer-edit-email" type="email" value="${escapeHtml(
+              guest.email || ""
+            )}"></label>
+            <label class="field"><span>WhatsApp / phone</span><input id="customer-edit-phone" type="tel" value="${escapeHtml(
+              guest.phone || ""
+            )}" placeholder="+62…"></label>
+          </div>
+          <div class="contact-actions">
+            <button class="btn" type="submit">Save details</button>
+          </div>
+          <p class="status" id="customer-edit-status" role="status"></p>
+        </form>
+      </section>
       ${groups
         .map((group) => {
           if (!group.rows.length) return "";
@@ -1391,7 +1567,7 @@ function loadCustomer(key) {
                       <strong>${escapeHtml(row.public_code || displayName(row))}</strong>
                       <span>${escapeHtml(row.party_date ? formatShortDate(row.party_date) : "No date")} · ${escapeHtml(
                         timeLabel(row.party_time)
-                      )} · ${escapeHtml(statusLabel(row.status))}</span>
+                      )} · ${escapeHtml(statusLabel(row.status))}${isArchived(row) ? " · Archived" : ""}</span>
                     </a>
                   </li>`
                 )
@@ -1403,26 +1579,139 @@ function loadCustomer(key) {
     </article>
   `;
   document.getElementById("back-list")?.addEventListener("click", () => go("customers"));
+  document.getElementById("archive-customer")?.addEventListener("click", () => {
+    archiveCustomer(guest.key).catch((err) => window.alert(err.message || "Could not archive customer."));
+  });
+  document.getElementById("restore-customer")?.addEventListener("click", () => {
+    restoreCustomer(guest.key).catch((err) => window.alert(err.message || "Could not restore customer."));
+  });
   document.getElementById("delete-customer")?.addEventListener("click", () => {
     deleteCustomer(guest.key).catch((err) => window.alert(err.message || "Could not delete customer."));
   });
+  document.getElementById("customer-edit-form")?.addEventListener("submit", (e) => {
+    e.preventDefault();
+    saveCustomerDetails(guest.key).catch((err) => {
+      const statusEl = document.getElementById("customer-edit-status");
+      if (statusEl) {
+        statusEl.textContent = err.message || "Could not save customer details.";
+        statusEl.className = "status is-error";
+      } else {
+        window.alert(err.message || "Could not save customer details.");
+      }
+    });
+  });
 }
 
-async function deleteCustomer(key) {
-  const guest = customerRecords().find((item) => item.key === key);
+async function saveCustomerDetails(key) {
+  const guest =
+    customerRecords().find((item) => item.key === key) ||
+    customerRecords({ archived: true }).find((item) => item.key === key);
+  if (!guest) throw new Error("Guest not found.");
+  const statusEl = document.getElementById("customer-edit-status");
+  const name = document.getElementById("customer-edit-name")?.value.trim() || "";
+  const emailRaw = document.getElementById("customer-edit-email")?.value.trim() || "";
+  const phoneRaw = document.getElementById("customer-edit-phone")?.value.trim() || "";
+  const email = emailRaw.toLowerCase();
+  const phone = normalizeCustomerPhone(phoneRaw);
+  if (!name) throw new Error("Name is required.");
+  if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email.");
+  if (phoneRaw && !phone) throw new Error("Enter a valid phone with country code (e.g. +62…).");
+  if (!email && !phone) throw new Error("Email or phone is required.");
+  const ids = guest.visits.map((row) => row.id).filter(Boolean);
+  if (!ids.length) throw new Error("No bookings to update.");
+  if (statusEl) {
+    statusEl.textContent = "Saving…";
+    statusEl.className = "status";
+  }
+  for (const row of guest.visits) {
+    const payload = { ...(row.payload || {}) };
+    if (payload.reservation && typeof payload.reservation === "object") {
+      payload.reservation = { ...payload.reservation, name };
+    }
+    const { error } = await supabase
+      .from("requests")
+      .update({
+        contact_name: name,
+        email: email || null,
+        phone: phone || null,
+        payload,
+      })
+      .eq("id", row.id);
+    if (error) throw error;
+  }
+  await loadRows();
+  const nextKey = guestKey({ id: ids[0], phone, email });
+  if (statusEl) {
+    statusEl.textContent = "Saved.";
+    statusEl.className = "status is-success";
+  }
+  go(`customer/${encodeURIComponent(nextKey)}`);
+}
+
+async function archiveCustomer(key) {
+  const guest =
+    customerRecords().find((item) => item.key === key) ||
+    customerRecords({ archived: true }).find((item) => item.key === key);
   if (!guest) {
     window.alert("Guest not found.");
     return;
   }
   const count = guest.visits.length;
   const label = guest.name || "this guest";
-  if (
-    !window.confirm(
-      `Delete ${label} and ${count} booking${count === 1 ? "" : "s"}? This cannot be undone.`
-    )
-  ) {
+  const ok = await confirmAction({
+    title: "Are you sure?",
+    message: `Archive ${label} and ${count} booking${count === 1 ? "" : "s"}? You can restore them later.`,
+    confirmLabel: "Archive",
+  });
+  if (!ok) return;
+  const ids = guest.visits.map((row) => row.id).filter(Boolean);
+  if (!ids.length) return;
+  const uid = await currentStaffId();
+  const { error } = await supabase
+    .from("requests")
+    .update({ archived_at: new Date().toISOString(), archived_by: uid })
+    .in("id", ids);
+  if (error) throw error;
+  await loadRows();
+  showInbox("customers");
+  if (location.hash !== "#/customers") go("customers");
+}
+
+async function restoreCustomer(key) {
+  const guest = customerRecords({ archived: true }).find((item) => item.key === key);
+  if (!guest) {
+    window.alert("Guest not found.");
     return;
   }
+  const ids = guest.visits.map((row) => row.id).filter(Boolean);
+  if (!ids.length) return;
+  const { error } = await supabase
+    .from("requests")
+    .update({ archived_at: null, archived_by: null })
+    .in("id", ids);
+  if (error) throw error;
+  await loadRows();
+  state.customersShowArchived = false;
+  showInbox("customers");
+  if (location.hash !== "#/customers") go("customers");
+}
+
+async function deleteCustomer(key) {
+  const guest =
+    customerRecords().find((item) => item.key === key) ||
+    customerRecords({ archived: true }).find((item) => item.key === key);
+  if (!guest) {
+    window.alert("Guest not found.");
+    return;
+  }
+  const count = guest.visits.length;
+  const label = guest.name || "this guest";
+  const ok = await confirmAction({
+    title: "Are you sure?",
+    message: `Delete ${label} and ${count} booking${count === 1 ? "" : "s"} permanently? This cannot be undone.`,
+    confirmLabel: "Delete",
+  });
+  if (!ok) return;
   const ids = guest.visits.map((row) => row.id).filter(Boolean);
   if (!ids.length) return;
   const { error } = await supabase.from("requests").delete().in("id", ids);
@@ -1630,7 +1919,7 @@ async function persistReservation(row) {
 }
 
 function birthdayPaymentRows() {
-  return state.rows
+  return activeRows()
     .filter((row) => eventType(row) === "birthday")
     .slice()
     .sort((a, b) => String(b.party_date || b.created_at || "").localeCompare(String(a.party_date || a.created_at || "")));
@@ -1745,7 +2034,7 @@ function guestStatusLabel(status) {
 
 function guestRequests() {
   const items = [];
-  state.rows.forEach((row) => {
+  activeRows().forEach((row) => {
     if (row.source !== "event" || row.synthetic) return;
     (row.payload?.event?.guests || []).forEach((guest, index) => {
       if (!guest?.name && !guest?.email && !guest?.phone) return;
@@ -2078,6 +2367,29 @@ function refreshGuestSlotSelects() {
   fillEventGuests(readGuestList());
 }
 
+function eventGalleryFrom(event = {}) {
+  const gallery = Array.isArray(event.gallery)
+    ? event.gallery.map((url) => String(url || "").trim()).filter(Boolean)
+    : [];
+  if (gallery.length) return [...new Set(gallery)];
+  const cover = String(event.coverUrl || "").trim();
+  return cover ? [cover] : [];
+}
+
+function fillEventPhotosExisting(urls = []) {
+  const host = document.getElementById("event-photos-existing");
+  if (!host) return;
+  const list = (urls || []).filter(Boolean);
+  host.innerHTML = list.length
+    ? list
+        .map(
+          (url) =>
+            `<img src="${escapeHtml(url)}" alt="Attached event picture">`
+        )
+        .join("")
+    : `<p class="muted" style="margin:0">No pictures attached yet.</p>`;
+}
+
 function openEventModal(opts = {}) {
   state.editingEventId = opts.id || null;
   document.getElementById("event-modal-title").textContent = opts.id ? "Edit event" : "Add event";
@@ -2090,6 +2402,7 @@ function openEventModal(opts = {}) {
   document.getElementById("event-promo").value = opts.promo || "";
   document.getElementById("event-notes").value = opts.notes || "";
   document.getElementById("event-photos").value = "";
+  fillEventPhotosExisting(eventGalleryFrom({ coverUrl: opts.coverUrl, gallery: opts.gallery }));
   document.getElementById("event-repeat").value = opts.repeat?.freq || "none";
   document.getElementById("event-until").value = opts.repeat?.until || "";
   const payment = opts.payment === "vendor" ? "vendor" : "tiny";
@@ -2137,7 +2450,7 @@ function renderEvents() {
   if (toWrap) toWrap.hidden = mode !== "range";
   if (fromInput && document.activeElement !== fromInput) fromInput.value = state.eventsFrom || today;
   if (toInput && document.activeElement !== toInput) toInput.value = state.eventsTo || "";
-  const rows = state.rows
+  const rows = activeRows()
     .filter((row) => row.source === "event")
     .filter(matchesStatus)
     .filter((row) => eventCoversRange(row, from, to))
@@ -2169,18 +2482,21 @@ async function uploadEventPhotos(requestId, fileList) {
   return paths;
 }
 
-async function uploadEventCover(requestId, fileList) {
-  const image = [...(fileList || [])].find((file) => String(file.type || "").startsWith("image/"));
-  if (!image) return "";
-  const ext = (image.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-  const path = `${requestId}/cover.${ext}`;
-  const { error } = await supabase.storage.from("event-images").upload(path, image, {
-    contentType: image.type || "image/jpeg",
-    upsert: true,
-  });
-  if (error) throw error;
-  const { data } = supabase.storage.from("event-images").getPublicUrl(path);
-  return data?.publicUrl ? `${data.publicUrl}?v=${Date.now()}` : "";
+async function uploadEventGalleryImages(requestId, fileList) {
+  const images = [...(fileList || [])].filter((file) => String(file.type || "").startsWith("image/"));
+  const urls = [];
+  for (const image of images) {
+    const ext = (image.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `${requestId}/gallery/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+    const { error } = await supabase.storage.from("event-images").upload(path, image, {
+      contentType: image.type || "image/jpeg",
+      upsert: false,
+    });
+    if (error) throw error;
+    const { data } = supabase.storage.from("event-images").getPublicUrl(path);
+    if (data?.publicUrl) urls.push(data.publicUrl);
+  }
+  return urls;
 }
 
 async function saveStaffEvent() {
@@ -2223,6 +2539,22 @@ async function saveStaffEvent() {
   const { data: sessionData } = await supabase.auth.getSession();
   const user = sessionData.session?.user;
   const repeat = freq === "none" ? { freq: "none" } : { freq, until: until || shiftIso(date, 365) };
+
+  let requestId = state.editingEventId;
+  let existingFiles = {};
+  let existingEvent = {};
+  let existingReservation = {};
+  if (requestId) {
+    const { data: current } = await supabase
+      .from("requests")
+      .select("files, payload")
+      .eq("id", requestId)
+      .maybeSingle();
+    existingFiles = current?.files || {};
+    existingEvent = current?.payload?.event || {};
+    existingReservation = current?.payload?.reservation || {};
+  }
+  const preservedGallery = eventGalleryFrom(existingEvent);
   const payload = {
     event: {
       name,
@@ -2236,8 +2568,11 @@ async function saveStaffEvent() {
       guests,
       repeat,
       slots,
+      coverUrl: existingEvent.coverUrl || preservedGallery[0] || "",
+      gallery: preservedGallery,
     },
     reservation: {
+      ...existingReservation,
       name,
       tableIds,
       tableNumbers: tables.map((table) => table.number),
@@ -2249,7 +2584,6 @@ async function saveStaffEvent() {
   };
   statusEl.textContent = "Saving event…";
   statusEl.className = "status";
-  let requestId = state.editingEventId;
   if (requestId) {
     const { error } = await supabase
       .from("requests")
@@ -2305,25 +2639,22 @@ async function saveStaffEvent() {
     requestId = data.id;
   }
   try {
-    const uploaded = await uploadEventPhotos(requestId, photos);
-    let coverUrl = "";
-    try {
-      coverUrl = await uploadEventCover(requestId, photos);
-    } catch (coverErr) {
-      coverUrl = "";
-    }
-    if (uploaded.length || coverUrl) {
-      const { data: current } = await supabase
-        .from("requests")
-        .select("files, payload")
-        .eq("id", requestId)
-        .maybeSingle();
-      const files = { ...(current?.files || {}) };
+    const hasNewFiles = photos && photos.length;
+    if (hasNewFiles) {
+      const uploaded = await uploadEventPhotos(requestId, photos);
+      const galleryUrls = await uploadEventGalleryImages(requestId, photos);
+      const files = { ...existingFiles };
       if (uploaded.length) files.eventPhotos = [...(files.eventPhotos || []), ...uploaded];
-      const nextPayload = { ...(current?.payload || payload) };
-      if (coverUrl) {
-        nextPayload.event = { ...(nextPayload.event || {}), coverUrl };
-      }
+      const gallery = [...preservedGallery, ...galleryUrls.filter((url) => !preservedGallery.includes(url))];
+      const coverUrl = existingEvent.coverUrl || gallery[0] || "";
+      const nextPayload = {
+        ...payload,
+        event: {
+          ...(payload.event || {}),
+          coverUrl,
+          gallery,
+        },
+      };
       const { error: fileError } = await supabase
         .from("requests")
         .update({ files, payload: nextPayload })
@@ -2340,8 +2671,8 @@ async function saveStaffEvent() {
   state.selectedDate = date;
   await loadRows();
   if (stayOnDetail) {
-    if ((location.hash || "").includes(requestId)) await loadDetail(requestId);
-    else location.hash = `#/request/${requestId}`;
+    if ((window.location.hash || "").includes(requestId)) await loadDetail(requestId);
+    else window.location.hash = `#/request/${requestId}`;
   } else showInbox("events");
 }
 
@@ -3050,6 +3381,8 @@ async function loadDetail(id) {
   ]);
   const eventPhotoPaths = files.eventPhotos || [];
   const eventPhotoUrls = await Promise.all(eventPhotoPaths.map((path) => signedUrl(path)));
+  const galleryUrls = eventGalleryFrom(payload.event || {});
+  const pictureUrls = [...galleryUrls, ...eventPhotoUrls.filter((url) => url && !galleryUrls.includes(url))];
   const printEntries = Object.entries(files.prints || {});
   const printUrls = await Promise.all(printEntries.map(([, path]) => signedUrl(path)));
   const lines = (quote.lines || [])
@@ -3074,13 +3407,15 @@ async function loadDetail(id) {
           <p class="staff-brand">${escapeHtml(typeLabel(type))} · ${escapeHtml(sourceLabel(row.source))}</p>
           <h2>${escapeHtml(row.public_code)}</h2>
           <p class="muted">Submitted ${escapeHtml(formatWhen(row.created_at))}${
-            row.status === "booked" && row.google_event_id
+            isArchived(row) ? " · Archived" : ""
+          }${
+            row.status === "booked" && row.google_event_id && !isArchived(row)
               ? ` · Synced to Google Calendar${
                   Array.isArray(row.google_event_ids) && row.google_event_ids.length > 1
                     ? ` · ${row.google_event_ids.length} times`
                     : ""
                 }`
-              : row.status === "booked"
+              : row.status === "booked" && !isArchived(row)
                 ? " · Waiting to sync to Google Calendar"
                 : ""
           }</p>
@@ -3114,7 +3449,12 @@ async function loadDetail(id) {
             : ""
         }
         ${isEvent ? `<button class="btn" type="button" id="edit-event">Edit event</button>` : ""}
-        ${isEvent ? `<button class="btn btn--outline" type="button" id="delete-event">Remove event</button>` : ""}
+        ${
+          isArchived(row)
+            ? `<button class="btn btn--outline" type="button" id="restore-request">Restore</button>`
+            : `<button class="btn btn--outline" type="button" id="archive-request">Archive</button>`
+        }
+        <button class="btn btn--outline" type="button" id="delete-request">Delete</button>
       </div>
       <div class="detail-grid">
         ${
@@ -3205,8 +3545,8 @@ async function loadDetail(id) {
           <h3>Pictures</h3>
           <div class="media-row">
             ${
-              eventPhotoUrls.filter(Boolean).length
-                ? eventPhotoUrls
+              pictureUrls.filter(Boolean).length
+                ? pictureUrls
                     .map((url, i) =>
                       url ? `<img src="${escapeHtml(url)}" alt="Event picture ${i + 1}">` : ""
                     )
@@ -3365,6 +3705,8 @@ async function loadDetail(id) {
       guests: event.guests || [],
       repeat: event.repeat,
       pricing: event.pricing || eventPricingFromRow(row),
+      coverUrl: event.coverUrl || "",
+      gallery: eventGalleryFrom(event),
     });
   });
   document.querySelectorAll("[data-confirm-guest]").forEach((button) => {
@@ -3412,6 +3754,8 @@ async function loadDetail(id) {
       guests: [...(event.guests || []), {}],
       repeat: event.repeat,
       pricing: event.pricing || eventPricingFromRow(row),
+      coverUrl: event.coverUrl || "",
+      gallery: eventGalleryFrom(event),
     });
   });
   document.getElementById("export-guests")?.addEventListener("click", async () => {
@@ -3462,18 +3806,29 @@ async function loadDetail(id) {
     else if (row.email) window.location.href = `mailto:${row.email}?subject=${encodeURIComponent("Guest list")}&body=${encodeURIComponent(text)}`;
     else navigator.clipboard?.writeText(text);
   });
-  document.getElementById("delete-event")?.addEventListener("click", async () => {
-    if (!window.confirm("Remove this event?")) return;
-    const { error: delError } = await supabase.from("requests").delete().eq("id", row.id).eq("source", "event");
-    const statusEl = document.getElementById("detail-status");
-    if (delError) {
-      if (statusEl) {
-        statusEl.textContent = delError.message;
-        statusEl.className = "status is-error";
-      }
-      return;
+  document.getElementById("archive-request")?.addEventListener("click", async () => {
+    try {
+      const ok = await archiveRequest(row.id);
+      if (ok) location.hash = "#/archive";
+    } catch (err) {
+      window.alert(err.message || "Could not archive request.");
     }
-    location.hash = backHash();
+  });
+  document.getElementById("restore-request")?.addEventListener("click", async () => {
+    try {
+      await restoreRequest(row.id);
+      location.hash = backHash();
+    } catch (err) {
+      window.alert(err.message || "Could not restore request.");
+    }
+  });
+  document.getElementById("delete-request")?.addEventListener("click", async () => {
+    try {
+      const ok = await deleteRequest(row.id);
+      if (ok) location.hash = backHash();
+    } catch (err) {
+      window.alert(err.message || "Could not delete request.");
+    }
   });
 }
 
@@ -3915,8 +4270,10 @@ function showInbox(view) {
   if (customersView) customersView.hidden = view !== "customers";
   const paymentsView = document.getElementById("payments-view");
   if (paymentsView) paymentsView.hidden = view !== "payments";
+  const archiveView = document.getElementById("archive-view");
+  if (archiveView) archiveView.hidden = view !== "archive";
   const note = document.getElementById("calendar-sync-note");
-  if (note) note.hidden = view === "customers" || view === "payments";
+  if (note) note.hidden = view === "customers" || view === "payments" || view === "archive";
   renderNav(view);
   if (view === "overview") renderOverview();
   if (view === "calendar") renderCalendar();
@@ -3926,6 +4283,23 @@ function showInbox(view) {
   if (view === "events") renderEvents();
   if (view === "customers") renderCustomers();
   if (view === "payments") renderPayments();
+  if (view === "archive") renderArchive();
+}
+
+function renderArchive() {
+  syncFilterInputs();
+  const rows = archivedRows()
+    .slice()
+    .sort((a, b) => String(b.archived_at || b.created_at || "").localeCompare(String(a.archived_at || a.created_at || "")));
+  const count = document.getElementById("archive-count");
+  if (count) {
+    count.textContent = `${rows.length} archived request${rows.length === 1 ? "" : "s"}`;
+  }
+  const list = document.getElementById("archive-list");
+  if (!list) return;
+  list.innerHTML = rows.length
+    ? rows.map((row) => bookingCard(row, { showDate: true })).join("")
+    : `<p class="muted">No archived requests.</p>`;
 }
 
 async function route() {
@@ -4028,6 +4402,37 @@ document.getElementById("inbox-views")?.addEventListener("click", (e) => {
       .catch((err) => window.alert(err.message || "Could not mark no-show."));
     return;
   }
+  const archiveReqBtn = e.target.closest("[data-archive-request]");
+  if (archiveReqBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    archiveRequest(archiveReqBtn.dataset.archiveRequest)
+      .then((ok) => {
+        if (ok) showInbox(state.view === "archive" ? "archive" : state.view);
+      })
+      .catch((err) => window.alert(err.message || "Could not archive request."));
+    return;
+  }
+  const restoreReqBtn = e.target.closest("[data-restore-request]");
+  if (restoreReqBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    restoreRequest(restoreReqBtn.dataset.restoreRequest)
+      .then(() => showInbox(state.view === "archive" ? "archive" : state.view))
+      .catch((err) => window.alert(err.message || "Could not restore request."));
+    return;
+  }
+  const deleteReqBtn = e.target.closest("[data-delete-request]");
+  if (deleteReqBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    deleteRequest(deleteReqBtn.dataset.deleteRequest)
+      .then((ok) => {
+        if (ok) showInbox(state.view === "archive" ? "archive" : state.view);
+      })
+      .catch((err) => window.alert(err.message || "Could not delete request."));
+    return;
+  }
   const statusCard = e.target.closest("[data-status-filter]");
   if (statusCard) {
     e.preventDefault();
@@ -4040,6 +4445,24 @@ document.getElementById("inbox-views")?.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     go(open.dataset.open);
+    return;
+  }
+  const archiveCustomerBtn = e.target.closest("[data-archive-customer]");
+  if (archiveCustomerBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    archiveCustomer(archiveCustomerBtn.dataset.archiveCustomer).catch((err) =>
+      window.alert(err.message || "Could not archive customer.")
+    );
+    return;
+  }
+  const restoreCustomerBtn = e.target.closest("[data-restore-customer]");
+  if (restoreCustomerBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    restoreCustomer(restoreCustomerBtn.dataset.restoreCustomer).catch((err) =>
+      window.alert(err.message || "Could not restore customer.")
+    );
     return;
   }
   const deleteCustomerBtn = e.target.closest("[data-delete-customer]");
@@ -4168,6 +4591,10 @@ document.getElementById("customers-filter-type")?.addEventListener("change", (e)
   state.customerFilters.type = e.target.value || "all";
   if (state.view === "customers") renderCustomers();
 });
+document.getElementById("customers-archive-toggle")?.addEventListener("click", () => {
+  state.customersShowArchived = !state.customersShowArchived;
+  if (state.view === "customers") renderCustomers();
+});
 document.getElementById("payments-filter")?.addEventListener("change", (e) => {
   state.paymentFilter = e.target.value || "all";
   if (state.view === "payments") renderPayments();
@@ -4198,6 +4625,17 @@ blockModal?.addEventListener("click", (e) => {
 document.getElementById("event-cancel")?.addEventListener("click", closeEventModal);
 eventModal?.addEventListener("click", (e) => {
   if (e.target === eventModal) closeEventModal();
+});
+document.getElementById("confirm-ok")?.addEventListener("click", () => closeConfirmModal(true));
+document.getElementById("confirm-cancel")?.addEventListener("click", () => closeConfirmModal(false));
+confirmModal?.addEventListener("click", (e) => {
+  if (e.target === confirmModal) closeConfirmModal(false);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && confirmModal && !confirmModal.hidden) {
+    e.preventDefault();
+    closeConfirmModal(false);
+  }
 });
 document.getElementById("event-location")?.addEventListener("change", syncEventLocationFields);
 document.getElementById("event-full-terrace")?.addEventListener("change", applyFullTerrace);

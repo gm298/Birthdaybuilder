@@ -26,6 +26,7 @@ type RequestRow = {
   guest_adults?: number | null;
   guest_kids?: number | null;
   staff_notes?: string | null;
+  archived_at?: string | null;
   google_event_id?: string | null;
   google_event_ids?: unknown;
   files?: {
@@ -176,11 +177,11 @@ function colorId(source: string) {
 }
 
 function shouldHaveEvent(row: RequestRow | null | undefined) {
-  return Boolean(row?.status === "booked" && row.party_date && row.party_time);
+  return Boolean(row?.status === "booked" && !row.archived_at && row.party_date && row.party_time);
 }
 
 function shouldKeepEvent(row: RequestRow | null | undefined) {
-  return Boolean(row?.status === "closed" && row.google_event_id);
+  return Boolean(row?.status === "closed" && !row.archived_at && row.google_event_id);
 }
 
 function relevantSnapshot(row: RequestRow | null | undefined) {
@@ -188,6 +189,7 @@ function relevantSnapshot(row: RequestRow | null | undefined) {
   const reservation = row.payload?.reservation || {};
   return JSON.stringify({
     status: row.status,
+    archived_at: row.archived_at || null,
     source: row.source,
     party_date: row.party_date,
     party_time: String(row.party_time || "").slice(0, 8),
@@ -730,9 +732,10 @@ async function backfill(token: string) {
   const { data, error } = await supabase
     .from("requests")
     .select(
-      "id, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, staff_notes, google_event_id, google_event_ids, payload, files"
+      "id, source, status, public_code, email, phone, contact_name, child_name, party_date, party_time, package_name, guest_adults, guest_kids, staff_notes, archived_at, google_event_id, google_event_ids, payload, files"
     )
     .eq("status", "booked")
+    .is("archived_at", null)
     .not("party_date", "is", null)
     .not("party_time", "is", null)
     .limit(500);

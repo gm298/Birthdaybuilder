@@ -17,8 +17,8 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
 
 <div class="steps-chrome" id="steps-chrome">
   <nav class="steps-bar" id="steps-bar" aria-label="Builder steps">
-    <a class="step-chip" href="#details" data-step="details"><span class="step-chip__check" aria-hidden="true"></span>01 Details</a>
-    <a class="step-chip" href="#package" data-step="package"><span class="step-chip__check" aria-hidden="true"></span>02 Package</a>
+        <a class="step-chip" href="#details" data-step="details"><span class="step-chip__check" aria-hidden="true"></span>01 Details</a>
+        <a class="step-chip" href="#package" data-step="package"><span class="step-chip__check" aria-hidden="true"></span>02 Tables</a>
     <a class="step-chip" href="#decor" data-step="decor"><span class="step-chip__check" aria-hidden="true"></span>03 Decorations</a>
     <a class="step-chip" href="#cakes" data-step="cakes"><span class="step-chip__check" aria-hidden="true"></span>04 Cake</a>
     <a class="step-chip" href="#addons" data-step="addons"><span class="step-chip__check" aria-hidden="true"></span>05 Add ons</a>
@@ -51,24 +51,38 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
         <span class="field__label">How many people? <span class="field__req">*</span></span>
         <div class="guest-pair">
           <div class="field">
-            <label class="field__label field__label--soft" for="guest-kids">Kids</label>
-            <input type="number" id="guest-kids" name="guest-kids" min="0" placeholder="e.g. 12" inputmode="numeric" required>
+            <span class="field__label field__label--soft" id="guest-kids-label">Kids</span>
+            <button type="button" class="count-trigger" id="guest-kids-trigger" aria-haspopup="dialog" aria-labelledby="guest-kids-label">
+              <strong id="guest-kids-value">Slide to choose</strong>
+            </button>
+            <input type="hidden" id="guest-kids" name="guest-kids" value="">
           </div>
           <div class="field">
-            <label class="field__label field__label--soft" for="guest-adults">Adults</label>
-            <input type="number" id="guest-adults" name="guest-adults" min="0" placeholder="e.g. 8" inputmode="numeric">
+            <span class="field__label field__label--soft" id="guest-adults-label">Adults</span>
+            <button type="button" class="count-trigger" id="guest-adults-trigger" aria-haspopup="dialog" aria-labelledby="guest-adults-label">
+              <strong id="guest-adults-value">Slide to choose</strong>
+            </button>
+            <input type="hidden" id="guest-adults" name="guest-adults" value="">
           </div>
         </div>
       </div>
     </div>
     <div class="details-row details-row--schedule">
       <div class="field">
-        <label class="field__label" for="party-time">Start time <span class="field__req">*</span></label>
-        <input type="time" id="party-time" name="party-time" required>
+        <span class="field__label" id="party-time-label">Start time <span class="field__req">*</span></span>
+        <button type="button" class="time-trigger" id="party-time-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="party-time-modal" aria-labelledby="party-time-label">
+          <span class="time-trigger__label" id="party-time-trigger-label">Select time</span>
+          <span class="time-trigger__hint" id="party-time-trigger-hint">Select date &amp; guests first</span>
+        </button>
+        <input type="hidden" id="party-time" name="party-time" required value="">
+        <span class="field__hint" id="party-time-hint">Party runs 3 hours from your start time. Last start is 16:00. Pick a date and guest count first — times for 10+ guests need free terrace tables.</span>
       </div>
       <div class="field">
         <span class="field__label">Duration</span>
         <p class="field__static" id="party-duration">3 hours (included with every package)</p>
+        <div class="day-toggle day-toggle--readonly" id="day-indicator" role="status" aria-live="polite">
+          <span class="day-indicator__label" id="day-indicator-label">Weekday pricing</span>
+        </div>
       </div>
     </div>
     <div class="field">
@@ -76,8 +90,11 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
       <input type="text" id="child-name" name="child-name" placeholder="e.g. Mira" required>
     </div>
     <div class="field">
-      <label class="field__label" for="child-age">Turning <span class="field__req">*</span></label>
-      <input type="text" id="child-age" name="child-age" placeholder="e.g. 5" required>
+      <span class="field__label" id="child-age-label">Turning <span class="field__req">*</span></span>
+      <button type="button" class="count-trigger" id="child-age-trigger" aria-haspopup="dialog" aria-labelledby="child-age-label">
+        <strong id="child-age-value">Slide to choose</strong>
+      </button>
+      <input type="hidden" id="child-age" name="child-age" value="">
     </div>
     <div class="details-row details-row--contact field--full" id="contact-fields">
       <div class="field">
@@ -111,16 +128,23 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
 <section class="builder-page builder-section builder-section--white" id="package" hidden>
   <div class="section-head">
     <div>
-      <div class="eyebrow">02 · Choose package</div>
-      <h2 tabindex="-1">Choose your package</h2>
-    </div>
-    <div class="day-toggle day-toggle--readonly" id="day-indicator" role="status" aria-live="polite">
-      <span class="day-indicator__label" id="day-indicator-label">Weekday pricing</span>
+      <div class="eyebrow">02 · Confirm tables</div>
+      <h2 tabindex="-1">Confirm your tables</h2>
     </div>
   </div>
-  <p class="section-note" style="margin:-8px 0 24px">Simple, Optimal or Whole Terrace. Three hours, set up before you arrive.</p>
-  <p class="package-hint" id="package-hint" role="status">Enter how many people in step 01 before you can choose a package.</p>
-  <div class="pkg-grid" id="package-grid"></div>
+  <p class="section-note" id="package-confirm-copy" style="margin:-8px 0 24px">Your package tables are held for the party window: 1 hour before start, then 3 hours from start.</p>
+  <p class="form-status" id="package-occupancy-status" role="status" hidden></p>
+  <div class="party-tables" id="party-tables" hidden>
+    <h3>Choose your tables</h3>
+    <p class="section-note" id="party-tables-copy">Tables are held for the party window: 1 hour before start, then 3 hours from start.</p>
+    <div class="plan-tabs" id="party-table-areas" hidden>
+      <button type="button" class="plan-tab is-active" data-area="indoor">Indoor</button>
+      <button type="button" class="plan-tab" data-area="terrace">Terrace</button>
+    </div>
+    <div class="party-floorplan" id="party-floorplan"></div>
+    <p id="party-tables-picked"></p>
+    <p class="form-status" id="party-tables-status" role="status"></p>
+  </div>
 </section>
 
 <section class="builder-page builder-section builder-section--cream" id="decor" hidden>
@@ -361,6 +385,31 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
     <h3 class="builder-modal__title" id="guest-limit-title">Guest limit</h3>
     <p>For guests exceeding 35 people please contact us for a custom quotation.</p>
     <a class="btn" href="https://wa.me/6282147830142?text=Hi%20Tiny!%20I%27d%20like%20a%20custom%20quotation%20for%20a%20Whole%20Terrace%20birthday%20party%20with%20more%20than%2035%20guests." target="_blank" rel="noopener noreferrer" data-wa="builder_guest_limit">Contact us on WhatsApp</a>
+  </div>
+</div>
+
+<div class="time-modal" id="party-time-modal" hidden aria-hidden="true">
+  <button type="button" class="time-modal__backdrop" data-close-party-time aria-label="Close"></button>
+  <div class="time-modal__panel" role="dialog" aria-modal="true" aria-labelledby="party-time-modal-title">
+    <div class="time-modal__head">
+      <h3 id="party-time-modal-title">Available times</h3>
+      <button type="button" class="time-modal__close" data-close-party-time aria-label="Close">&times;</button>
+    </div>
+    <div class="time-grid" id="party-time-grid" role="group" aria-labelledby="party-time-modal-title"></div>
+  </div>
+</div>
+
+<div class="count-modal" id="count-modal" hidden>
+  <button type="button" class="count-modal__backdrop" data-close-count aria-label="Close"></button>
+  <div class="count-modal__panel" role="dialog" aria-modal="true" aria-labelledby="count-modal-title">
+    <h3 id="count-modal-title">How many?</h3>
+    <p class="count-modal__note" id="count-modal-note"></p>
+    <div class="count-modal__value" id="count-modal-value">0</div>
+    <div class="count-modal__unit" id="count-modal-unit"></div>
+    <input type="range" id="count-modal-range" min="0" max="30" value="0">
+    <div class="count-modal__scale"><span id="count-modal-min">0</span><span id="count-modal-max">30</span></div>
+    <p class="count-modal__confirm" id="count-modal-confirm"></p>
+    <button type="button" class="btn count-modal__done" id="count-modal-done">Continue</button>
   </div>
 </div>
 

@@ -414,6 +414,47 @@
     return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
   }
 
+  function eventGallery(event) {
+    const gallery = Array.isArray(event?.gallery)
+      ? event.gallery.map((url) => String(url || "").trim()).filter(Boolean)
+      : [];
+    if (gallery.length) return [...new Set(gallery)];
+    if (event?.cover_url) return [String(event.cover_url)];
+    return [HERO];
+  }
+
+  function flyerHtml(event) {
+    const images = eventGallery(event);
+    const name = escapeHtml(event.name || "Event");
+    if (images.length === 1) {
+      return `<figure class="event-flyer">
+          <img src="${escapeHtml(images[0])}" alt="${name} flyer">
+        </figure>`;
+    }
+    return `<div class="event-slider" data-slider>
+        <div class="event-slider__viewport">
+          <div class="event-slider__track">
+            ${images
+              .map(
+                (url, index) =>
+                  `<figure class="event-slider__slide"><img src="${escapeHtml(url)}" alt="${name} picture ${index + 1}"></figure>`
+              )
+              .join("")}
+          </div>
+        </div>
+        <button class="event-slider__nav event-slider__nav--prev" type="button" data-slider-prev aria-label="Previous picture">‹</button>
+        <button class="event-slider__nav event-slider__nav--next" type="button" data-slider-next aria-label="Next picture">›</button>
+        <div class="event-slider__dots" role="tablist" aria-label="Pictures">
+          ${images
+            .map(
+              (_, index) =>
+                `<button class="event-slider__dot${index === 0 ? " is-active" : ""}" type="button" data-slider-dot="${index}" aria-label="Picture ${index + 1}"></button>`
+            )
+            .join("")}
+        </div>
+      </div>`;
+  }
+
   function eventHtml(code) {
     const event = state.events.find((item) => item.public_code === code);
     if (!event) {
@@ -421,13 +462,10 @@
     }
     const price = formatIdr(event.price_idr);
     const slots = eventSlots(event);
-    const cover = event.cover_url || HERO;
     return `
       <div class="event-page">
         <button class="event-back" type="button" data-back>← Upcoming events</button>
-        <figure class="event-flyer">
-          <img src="${escapeHtml(cover)}" alt="${escapeHtml(event.name)} flyer">
-        </figure>
+        ${flyerHtml(event)}
         <h1 class="event-title">${escapeHtml(event.name)}</h1>
         <aside class="ticket">
           <h2>Guest list</h2>
@@ -573,6 +611,41 @@
       event.preventDefault();
       go("");
     });
+    const slider = app.querySelector("[data-slider]");
+    if (slider) {
+      let index = 0;
+      const track = slider.querySelector(".event-slider__track");
+      const dots = [...slider.querySelectorAll("[data-slider-dot]")];
+      const total = dots.length;
+      const goTo = (next) => {
+        index = ((next % total) + total) % total;
+        if (track) track.style.transform = `translateX(-${index * 100}%)`;
+        dots.forEach((dot, i) => dot.classList.toggle("is-active", i === index));
+      };
+      slider.querySelector("[data-slider-prev]")?.addEventListener("click", () => goTo(index - 1));
+      slider.querySelector("[data-slider-next]")?.addEventListener("click", () => goTo(index + 1));
+      dots.forEach((dot) => {
+        dot.addEventListener("click", () => goTo(Number(dot.getAttribute("data-slider-dot")) || 0));
+      });
+      let startX = 0;
+      slider.addEventListener(
+        "touchstart",
+        (event) => {
+          startX = event.changedTouches?.[0]?.clientX || 0;
+        },
+        { passive: true }
+      );
+      slider.addEventListener(
+        "touchend",
+        (event) => {
+          const endX = event.changedTouches?.[0]?.clientX || 0;
+          const delta = endX - startX;
+          if (Math.abs(delta) < 40) return;
+          goTo(delta < 0 ? index + 1 : index - 1);
+        },
+        { passive: true }
+      );
+    }
     document.getElementById("book-spot")?.addEventListener("click", () => {
       const form = document.getElementById("guest-form");
       const trigger = document.getElementById("book-spot");

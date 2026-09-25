@@ -1478,6 +1478,118 @@ body.time-modal-open {
   gap: 12px;
 }
 
+.wizard .count-trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 52px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(100, 124, 110, 0.28);
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wizard .count-trigger strong {
+  font-weight: 600;
+}
+
+.count-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  display: grid;
+  place-items: end center;
+}
+
+.count-modal[hidden] {
+  display: none;
+}
+
+.count-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgba(28, 36, 32, 0.45);
+}
+
+.count-modal__panel {
+  position: relative;
+  width: min(560px, 100%);
+  margin: 0;
+  padding: 28px 24px 22px;
+  border-radius: 28px 28px 0 0;
+  background: #fff;
+  color: #1c1c1c;
+  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.16);
+}
+
+.count-modal__panel h3 {
+  margin: 0 0 8px;
+  font-size: 32px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.count-modal__note {
+  margin: 0 0 18px;
+  color: #8a8a8a;
+  font-size: 16px;
+}
+
+.count-modal__value {
+  font-size: 72px;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
+}
+
+.count-modal__unit {
+  margin-top: 4px;
+  text-align: center;
+  letter-spacing: 0.14em;
+  font-size: 12px;
+  color: #8a8a8a;
+}
+
+.count-modal__panel input[type="range"] {
+  width: 100%;
+  margin: 22px 0 6px;
+  accent-color: #647c6e;
+}
+
+.count-modal__scale {
+  display: flex;
+  justify-content: space-between;
+  color: #8a8a8a;
+  font-size: 14px;
+}
+
+.count-modal__confirm {
+  margin: 18px 0;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(100, 124, 110, 0.12);
+  color: #3d4f45;
+  font-weight: 600;
+}
+
+.count-modal__done {
+  margin-left: auto;
+  display: block;
+  border-radius: 999px;
+  background: #647c6e;
+  color: #fff;
+  border: 0;
+  padding: 12px 22px;
+  font: inherit;
+  cursor: pointer;
+}
+
 .wizard .field__label--soft {
   letter-spacing: 1px;
   font-size: 11px;

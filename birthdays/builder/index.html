@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="../../cakes/css/styles.css?v=20260831f">
-  <link rel="stylesheet" href="css/styles.css?v=20260924g">
+  <link rel="stylesheet" href="css/styles.css?v=20260925a">
   <link rel="stylesheet" href="../../shared/chrome.css?v=20260917e">
   <script src="../../shared/analytics.js?v=20260905a"></script>
 </head>
@@ -46,7 +46,7 @@
     <div class="steps-chrome" id="steps-chrome">
       <nav class="steps-bar" id="steps-bar" aria-label="Builder steps">
         <a class="step-chip" href="#details" data-step="details"><span class="step-chip__check" aria-hidden="true"></span>01 Details</a>
-        <a class="step-chip" href="#package" data-step="package"><span class="step-chip__check" aria-hidden="true"></span>02 Package</a>
+        <a class="step-chip" href="#package" data-step="package"><span class="step-chip__check" aria-hidden="true"></span>02 Tables</a>
         <a class="step-chip" href="#decor" data-step="decor"><span class="step-chip__check" aria-hidden="true"></span>03 Decorations</a>
         <a class="step-chip" href="#cakes" data-step="cakes"><span class="step-chip__check" aria-hidden="true"></span>04 Cake</a>
         <a class="step-chip" href="#addons" data-step="addons"><span class="step-chip__check" aria-hidden="true"></span>05 Add ons</a>
@@ -100,14 +100,17 @@
             <span class="field__label" id="party-time-label">Start time <span class="field__req">*</span></span>
             <button type="button" class="time-trigger" id="party-time-trigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="party-time-modal" aria-labelledby="party-time-label">
               <span class="time-trigger__label" id="party-time-trigger-label">Select time</span>
-              <span class="time-trigger__hint" id="party-time-trigger-hint">Choose an available start time</span>
+              <span class="time-trigger__hint" id="party-time-trigger-hint">Select date &amp; guests first</span>
             </button>
             <input type="hidden" id="party-time" name="party-time" required value="">
-            <span class="field__hint">Party runs 3 hours from your start time. Last start is 16:00.</span>
+            <span class="field__hint" id="party-time-hint">Party runs 3 hours from your start time. Last start is 16:00. Pick a date and guest count first — times for 10+ guests need free terrace tables.</span>
           </div>
           <div class="field">
             <span class="field__label">Duration</span>
             <p class="field__static" id="party-duration">3 hours (included with every package)</p>
+            <div class="day-toggle day-toggle--readonly" id="day-indicator" role="status" aria-live="polite">
+              <span class="day-indicator__label" id="day-indicator-label">Weekday pricing</span>
+            </div>
           </div>
         </div>
         <div class="field">
@@ -153,16 +156,12 @@
     <section class="builder-page builder-section builder-section--white" id="package" hidden>
       <div class="section-head">
         <div>
-          <div class="eyebrow">02 · Choose package</div>
-          <h2 tabindex="-1">Choose your package</h2>
-        </div>
-        <div class="day-toggle day-toggle--readonly" id="day-indicator" role="status" aria-live="polite">
-          <span class="day-indicator__label" id="day-indicator-label">Weekday pricing</span>
+          <div class="eyebrow">02 · Confirm tables</div>
+          <h2 tabindex="-1">Confirm your tables</h2>
         </div>
       </div>
-      <p class="section-note" style="margin:-8px 0 24px">Simple, Optimal or Whole Terrace. Three hours, set up before you arrive.</p>
-      <p class="package-hint" id="package-hint" role="status">Enter how many people in step 01 before you can choose a package.</p>
-      <div class="pkg-grid" id="package-grid"></div>
+      <p class="section-note" id="package-confirm-copy" style="margin:-8px 0 24px">Your package tables are held for the party window: 1 hour before start, then 3 hours from start.</p>
+      <p class="form-status" id="package-occupancy-status" role="status" hidden></p>
       <div class="party-tables" id="party-tables" hidden>
         <h3>Choose your tables</h3>
         <p class="section-note" id="party-tables-copy">Tables are held for the party window: 1 hour before start, then 3 hours from start.</p>
@@ -464,7 +463,7 @@
   <script src="../../shared/supabase-config.js?v=20260917e" defer></script>
   <script src="../../shared/submit-request.js?v=20260917e" defer></script>
   <script src="../../shared/success-modal.js?v=20260917e" defer></script>
-  <script src="../../shared/reserve-tables.js?v=20260924e" defer></script>
-  <script src="js/main.js?v=20260924h" defer></script>
+  <script src="../../shared/reserve-tables.js?v=20260925b" defer></script>
+  <script src="js/main.js?v=20260925b" defer></script>
 </body>
 </html>

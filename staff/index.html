@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/staff.css?v=20260925d">
+  <link rel="stylesheet" href="css/staff.css?v=20260925g">
 </head>
 <body>
   <div class="staff-shell">
@@ -49,6 +49,7 @@
         <a href="#/events" data-view="events">Events</a>
         <a href="#/payments" data-view="payments">Payments</a>
         <a href="#/customers" data-view="customers">Customer details</a>
+        <a href="#/archive" data-view="archive">Archive</a>
       </nav>
 
       <p class="muted calendar-sync" id="calendar-sync-note">Confirmed bookings sync to the Tiny Google Calendar.</p>
@@ -144,6 +145,10 @@
           <div id="tables-floor"></div>
         </div>
         <div id="customers-view" hidden>
+          <div class="tables-toolbar">
+            <p class="muted" id="customers-mode-label">Active customers</p>
+            <button class="btn btn--outline" type="button" id="customers-archive-toggle">Show archived</button>
+          </div>
           <div class="member-stats" id="customers-stats"></div>
           <div class="member-table-wrap table-wrap">
             <table class="member-table" id="customers-table">
@@ -174,7 +179,6 @@
                       <option value="all">All types</option>
                       <option value="birthday">Birthday</option>
                       <option value="reservation">Reservation</option>
-                      <option value="event">Event booking</option>
                     </select>
                   </th>
                   <th></th>
@@ -213,6 +217,12 @@
             </table>
           </div>
         </div>
+        <div id="archive-view" hidden>
+          <div class="tables-toolbar">
+            <p class="muted" id="archive-count"></p>
+          </div>
+          <div class="booking-list" id="archive-list"></div>
+        </div>
         <div id="events-view" hidden>
           <div class="tables-toolbar">
             <p class="muted" id="events-count"></p>
@@ -239,6 +249,17 @@
 
       <div id="detail-view" hidden></div>
     </section>
+  </div>
+
+  <div class="modal" id="confirm-modal" hidden>
+    <div class="modal__card modal__card--confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <h2 id="confirm-title">Are you sure?</h2>
+      <p class="muted" id="confirm-message"></p>
+      <div class="contact-actions">
+        <button class="btn" type="button" id="confirm-ok">Delete</button>
+        <button class="btn btn--outline" type="button" id="confirm-cancel">Cancel</button>
+      </div>
+    </div>
   </div>
 
   <div class="modal" id="block-modal" hidden>
@@ -362,11 +383,15 @@
           <span>Notes</span>
           <textarea id="event-notes" rows="3" placeholder="Setup, vendor, timing…"></textarea>
         </label>
-        <label class="field">
-          <span>Pictures or PDFs</span>
-          <input type="file" id="event-photos" accept="image/jpeg,image/png,image/webp,application/pdf" multiple>
-          <span class="muted">Attached files also push to the Google Calendar event.</span>
-        </label>
+        <div class="field">
+          <span>Pictures</span>
+          <div id="event-photos-existing" class="event-photos-existing"></div>
+          <label class="field" style="margin:0">
+            <span>Add pictures or PDFs (optional)</span>
+            <input type="file" id="event-photos" accept="image/jpeg,image/png,image/webp,application/pdf" multiple>
+          </label>
+          <span class="muted">Leave empty to keep current pictures. New files are added; existing ones stay attached. Images show on the events page; all files also push to Google Calendar.</span>
+        </div>
         <div class="field">
           <span>Guest list</span>
           <div id="event-guests" class="guest-list"></div>
@@ -383,6 +408,6 @@
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/reserve-tables.js?v=20260924e"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js"></script>
-  <script type="module" src="js/app.js?v=20260925d"></script>
+  <script type="module" src="js/app.js?v=20260925g"></script>
 </body>
 </html>

@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20260924e">
+  <link rel="stylesheet" href="css/styles.css?v=20260925c">
   <link rel="stylesheet" href="../shared/chrome.css?v=20260917d">
 </head>
 <body data-page="reserve">
@@ -31,8 +31,8 @@
       </div>
       <ol class="steps" aria-label="Reservation steps">
         <li class="steps__item is-active" data-step-label="1">Schedule</li>
-        <li class="steps__item" data-step-label="2">Details</li>
-        <li class="steps__item" data-step-label="3">Table</li>
+        <li class="steps__item" data-step-label="2">Table</li>
+        <li class="steps__item" data-step-label="3">Details</li>
         <li class="steps__item" data-step-label="4">Confirm</li>
       </ol>
 
@@ -42,12 +42,18 @@
             <span class="field__label">How many people? <span class="field__req">*</span></span>
             <div class="guest-pair">
               <div class="field">
-                <label class="field__label field__label--soft" for="guest-kids">Kids</label>
-                <input type="number" id="guest-kids" name="guest-kids" min="0" value="0" placeholder="e.g. 2" inputmode="numeric">
+                <span class="field__label field__label--soft" id="guest-kids-label">Kids</span>
+                <button type="button" class="count-trigger" id="guest-kids-trigger" aria-haspopup="dialog" aria-labelledby="guest-kids-label">
+                  <strong id="guest-kids-value">Slide to choose</strong>
+                </button>
+                <input type="hidden" id="guest-kids" name="guest-kids" value="">
               </div>
               <div class="field">
-                <label class="field__label field__label--soft" for="guest-adults">Adults</label>
-                <input type="number" id="guest-adults" name="guest-adults" min="0" value="2" placeholder="e.g. 2" inputmode="numeric">
+                <span class="field__label field__label--soft" id="guest-adults-label">Adults</span>
+                <button type="button" class="count-trigger" id="guest-adults-trigger" aria-haspopup="dialog" aria-labelledby="guest-adults-label">
+                  <strong id="guest-adults-value">Slide to choose</strong>
+                </button>
+                <input type="hidden" id="guest-adults" name="guest-adults" value="">
               </div>
             </div>
           </div>
@@ -62,11 +68,35 @@
               <span class="time-trigger__label" id="time-trigger-label">Select time</span>
               <span class="time-trigger__hint" id="time-trigger-hint">Choose an available 2-hour slot</span>
             </button>
-            <span class="field__hint">Each booking is 2 hours. Last start is 16:00. We hold the table for 15 minutes after your start time; if you have not arrived by then, it is cancelled.</span>
+            <span class="field__hint">Each booking is 2 hours. Last start is 16:00. We hold the table for 15 minutes after your start time; if you have not arrived by then, it is cancelled. Fully booked times are blocked.</span>
           </div>
+          <p class="form-status" id="schedule-occupancy-status" role="status" hidden></p>
         </div>
 
         <div class="wizard-panel" data-panel="2" hidden>
+          <div class="plan__head">
+            <div>
+              <h3 class="panel-title">Pick a table</h3>
+              <p class="field__hint" id="guests-hint">Tables shown fit your party. Indoor tables 1 and 2 can be joined. Held tables are blocked for this slot.</p>
+            </div>
+            <div class="plan__tabs" role="tablist" aria-label="Cafe area">
+              <button type="button" class="plan-tab is-active" role="tab" aria-selected="true" data-area="indoor">Indoor</button>
+              <button type="button" class="plan-tab" role="tab" aria-selected="false" data-area="terrace">Terrace</button>
+            </div>
+          </div>
+          <div class="plan__stage">
+            <div class="plan__canvas" id="floorplan" role="application" aria-label="Clickable table layout"></div>
+            <aside class="plan__side" aria-live="polite">
+              <div class="picked" id="picked">
+                <h3>No table yet</h3>
+                <p>Tap a table on the map.</p>
+              </div>
+              <dl class="picked__meta" id="picked-meta" hidden></dl>
+            </aside>
+          </div>
+        </div>
+
+        <div class="wizard-panel" data-panel="3" hidden>
           <h3 class="panel-title">Reservation details</h3>
           <p class="field__hint">We’ll email your reservation details and a private link to edit or cancel. We’ll also send a copy to Tiny.</p>
           <div class="form-row form-row--name">
@@ -120,29 +150,6 @@
           </div>
         </div>
 
-        <div class="wizard-panel" data-panel="3" hidden>
-          <div class="plan__head">
-            <div>
-              <h3 class="panel-title">Pick a table</h3>
-              <p class="field__hint" id="guests-hint">Tables shown fit your party. Indoor tables 1 and 2 can be joined.</p>
-            </div>
-            <div class="plan__tabs" role="tablist" aria-label="Cafe area">
-              <button type="button" class="plan-tab is-active" role="tab" aria-selected="true" data-area="indoor">Indoor</button>
-              <button type="button" class="plan-tab" role="tab" aria-selected="false" data-area="terrace">Terrace</button>
-            </div>
-          </div>
-          <div class="plan__stage">
-            <div class="plan__canvas" id="floorplan" role="application" aria-label="Clickable table layout"></div>
-            <aside class="plan__side" aria-live="polite">
-              <div class="picked" id="picked">
-                <h3>No table yet</h3>
-                <p>Tap a table on the map.</p>
-              </div>
-              <dl class="picked__meta" id="picked-meta" hidden></dl>
-            </aside>
-          </div>
-        </div>
-
         <div class="wizard-panel" data-panel="4" hidden>
           <div class="summary-card" id="summary-card"></div>
           <div class="notice">
@@ -180,11 +187,25 @@
     </div>
   </div>
 
+  <div class="count-modal" id="count-modal" hidden>
+    <button type="button" class="count-modal__backdrop" data-close-count aria-label="Close"></button>
+    <div class="count-modal__panel" role="dialog" aria-modal="true" aria-labelledby="count-modal-title">
+      <h3 id="count-modal-title">How many?</h3>
+      <p class="count-modal__note" id="count-modal-note"></p>
+      <div class="count-modal__value" id="count-modal-value">0</div>
+      <div class="count-modal__unit" id="count-modal-unit"></div>
+      <input type="range" id="count-modal-range" min="0" max="30" value="0">
+      <div class="count-modal__scale"><span id="count-modal-min">0</span><span id="count-modal-max">30</span></div>
+      <p class="count-modal__confirm" id="count-modal-confirm"></p>
+      <button type="button" class="btn count-modal__done" id="count-modal-done">Continue</button>
+    </div>
+  </div>
+
   <script src="../shared/supabase-config.js?v=20260917d"></script>
   <script src="../shared/submit-request.js?v=20260917d"></script>
   <script src="../shared/success-modal.js?v=20260917d"></script>
   <script src="../shared/reserve-tables.js?v=20260924e"></script>
   <script src="../shared/chrome.js?v=20260924c" defer></script>
-  <script src="js/main.js?v=20260924e" defer></script>
+  <script src="js/main.js?v=20260925c" defer></script>
 </body>
 </html>

@@ -8,7 +8,7 @@
   const TERRACE_GUEST_MAX = 35;
   const BUILDER_FLOW = [
     { id: "intro", href: "#intro", nextLabel: "Continue", required: false },
-    { id: "details", href: "#details", nextLabel: "Next: Package", required: true },
+    { id: "details", href: "#details", nextLabel: "Next: Tables", required: true },
     { id: "package", href: "#package", nextLabel: "Next: Decorations", required: true },
     { id: "decor", href: "#decor", nextLabel: "Next: Cake", required: true },
     { id: "cakes", href: "#cakes", nextLabel: "Next: Add ons", required: true },
@@ -18,12 +18,31 @@
   ];
   const DIET_NONE = "No special requirements";
   const PARTY_DURATION_HOURS = 3;
-  const BUILDER_STEPS = BUILDER_FLOW.filter((step) => step.required).map((step) => step.id);
   const THEME_COLLAGE_IDS = ["photozone", "character", "minnie", "unicorn"];
   const SIMPLE_BUILDER_AGE_MIN = 1;
   const SIMPLE_BUILDER_AGE_MAX = 7;
   const SIMPLE_BUILDER_PHOTO_FALLBACK = "img/decor/simple.jpg";
   const SIMPLE_BUILDER_PHOTO_VERSION = "20260831b";
+
+  function needsTablesStep() {
+    const guests = totalGuests();
+    return guests <= 9;
+  }
+
+  function builderFlow() {
+    const showTables = needsTablesStep();
+    return BUILDER_FLOW.filter((step) => step.id !== "package" || showTables).map((step) => {
+      if (step.id !== "details") return step;
+      return {
+        ...step,
+        nextLabel: showTables ? "Next: Tables" : "Next: Decorations",
+      };
+    });
+  }
+
+  function builderRequiredSteps() {
+    return builderFlow().filter((step) => step.required).map((step) => step.id);
+  }
 
   function wpConfig() {
     return window.TINY_WP || {};
@@ -305,6 +324,7 @@
     tableIds: [],
     tableArea: "indoor",
     occupancy: [],
+    occupancyOk: false,
   };
 
   let currentStepId = "intro";
@@ -416,14 +436,29 @@
   let cakeData = DEFAULT_CAKES;
   let guestLimitShown = false;
 
-  function canSelectPackage() {
-    return totalGuests() > 0;
+  function packageIdForGuests(guests) {
+    const pax = Math.max(0, Number(guests) || 0);
+    if (pax <= 0) return "";
+    if (pax >= 21) return "terrace";
+    if (pax >= 10) return "signature";
+    return "simple";
   }
 
-  function renderPackageHint() {
-    const hint = document.getElementById("package-hint");
-    if (!hint) return;
-    hint.hidden = canSelectPackage();
+  function syncPackageFromGuests() {
+    const packageId = packageIdForGuests(totalGuests());
+    if (!packageId) {
+      partyState.packageId = "";
+      partyState.packageChosen = false;
+      return false;
+    }
+    if (partyState.packageChosen && partyState.packageId === packageId) return false;
+    applyPackageSelection(packageId);
+    return true;
+  }
+
+  function canOpenPartyTime() {
+    const date = document.getElementById("party-date")?.value || "";
+    return Boolean(date && totalGuests() > 0);
   }
 
   function partyTimeValue() {
@@ -457,20 +492,47 @@
   function updatePartyTimeTrigger() {
     const label = document.getElementById("party-time-trigger-label");
     const hint = document.getElementById("party-time-trigger-hint");
+    const trigger = document.getElementById("party-time-trigger");
     const Map = window.TinyReserveMap;
     const time = partyTimeValue();
+    const canOpen = canOpenPartyTime();
+    if (trigger) {
+      trigger.disabled = false;
+      trigger.setAttribute("aria-disabled", canOpen ? "false" : "true");
+    }
     if (!label) return;
+    if (!canOpen) {
+      label.textContent = "Select time";
+      if (hint) hint.textContent = "Select date & guests first";
+      return;
+    }
     if (time) {
       const end = partyEndTimeLabel() || (Map?.addMinutes ? Map.addMinutes(time, PARTY_DURATION_HOURS * 60) : "");
       label.textContent = end ? `${time} – ${end}` : time;
       if (hint) hint.textContent = `${PARTY_DURATION_HOURS}-hour party`;
     } else {
       label.textContent = "Select time";
-      if (hint) hint.textContent = "Choose an available start time";
+      if (hint) {
+        hint.textContent =
+          totalGuests() >= 10
+            ? "Choose a start time with free terrace tables"
+            : "Choose an available start time";
+      }
     }
   }
 
   function openPartyTimeModal() {
+    if (!canOpenPartyTime()) {
+      updatePartyTimeTrigger();
+      showStepGate("Please select date & amount of guests first");
+      return;
+    }
+    syncPackageFromGuests();
+    if (!partyState.occupancyOk) {
+      showStepGate("Couldn’t check availability — try again in a moment.");
+      loadPartyOccupancy();
+      return;
+    }
     const modal = document.getElementById("party-time-modal");
     const trigger = document.getElementById("party-time-trigger");
     if (!modal) return;
@@ -498,18 +560,21 @@
     const selected = partyTimeValue();
     const date = document.getElementById("party-date")?.value || "";
     const now = baliNowParts();
+    const ready = partyState.occupancyOk;
     grid.innerHTML = "";
     Map.timeSlots().forEach((time) => {
       const btn = document.createElement("button");
       const [hour, minute] = time.split(":").map(Number);
       const past = date === now.date && hour * 60 + minute <= now.hour * 60 + now.minute;
-      const booked = !past && partyTimeIsBooked(time);
+      const booked = !past && (!ready || partyTimeIsBooked(time));
       btn.type = "button";
       btn.className = "time-chip" + (time === selected ? " is-active" : "") + (booked ? " is-booked" : "");
       btn.dataset.time = time;
       const end = Map.addMinutes(time, PARTY_DURATION_HOURS * 60);
-      btn.innerHTML = `<strong>${time}</strong><span>${booked ? "Booked" : `until ${end}`}</span>`;
-      btn.disabled = past || booked;
+      btn.innerHTML = `<strong>${time}</strong><span>${
+        !ready ? "Checking…" : booked ? "Booked" : `until ${end}`
+      }</span>`;
+      btn.disabled = past || booked || !ready;
       btn.addEventListener("click", () => {
         if (btn.disabled) return;
         setPartyTimeValue(time);
@@ -561,7 +626,26 @@
     const time = partyTimeValue();
     const child = document.getElementById("child-name")?.value.trim() || "";
     const age = parseChildAge();
-    return Boolean(date && time && child && age && totalGuests() > 0 && contactIsComplete());
+    if (
+      !(
+        date &&
+        time &&
+        child &&
+        age &&
+        totalGuests() > 0 &&
+        partyState.packageChosen &&
+        partyState.packageId &&
+        partyState.occupancyOk &&
+        !partyTimeIsBooked(time) &&
+        contactIsComplete()
+      )
+    ) {
+      return false;
+    }
+    if (!needsTablesStep()) {
+      return (partyState.tableIds || []).length > 0 && unavailablePartyTables().length === 0;
+    }
+    return true;
   }
 
   function validateDetailsSection(showErrors) {
@@ -1722,10 +1806,11 @@
     const dateStr = document.getElementById("party-date")?.value;
     if (dateStr) partyState.day = dayFromDate(dateStr);
     updateDayIndicator();
-    renderPackages();
+    syncPackageFromGuests();
     renderFood();
     renderPartyTables();
     renderSummary();
+    updatePartyTimeTrigger();
   }
 
   function packageDepositKey(pkg) {
@@ -1765,10 +1850,7 @@
   }
 
   function applyPackageSelection(packageId) {
-    if (!canSelectPackage()) {
-      renderPackageHint();
-      return;
-    }
+    if (!packageId || totalGuests() <= 0) return;
     partyState.packageId = packageId;
     partyState.packageChosen = true;
     const pkg = selectedPackage();
@@ -1782,11 +1864,15 @@
       renderDecorPackages();
       updateBackdropBuilderUI();
     }
-    renderPackages();
-    renderPackageHint();
     renderFood();
     checkTerraceGuestLimit();
     assignPartyTables();
+    const time = partyTimeValue();
+    if (time && partyTimeIsBooked(time)) {
+      setPartyTimeValue("");
+    }
+    updatePartyTimeTrigger();
+    renderPartyTimes();
     renderSummary();
     updateStepProgress();
   }
@@ -1801,16 +1887,30 @@
     return (partyState.tableIds || []).map((id) => Map?.findTable?.(id)).filter(Boolean);
   }
 
+  function partyRequiredTableIds() {
+    const Map = window.TinyReserveMap;
+    const pkg = selectedPackage();
+    if (!pkg || !Map?.birthdayTableIds) return null;
+    const guests = totalGuests() || 1;
+    if (pkg.id === "simple") {
+      const selected = (partyState.tableIds || []).map(String).filter(Boolean);
+      return selected;
+    }
+    const auto = Map.birthdayTableIds(pkg.id, guests) || [];
+    if (!auto.length) return null;
+    return auto.map(String);
+  }
+
   function partyTimeIsBooked(time) {
     const Map = window.TinyReserveMap;
-    if (!Map?.slotIsBooked || !time) return false;
-    const guests = totalGuests() || 1;
+    if (!time) return false;
+    if (!partyState.occupancyOk) return true;
+    if (!Map?.slotIsBooked) return true;
     const pkg = selectedPackage();
-    // Before a package is chosen, Optimal (signature) tables are the ones
-    // that would fail on the package step. Block those start times here.
-    const required = pkg
-      ? Map.birthdayTableIds?.(pkg.id, guests) || []
-      : Map.birthdayTableIds?.("signature", guests) || [];
+    if (!pkg) return true;
+    const guests = totalGuests() || 1;
+    const required = partyRequiredTableIds();
+    if (required == null) return true;
     const ignore = editManageToken ? [...editOwnTableIds] : [];
     if (required.length) {
       return Map.slotIsBooked(partyState.occupancy, time, "birthday", guests, required, ignore);
@@ -1839,13 +1939,64 @@
     return tables.length && Map?.tableLabel ? Map.tableLabel(tables) : "";
   }
 
+  function setOccupancyStatus(message, kind) {
+    const el = document.getElementById("package-occupancy-status");
+    if (!el) return;
+    if (!message) {
+      el.hidden = true;
+      el.textContent = "";
+      el.className = "form-status";
+      return;
+    }
+    el.hidden = false;
+    el.textContent = message;
+    el.className = kind ? `form-status ${kind}` : "form-status";
+  }
+
+  function expandOccupancyRows(rows) {
+    const out = [];
+    (rows || []).forEach((row) => {
+      const slots = row?.slots;
+      if (row?.kind === "event" && Array.isArray(slots) && slots.length) {
+        slots.forEach((slot) => {
+          const start = String(slot?.start || "").slice(0, 5);
+          if (!start) return;
+          out.push({
+            ...row,
+            time: start,
+            endTime: String(slot?.end || "").slice(0, 5),
+            slots: undefined,
+          });
+        });
+        return;
+      }
+      out.push(row);
+    });
+    return out;
+  }
+
   async function loadPartyOccupancy() {
     const Map = window.TinyReserveMap;
     const date = document.getElementById("party-date")?.value || "";
     const cfg = window.TINY_SUPABASE || {};
-    if (!cfg.url || !cfg.anonKey || !date) {
-      partyState.occupancy = Map?.withFixedHolds?.(date, []) || [];
+    const hasApi = Boolean(cfg.url && cfg.anonKey);
+    partyState.occupancyOk = false;
+    updatePartyTimeTrigger();
+    if (!date) {
+      partyState.occupancy = [];
       renderPartyTables();
+      renderPartyTimes();
+      updatePartyTimeTrigger();
+      updateStepProgress();
+      return;
+    }
+    if (!hasApi) {
+      partyState.occupancy = Map?.withFixedHolds?.(date, []) || [];
+      partyState.occupancyOk = true;
+      renderPartyTables();
+      renderPartyTimes();
+      updatePartyTimeTrigger();
+      updateStepProgress();
       return;
     }
     try {
@@ -1858,20 +2009,26 @@
         },
         body: JSON.stringify({ target_date: date }),
       });
+      if (!res.ok) throw new Error("occupancy failed");
       const data = await res.json();
-      const rows = Array.isArray(data) ? data : [];
+      const rows = expandOccupancyRows(Array.isArray(data) ? data : []);
       partyState.occupancy = Map?.withFixedHolds?.(date, rows) || rows;
+      partyState.occupancyOk = true;
+      setOccupancyStatus("");
     } catch (_) {
-      partyState.occupancy = Map?.withFixedHolds?.(date, []) || [];
+      partyState.occupancyOk = false;
+      setOccupancyStatus("Couldn’t check availability — try again.", "is-error");
     }
     renderPartyTables();
     renderPartyTimes();
+    updatePartyTimeTrigger();
     const time = partyTimeValue();
-    if (time && partyTimeIsBooked(time)) {
+    if (partyState.occupancyOk && time && partyTimeIsBooked(time)) {
       setPartyTimeValue("");
       renderPartyTimes();
       if (currentStepId !== "details") goToStep("details");
-      openPartyTimeModal();
+      if (canOpenPartyTime()) openPartyTimeModal();
+      else updatePartyTimeTrigger();
     }
     updateStepProgress();
   }
@@ -1912,12 +2069,34 @@
     const copy = document.getElementById("party-tables-copy");
     const picked = document.getElementById("party-tables-picked");
     const status = document.getElementById("party-tables-status");
+    const confirmCopy = document.getElementById("package-confirm-copy");
     const Map = window.TinyReserveMap;
     const pkg = selectedPackage();
     if (!host) return;
-    if (!pkg || !partyState.packageChosen || pkg.id !== "simple") {
+    if (!pkg || !partyState.packageChosen) {
       host.hidden = true;
+      if (confirmCopy) {
+        confirmCopy.textContent =
+          "Select date, guests and start time in step 01, then confirm tables here.";
+      }
       return;
+    }
+    if (pkg.id !== "simple") {
+      host.hidden = true;
+      const label = partyTableLabel();
+      const blocked = unavailablePartyTables().length > 0;
+      if (confirmCopy) {
+        confirmCopy.textContent = blocked
+          ? "Those tables aren’t free at this time. Please pick another start time in step 01."
+          : label
+            ? `${pkg.name} reserves ${label} for your party window (1 hour before start, then 3 hours).`
+            : `${pkg.name} tables are held for your party window (1 hour before start, then 3 hours).`;
+      }
+      return;
+    }
+    if (confirmCopy) {
+      confirmCopy.textContent =
+        "Pick free tables that fit your party. Held tables are blocked for this time.";
     }
     host.hidden = false;
     const interactive = true;
@@ -2003,7 +2182,7 @@
       const id = a.getAttribute("href");
       if (!id || id === "#") return;
       const stepId = id.slice(1);
-      if (BUILDER_FLOW.some((step) => step.id === stepId)) {
+      if (builderFlow().some((step) => step.id === stepId)) {
         e.preventDefault();
         if (window.TinyChrome) window.TinyChrome.closeDrawer();
         closeAllLightboxes();
@@ -2485,13 +2664,14 @@
 
   async function exportQuotationPdf() {
     const status = document.getElementById("send-status");
+    syncPackageFromGuests();
     if (!partyState.packageId) {
       if (status) {
-        status.textContent = "Please choose a package first.";
+        status.textContent = "Please select date & amount of guests first";
         status.className = "form-status is-error";
       }
-      goToStep("package");
-      showStepGate("Please choose a package first.");
+      goToStep("details");
+      showStepGate("Please select date & amount of guests first");
       return;
     }
     const incomplete = firstIncompleteRequiredStep();
@@ -2783,62 +2963,11 @@
   }
 
   function renderPackages() {
-    const grid = document.getElementById("package-grid");
-    if (!grid) return;
-    const locked = !canSelectPackage();
-    grid.innerHTML = partyData.packages
-      .map((pkg) => {
-        const selected = partyState.packageChosen && pkg.id === partyState.packageId;
-        const badge = pkg.featured
-          ? `<span class="pkg-card__badge">${escapeHtml(pkg.badge || "Most popular")}</span>`
-          : "";
-        const features = (pkg.includes || [])
-          .map((f) => `<li>${escapeHtml(f)}</li>`)
-          .join("");
-        const decorItems = decorItemsForPackage(pkg)
-          .map((f) => `<li>${escapeHtml(f)}</li>`)
-          .join("");
-        const media = pkg.image
-          ? `<div class="pkg-card__media"><img src="${escapeHtml(pkg.image)}" alt="" width="800" height="500" loading="lazy"></div>`
-          : "";
-        return `
-          <button type="button" class="pkg-card${pkg.featured ? " pkg-card--featured" : ""}${
-            selected ? " is-selected" : ""
-          }${locked ? " is-locked" : ""}" data-package="${escapeHtml(pkg.id)}"${
-            locked ? ' aria-disabled="true" tabindex="-1"' : ""
-          }>
-            ${badge}
-            ${media}
-            <div class="pkg-card__body">
-              <h3>${escapeHtml(pkg.name)}</h3>
-              <div class="pkg-card__guests">${escapeHtml(pkg.guests)}</div>
-              <div class="pkg-card__price">${escapeHtml(packagePrice(pkg))}</div>
-              <ul class="pkg-card__list">${features}</ul>
-              ${
-                decorItems
-                  ? `<p class="pkg-card__decor-label">Decoration included</p><ul class="pkg-card__decor">${decorItems}</ul>`
-                  : ""
-              }
-            </div>
-            <div class="pkg-card__pick">${selected ? "Selected" : "Choose this"}</div>
-          </button>`;
-      })
-      .join("");
+    /* Package is inferred from guest count — no details picker. */
+  }
 
-    grid.querySelectorAll("[data-package]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        if (!canSelectPackage()) {
-          renderPackageHint();
-          goToStep("details");
-          showStepGate("Enter how many people before you can choose a package.");
-          return;
-        }
-        applyPackageSelection(btn.dataset.package);
-        track("builder_package", { package: partyState.packageId });
-        updateStepProgress();
-      });
-    });
-    renderPackageHint();
+  function renderPackageHint() {
+    /* Package hint removed with details package picker. */
   }
 
   const DECOR_RANK = { simple: 1, optimal: 2, terrace: 3 };
@@ -3411,10 +3540,11 @@
 
     const runSaveAndSend = async () => {
       setStatus("");
+      syncPackageFromGuests();
       if (!partyState.packageChosen || !partyState.packageId) {
-        setStatus("Please choose a package first.", "is-error");
-        goToStep("package");
-        showStepGate("Please choose a package first.");
+        setStatus("Please select date & amount of guests first", "is-error");
+        goToStep("details");
+        showStepGate("Please select date & amount of guests first");
         return;
       }
       const incomplete = firstIncompleteRequiredStep();
@@ -3433,6 +3563,32 @@
         return;
       }
       window.TinyContact?.markContactValidity?.(true);
+
+      statusPreparing = (msg) => setStatus(msg || "Checking availability…");
+      statusPreparing("Checking availability…");
+      await loadPartyOccupancy();
+      if (!partyState.occupancyOk) {
+        setStatus("Couldn’t check availability — try again.", "is-error");
+        goToStep("details");
+        showStepGate("Couldn’t check availability — try again.");
+        return;
+      }
+      const time = partyTimeValue();
+      if (!time || partyTimeIsBooked(time) || unavailablePartyTables().length) {
+        const msg =
+          unavailablePartyTables().length || partyTimeIsBooked(time)
+            ? packageIncompleteMessage()
+            : "Please choose an available start time.";
+        setStatus(msg, "is-error");
+        if (unavailablePartyTables().length && selectedPackage()?.id === "simple" && needsTablesStep()) {
+          goToStep("package");
+        } else {
+          goToStep("details");
+          if (canOpenPartyTime()) openPartyTimeModal();
+        }
+        showStepGate(msg);
+        return;
+      }
 
       const isEdit = Boolean(editManageToken);
       if (isEdit && !window.TinySubmit?.manageRequest) {
@@ -3850,7 +4006,9 @@
       case "details":
         return detailsAreComplete();
       case "package":
+        if (!needsTablesStep()) return true;
         return (
+          partyState.occupancyOk &&
           partyState.packageChosen &&
           Boolean(partyState.packageId) &&
           (partyState.tableIds || []).length > 0 &&
@@ -3865,7 +4023,7 @@
       case "food":
         return partyState.foodReviewed;
       case "send":
-        return BUILDER_STEPS.every((id) => isStepComplete(id));
+        return builderRequiredSteps().every((id) => isStepComplete(id));
       default:
         return false;
     }
@@ -3878,14 +4036,31 @@
         ? "That table isn’t free at this time. Please pick another table or start time."
         : "Those tables aren’t free at this time. Please pick another start time.";
     }
-    if (!pkg) return "Please choose a package.";
-    if (pkg.id === "simple") return "Please choose a package and pick your tables.";
-    return "Please choose a package.";
+    if (!pkg) return "Select date and guests in step 01 so we can assign tables.";
+    if (pkg.id === "simple") return "Please pick your tables.";
+    return "Please confirm your tables.";
   }
 
   function stepIncompleteMessage(stepId) {
     switch (stepId) {
       case "details":
+        if (!(totalGuests() > 0)) return "Please select date & amount of guests first";
+        if (!document.getElementById("party-date")?.value) {
+          return "Please select date & amount of guests first";
+        }
+        if (!partyTimeValue()) return "Please choose an available start time.";
+        if (!partyState.occupancyOk) return "Couldn’t check availability — try again.";
+        if (partyTimeIsBooked(partyTimeValue())) {
+          return "That start time isn’t free for your guest count. Please pick another.";
+        }
+        if (!needsTablesStep()) {
+          if (!(partyState.tableIds || []).length) {
+            return "Couldn’t reserve terrace tables for this guest count. Please pick another time.";
+          }
+          if (unavailablePartyTables().length) {
+            return "Those tables aren’t free at this time. Please pick another start time.";
+          }
+        }
         return "Please fill out the required details, including email or WhatsApp.";
       case "package":
         return packageIncompleteMessage();
@@ -3915,20 +4090,22 @@
   }
 
   function flowIndex(stepId) {
-    return BUILDER_FLOW.findIndex((step) => step.id === stepId);
+    return builderFlow().findIndex((step) => step.id === stepId);
   }
 
   function firstIncompleteRequiredStep() {
-    const incomplete = BUILDER_FLOW.find((step) => step.required && !isStepComplete(step.id));
+    const incomplete = builderFlow().find((step) => step.required && !isStepComplete(step.id));
     return incomplete ? incomplete.id : "send";
   }
 
   function canVisitStep(stepId) {
     if (staffRequestId || editManageToken) return true;
-    const target = flowIndex(stepId);
+    if (stepId === "package" && !needsTablesStep()) return false;
+    const flow = builderFlow();
+    const target = flow.findIndex((step) => step.id === stepId);
     if (target < 0) return false;
     for (let i = 0; i < target; i += 1) {
-      const step = BUILDER_FLOW[i];
+      const step = flow[i];
       if (!step.required) continue;
       if (!isStepComplete(step.id)) return false;
     }
@@ -3942,6 +4119,9 @@
   function updateStepChips() {
     document.querySelectorAll(".step-chip[data-step]").forEach((chip) => {
       const stepId = chip.dataset.step;
+      if (stepId === "package") {
+        chip.hidden = !needsTablesStep();
+      }
       const allowed = canVisitStep(stepId);
       chip.classList.toggle("is-active", stepId === currentStepId);
       chip.classList.toggle("is-complete", isStepComplete(stepId));
@@ -3954,7 +4134,9 @@
 
   function goToStep(stepId, options = {}) {
     const fromHistory = Boolean(options.fromHistory);
-    let nextId = BUILDER_FLOW.some((step) => step.id === stepId) ? stepId : "intro";
+    const flow = builderFlow();
+    let nextId = flow.some((step) => step.id === stepId) ? stepId : "intro";
+    if (nextId === "package" && !needsTablesStep()) nextId = "decor";
     if (!canVisitStep(nextId)) nextId = firstIncompleteRequiredStep();
     currentStepId = nextId;
     document.body.dataset.builderStep = nextId;
@@ -3986,7 +4168,7 @@
   }
 
   function validateCurrentStep(showErrors) {
-    const current = BUILDER_FLOW[flowIndex(currentStepId)] || BUILDER_FLOW[0];
+    const current = builderFlow()[flowIndex(currentStepId)] || builderFlow()[0];
     if (current.id === "details") return validateDetailsSection(showErrors);
     if (current.id === "cakes") {
       const ok = isStepComplete("cakes");
@@ -4011,7 +4193,8 @@
 
   function tryAdvance(e) {
     if (e) e.preventDefault();
-    const current = BUILDER_FLOW[flowIndex(currentStepId)] || BUILDER_FLOW[0];
+    const flow = builderFlow();
+    const current = flow[flowIndex(currentStepId)] || flow[0];
     if (!validateCurrentStep(true)) {
       showStepGate(stepIncompleteMessage(current.id));
       if (current.id === "details") {
@@ -4022,19 +4205,20 @@
       }
       return false;
     }
-    const next = BUILDER_FLOW[flowIndex(current.id) + 1];
+    const next = flow[flowIndex(current.id) + 1];
     if (!next) return false;
     goToStep(next.id);
     return true;
   }
 
   function updateStepProgress() {
-    const completed = BUILDER_STEPS.filter((id) => isStepComplete(id)).length;
-    const total = BUILDER_STEPS.length;
+    const steps = builderRequiredSteps();
+    const completed = steps.filter((id) => isStepComplete(id)).length;
+    const total = steps.length;
     const fill = document.getElementById("steps-progress-fill");
     const text = document.getElementById("steps-progress-text");
     const track = document.getElementById("steps-progress-track");
-    if (fill) fill.style.width = `${(completed / total) * 100}%`;
+    if (fill) fill.style.width = `${total ? (completed / total) * 100 : 0}%`;
     if (text) text.textContent = `${completed} out of ${total} steps complete`;
     if (track) {
       track.setAttribute("aria-valuenow", String(completed));
@@ -4143,9 +4327,10 @@
   function updateNextStepButton() {
     const btn = document.getElementById("next-step");
     if (!btn) return;
+    const flow = builderFlow();
     const index = flowIndex(currentStepId);
-    const current = BUILDER_FLOW[index] || BUILDER_FLOW[0];
-    const next = BUILDER_FLOW[index + 1];
+    const current = flow[index] || flow[0];
+    const next = flow[index + 1];
     if (!next || current.id === "send" || current.id === "intro") {
       btn.hidden = true;
       return;
@@ -4308,17 +4493,19 @@
       if (!el || el.dataset.guestLimitBound) return;
       el.dataset.guestLimitBound = "1";
       el.addEventListener("input", () => {
+        syncPackageFromGuests();
         checkTerraceGuestLimit();
-        renderPackages();
-        renderPackageHint();
         assignPartyTables();
+        updatePartyTimeTrigger();
+        if (currentStepId === "package" && !needsTablesStep()) goToStep("decor");
         updateStepProgress();
       });
       el.addEventListener("change", () => {
+        syncPackageFromGuests();
         checkTerraceGuestLimit();
-        renderPackages();
-        renderPackageHint();
         assignPartyTables();
+        updatePartyTimeTrigger();
+        if (currentStepId === "package" && !needsTablesStep()) goToStep("decor");
         updateStepProgress();
       });
     });
@@ -4917,8 +5104,7 @@
     }
 
     restoreBuilderDraft();
-    renderPackages();
-    renderPackageHint();
+    syncPackageFromGuests();
     initPartyDate();
     initPartyTime();
     renderDecorPackages();
@@ -4983,7 +5169,7 @@
       await applyStaffDecorState();
     } else if (editManageToken && editPublicCode) {
       const hashStep = (location.hash || "").replace(/^#/, "");
-      if (BUILDER_FLOW.some((step) => step.id === hashStep)) {
+      if (builderFlow().some((step) => step.id === hashStep)) {
         goToStep(hashStep, { fromHistory: true });
       } else {
         goToStep("details", { fromHistory: true });
