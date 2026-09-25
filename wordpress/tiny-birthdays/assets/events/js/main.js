@@ -5,6 +5,8 @@
   if (!app) return;
 
   const HERO = app.getAttribute("data-hero") || "../birthdays/builder/img/decor/terrace.jpg";
+  const VIDEO = app.getAttribute("data-video") || "video/cooking-class.mp4";
+  const LOGO = app.getAttribute("data-logo") || "../birthdays/img/logo-dark.png";
   const MAPS_EMBED = "https://www.google.com/maps?q=Tiny+Healthy+Cafe+Berawa+Bali&output=embed";
   const MAPS_LINK = "https://maps.app.goo.gl/Sftcte5sWdBqkguJ8";
   const CAFE_ADDRESS = "Gg. Anggrek Gg. Jepun No.5, Tibubeneng, Kuta Utara, Badung, Bali";
@@ -200,6 +202,48 @@
     return items.sort((a, b) => (a.occurs_on + a.start_time).localeCompare(b.occurs_on + b.start_time));
   }
 
+  function groupedDays(fromIso, toIso) {
+    const groups = [];
+    const index = new Map();
+    expanded(fromIso, toIso).forEach((item) => {
+      const key = `${item.public_code}|${item.occurs_on}`;
+      let group = index.get(key);
+      if (!group) {
+        group = { ...item, times: [] };
+        index.set(key, group);
+        groups.push(group);
+      }
+      const label = timeRange(item);
+      if (label && !group.times.includes(label)) group.times.push(label);
+    });
+    return groups;
+  }
+
+  function monthCells(yearMonth) {
+    const [year, month] = yearMonth.split("-").map(Number);
+    const startWeekday = new Date(Date.UTC(year, month - 1, 1)).getUTCDay();
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const prevDays = new Date(Date.UTC(year, month - 1, 0)).getUTCDate();
+    const cells = [];
+    for (let i = 0; i < startWeekday; i += 1) {
+      const day = prevDays - startWeekday + 1 + i;
+      cells.push({ iso: new Date(Date.UTC(year, month - 2, day)).toISOString().slice(0, 10), day, muted: true });
+    }
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      cells.push({
+        iso: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`,
+        day,
+        muted: false,
+      });
+    }
+    let extra = 1;
+    while (cells.length % 7 !== 0) {
+      cells.push({ iso: new Date(Date.UTC(year, month, extra)).toISOString().slice(0, 10), day: extra, muted: true });
+      extra += 1;
+    }
+    return cells;
+  }
+
   function coverStyle(event) {
     if (!event?.cover_url) return `background-image:url('${HERO}')`;
     return `background-image:url('${String(event.cover_url).replace(/'/g, "")}')`;
@@ -234,35 +278,43 @@
   function listingHtml() {
     const today = baliToday();
     const weekEnd = shiftIso(today, 6);
-    const upcoming = expanded(today, weekEnd);
-    const monthStart = `${state.month.slice(0, 7)}-01`;
-    const [year, month] = monthStart.split("-").map(Number);
-    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-    const monthEnd = `${state.month.slice(0, 7)}-${String(daysInMonth).padStart(2, "0")}`;
-    const inMonth = expanded(monthStart, monthEnd);
+    const upcoming = groupedDays(today, weekEnd);
+    const monthKey = state.month.slice(0, 7);
+    const cells = monthCells(monthKey);
+    const inView = expanded(cells[0].iso, cells[cells.length - 1].iso);
     const byDay = {};
-    inMonth.forEach((item) => {
+    inView.forEach((item) => {
       if (!byDay[item.occurs_on]) byDay[item.occurs_on] = [];
       byDay[item.occurs_on].push(item);
     });
-    const lead = isoWeekday(monthStart);
-    const cells = [];
-    for (let i = 0; i < lead; i += 1) cells.push("");
-    for (let day = 1; day <= daysInMonth; day += 1) {
-      cells.push(`${state.month.slice(0, 7)}-${String(day).padStart(2, "0")}`);
-    }
+    const video = escapeHtml(VIDEO);
+    const logo = escapeHtml(LOGO);
     return `
-      <section class="events-hero" style="${coverStyle({ cover_url: HERO })}">
-        <div class="events-hero__copy">
-          <h1>Events at Tiny</h1>
-          <p>Workshops, gatherings and slow afternoons on the terrace in Berawa. See what’s coming up, then add yourself to the guest list.</p>
+      <section class="hero" aria-label="Events">
+        <div class="hero__copy">
+          <div class="eyebrow">Tiny · Exclusive Events &amp; Activities in Bali</div>
+          <h1>Where precious<br>moments<br>become<br>memories</h1>
+          <p class="hero__sub">Exclusive events for all ages from toddler to adults. Check our upcoming events &amp; event calendar to pick one perfect for you!</p>
+          <div class="hero__actions">
+            <a class="btn btn--lg btn--dark" href="#upcoming-events">See our Events</a>
+          </div>
+        </div>
+        <div class="hero__media">
+          <div class="hero__video-card">
+            <video id="hero-video-desktop" playsinline muted loop preload="metadata">
+              <source src="${video}" type="video/mp4">
+            </video>
+            <img class="hero__video-logo" src="${logo}" alt="" width="36" height="36" aria-hidden="true">
+          </div>
+        </div>
+        <div class="hero__video-mobile-wrap">
+          <video id="hero-video-mobile" class="hero__video-mobile" playsinline muted loop preload="metadata">
+            <source src="${video}" type="video/mp4">
+          </video>
         </div>
       </section>
       <div class="events-wrap">
-        <section class="section">
-          <p class="intro">Everything here is an event saved by the Tiny team. Birthdays and table reservations stay on their own pages.</p>
-        </section>
-        <section class="section" style="padding-top:0">
+        <section class="section" id="upcoming-events">
           <div class="section-head">
             <h2 class="section-title">This week</h2>
           </div>
@@ -281,7 +333,8 @@
                               : `<span class="event-card__fallback" style="${coverStyle({ cover_url: HERO })}"></span>`
                           }
                           <strong>${escapeHtml(event.name)}</strong>
-                          <span>${escapeHtml(prettyDate(event.occurs_on))} · ${escapeHtml(timeRange(event))}</span>
+                          <span>${escapeHtml(prettyDate(event.occurs_on))}</span>
+                          <span class="event-card__times">${(event.times || []).map((time) => escapeHtml(time)).join("<br>")}</span>
                         </button>`
                       )
                       .join("")}</div>`
@@ -295,20 +348,36 @@
           <div class="calendar">
             <div class="calendar__bar">
               <button class="btn" type="button" data-month="-1" style="width:auto">Previous</button>
-              <h3>${escapeHtml(monthLabel(monthStart))}</h3>
+              <h3>${escapeHtml(monthLabel(`${monthKey}-01`))}</h3>
               <button class="btn" type="button" data-month="1" style="width:auto">Next</button>
             </div>
             <div class="cal-grid">
-              ${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => `<div class="cal-dow">${day}</div>`).join("")}
+              ${["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+                .map((day) => `<div class="cal-cell is-head">${day}</div>`)
+                .join("")}
               ${cells
-                .map((iso) => {
-                  if (!iso) return `<div></div>`;
-                  const count = (byDay[iso] || []).length;
-                  const todayClass = iso === today ? " is-today" : "";
-                  return `<button class="cal-day${count ? " has-event" : ""}${todayClass}" type="button" data-day="${iso}">
-                    ${Number(iso.slice(8))}
-                    ${count ? `<span class="cal-dots">${Array.from({ length: Math.min(count, 3) }, () => "<i></i>").join("")}</span>` : ""}
-                  </button>`;
+                .map((cell) => {
+                  const items = byDay[cell.iso] || [];
+                  const shown = items.slice(0, 3);
+                  const extra = items.length - shown.length;
+                  const classes = ["cal-cell", cell.muted ? "is-muted" : "", cell.iso === today ? "is-today" : ""]
+                    .filter(Boolean)
+                    .join(" ");
+                  const bars = shown
+                    .map(
+                      (event) =>
+                        `<button class="cal-event" type="button" data-open="${escapeHtml(event.public_code)}">${escapeHtml(
+                          `${event.start_time || ""} ${event.name}`.trim()
+                        )}</button>`
+                    )
+                    .join("");
+                  const more = extra
+                    ? `<button class="cal-more" type="button" data-day="${cell.iso}">+${extra} more</button>`
+                    : "";
+                  return `<div class="${classes}">
+                    <button class="cal-daynum" type="button" data-day="${cell.iso}">${cell.day}</button>
+                    <div class="cal-events">${bars}${more}</div>
+                  </div>`;
                 })
                 .join("")}
             </div>
@@ -324,20 +393,78 @@
       </div>`;
   }
 
+  function bookingWhatsappHref(serverHref, details) {
+    const count = Number(details.pax) || 1;
+    const tickets = count === 1 ? "1 person / 1 ticket" : `${count} people / ${count} tickets`;
+    const lines = [
+      "Hi Tiny! I'd like to book a spot.",
+      `Guest: ${details.name}`,
+      `Email: ${details.email}`,
+      `Event: ${details.eventName}`,
+      details.slot ? `Time: ${details.slot}` : "",
+      `Tickets: ${tickets}`,
+    ].filter(Boolean);
+    let phone = "6282266484226";
+    try {
+      const digits = new URL(serverHref || `https://wa.me/${phone}`).pathname.replace(/\D/g, "");
+      if (digits) phone = digits;
+    } catch {
+      /* keep the cafe WhatsApp number */
+    }
+    return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join("\n"))}`;
+  }
+
   function eventHtml(code) {
     const event = state.events.find((item) => item.public_code === code);
     if (!event) {
-      return `<div class="events-wrap"><section class="section"><p>That event is not on the calendar.</p><p><a href="${escapeHtml(window.location.pathname)}">Back to events</a></p></section></div>`;
+      return `<div class="events-wrap"><section class="section"><p>That event is not on the calendar.</p><p><button class="event-back" type="button" data-back>Back to events</button></p></section></div>`;
     }
     const price = formatIdr(event.price_idr);
+    const slots = eventSlots(event);
+    const cover = event.cover_url || HERO;
     return `
-      <section class="event-banner" style="${coverStyle(event)}">
-        <div class="event-banner__copy">
-          <a class="back-link" href="${escapeHtml(window.location.pathname)}">All events</a>
-          <h1>${escapeHtml(event.name)}</h1>
-        </div>
-      </section>
-      <div class="event-layout">
+      <div class="event-page">
+        <button class="event-back" type="button" data-back>← Upcoming events</button>
+        <figure class="event-flyer">
+          <img src="${escapeHtml(cover)}" alt="${escapeHtml(event.name)} flyer">
+        </figure>
+        <h1 class="event-title">${escapeHtml(event.name)}</h1>
+        <aside class="ticket">
+          <h2>Guest list</h2>
+          <p class="ticket__when">${escapeHtml(prettyDate(event.party_date))}<br>${slots
+            .map((slot) => escapeHtml(timeRange({ start_time: slot.start, end_time: slot.end })))
+            .join("<br>")}</p>
+          ${price ? `<p class="ticket__price">${escapeHtml(price)} <span class="muted" style="font-size:16px">per ticket</span></p>` : ""}
+          <button class="btn" type="button" id="book-spot">Book your spot</button>
+          <form id="guest-form" hidden>
+            <label class="honeypot">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+            <label class="field"><span>Time</span>
+              <select name="slot" required>
+                ${slots.length > 1 ? `<option value="">Choose a time</option>` : ""}
+                ${slots
+                  .map(
+                    (slot) =>
+                      `<option value="${escapeHtml(slot.start)}|${escapeHtml(slot.end)}">${escapeHtml(
+                        timeRange({ start_time: slot.start, end_time: slot.end })
+                      )}</option>`
+                  )
+                  .join("")}
+              </select>
+            </label>
+            <label class="field"><span>Name</span><input name="name" required autocomplete="name"></label>
+            <label class="field"><span>Party size</span><input name="pax" type="number" min="1" max="40" value="1" required></label>
+            <div class="field">
+              <span>WhatsApp</span>
+              <div class="phone-row">
+                <select name="dial" aria-label="Country code">${DIALS.map((dial) => `<option value="${dial}">+${dial}</option>`).join("")}</select>
+                <input name="phone" required inputmode="tel" autocomplete="tel" placeholder="812 3456 7890">
+              </div>
+            </div>
+            <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
+            <button class="btn" type="submit">Book your spot</button>
+            <p class="status" id="guest-status" role="status"></p>
+          </form>
+        </aside>
         <div class="about">
           <h2>About event</h2>
           <p>${escapeHtml(event.about || "We’ll share the details of this gathering at Tiny.")}</p>
@@ -346,28 +473,6 @@
             <p><strong>${escapeHtml(event.location_label || "Tiny Healthy Cafe")}</strong><br>${escapeHtml(CAFE_ADDRESS)}<br><a href="${MAPS_LINK}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a></p>
           </div>
         </div>
-        <aside class="ticket">
-          <h2>Guest list</h2>
-          <p class="ticket__when">${escapeHtml(prettyDate(event.party_date))}<br>${eventSlots(event)
-            .map((slot) => escapeHtml(timeRange({ start_time: slot.start, end_time: slot.end })))
-            .join("<br>")}</p>
-          ${price ? `<p class="ticket__price">${escapeHtml(price)} <span class="muted" style="font-size:16px">per ticket</span></p>` : ""}
-          <form id="guest-form">
-            <label class="honeypot">Website<input name="website" tabindex="-1" autocomplete="off"></label>
-            <label class="field"><span>Name</span><input name="name" required autocomplete="name"></label>
-            <label class="field"><span>Party size</span><input name="pax" type="number" min="1" max="40" value="1" required></label>
-            <div class="field">
-              <span>WhatsApp</span>
-              <div class="phone-row">
-                <select name="dial" aria-label="Country code">${DIALS.map((code) => `<option value="${code}">+${code}</option>`).join("")}</select>
-                <input name="phone" required inputmode="tel" autocomplete="tel" placeholder="812 3456 7890">
-              </div>
-            </div>
-            <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
-            <button class="btn" type="submit">Add to guest list</button>
-            <p class="status" id="guest-status" role="status"></p>
-          </form>
-        </aside>
       </div>
       <div class="wa-modal" id="wa-modal" hidden>
         <div class="wa-modal__card" role="dialog" aria-modal="true" aria-labelledby="wa-title">
@@ -383,7 +488,8 @@
     if (!guest) {
       return `<div class="guest-card"><h1>Guest list</h1><p>${escapeHtml(message || "We couldn’t find that request.")}</p><p><a href="${escapeHtml(window.location.pathname)}">See events</a></p></div>`;
     }
-    const status = guest.status === "confirmed" ? "Confirmed" : "Waiting for Tiny to confirm";
+    const status =
+      guest.status === "confirmed" ? "Confirmed" : guest.status === "contacted" ? "Contacted" : "Waiting for Tiny to confirm";
     return `<div class="guest-card">
       <p class="muted">${escapeHtml(guest.publicCode || "")}</p>
       <h1>${escapeHtml(guest.eventName || "Event")}</h1>
@@ -410,6 +516,20 @@
           .join("")
       : `<p class="muted">No events on this day.</p>`;
     modal.hidden = false;
+  }
+
+  function playVideo(el) {
+    if (!el) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      el.removeAttribute("autoplay");
+      el.pause();
+      return;
+    }
+    el.muted = true;
+    el.loop = true;
+    el.playsInline = true;
+    const playback = el.play();
+    if (playback && typeof playback.catch === "function") playback.catch(() => {});
   }
 
   function bindListing() {
@@ -449,10 +569,16 @@
   }
 
   function bindEvent(code) {
-    const back = app.querySelector(".back-link");
-    back?.addEventListener("click", (event) => {
+    app.querySelector("[data-back]")?.addEventListener("click", (event) => {
       event.preventDefault();
       go("");
+    });
+    document.getElementById("book-spot")?.addEventListener("click", () => {
+      const form = document.getElementById("guest-form");
+      const trigger = document.getElementById("book-spot");
+      if (form) form.hidden = false;
+      if (trigger) trigger.hidden = true;
+      form?.querySelector("[name=name]")?.focus();
     });
     const form = document.getElementById("guest-form");
     form?.addEventListener("submit", async (event) => {
@@ -460,9 +586,16 @@
       const status = document.getElementById("guest-status");
       const data = new FormData(form);
       if (String(data.get("website") || "").trim()) return;
+      const slot = String(data.get("slot") || "");
+      if (!slot.includes("|")) {
+        status.textContent = "Choose a time slot first.";
+        status.className = "status is-error";
+        return;
+      }
       const phone = normalizePhone(data.get("dial"), data.get("phone"));
       if (!/^\+[1-9][0-9]{7,14}$/.test(phone)) {
         status.textContent = "Add a WhatsApp number with the country code.";
+        status.className = "status is-error";
         return;
       }
       const button = form.querySelector("button[type=submit]");
@@ -485,12 +618,14 @@
             pax: Number(data.get("pax")) || 1,
             email: String(data.get("email") || "").trim(),
             phone,
+            slot,
             website: "",
           }),
         });
         const body = await res.json().catch(() => ({}));
         if (!res.ok || !body.ok) {
-          status.textContent = body.error || "Could not join the guest list.";
+          status.textContent = body.error || body.message || "Could not join the guest list.";
+          status.className = "status is-error";
           button.disabled = false;
           return;
         }
@@ -498,11 +633,25 @@
         status.className = "status is-ok";
         const modal = document.getElementById("wa-modal");
         const link = document.getElementById("wa-go");
-        if (link) link.href = body.whatsappHref || "#";
+        const eventItem = state.events.find((item) => item.public_code === code);
+        const slotText = form.querySelector("[name=slot]")?.selectedOptions?.[0]?.textContent?.trim() || "";
+        if (link) {
+          link.href = bookingWhatsappHref(body.whatsappHref, {
+            name: String(data.get("name") || "").trim(),
+            email: String(data.get("email") || "").trim(),
+            eventName: eventItem?.name || "Event",
+            slot: slotText,
+            pax: Number(data.get("pax")) || 1,
+          });
+        }
         if (modal) modal.hidden = false;
         form.reset();
+        form.hidden = true;
+        const trigger = document.getElementById("book-spot");
+        if (trigger) trigger.hidden = false;
       } catch (err) {
-        status.textContent = "Could not join the guest list.";
+        status.textContent = err?.message || "Could not join the guest list.";
+        status.className = "status is-error";
       }
       button.disabled = false;
     });
@@ -548,6 +697,8 @@
     document.title = "Events | Tiny Healthy Cafe";
     app.innerHTML = listingHtml();
     bindListing();
+    playVideo(document.getElementById("hero-video-desktop"));
+    playVideo(document.getElementById("hero-video-mobile"));
   }
 
   window.addEventListener("popstate", render);

@@ -42,6 +42,9 @@ const state = {
   lastView: "overview",
   selectedDate: todayIso(),
   dateMode: "all",
+  eventsDateMode: "upcoming",
+  eventsFrom: "",
+  eventsTo: "",
   calendarMonth: todayIso().slice(0, 7),
   filters: { type: "all", status: "all" },
   overviewStatus: "all",
@@ -416,6 +419,7 @@ function cookingRow(iso) {
 }
 
 function matchesType(row) {
+  if (state.filters.type === "guestlist") return false;
   return state.filters.type === "all" || eventType(row) === state.filters.type;
 }
 
@@ -741,10 +745,12 @@ function bookingCard(row, opts = {}) {
 
 function renderOverview() {
   syncFilterInputs();
-  const dated = overviewRows();
+  const guestOnly = state.filters.type === "guestlist";
+  const dated = guestOnly ? [] : overviewRows();
   const showDate = state.dateMode !== "day";
-  const undated = undatedRows();
-  const visible = dated.concat(undated);
+  const undated = guestOnly ? [] : undatedRows();
+  const guests = visibleGuestRequests();
+  const visible = dated.concat(undated, guests);
   const statPool = overviewDated(matchesType).concat(overviewUndated(matchesType));
   const selectedFilter = state.overviewStatus;
   const stats = [
@@ -767,8 +773,9 @@ function renderOverview() {
     })
     .join("");
   const list = document.getElementById("booking-list");
-  const emptyText =
-    state.dateMode === "upcoming"
+  const emptyText = guestOnly
+    ? "No guest list requests for this filter."
+    : state.dateMode === "upcoming"
       ? "No bookings from today onwards."
       : state.dateMode === "all"
         ? "No bookings yet."
@@ -802,11 +809,15 @@ function renderOverview() {
       .join("");
   }
   const missed = noshowRows();
+  const guestBody = guests.length
+    ? `${guestOnly ? "" : `<p class="date-label undated-label">Guest list requests</p>`}${guests.map(guestRequestCard).join("")}`
+    : "";
   list.innerHTML = [
-    body || (undated.length || missed.length ? "" : `<p class="muted">${emptyText}</p>`),
+    body || (undated.length || missed.length || guests.length ? "" : `<p class="muted">${emptyText}</p>`),
     undated.length
       ? `<p class="date-label undated-label">No date yet</p>${undated.map((row) => bookingCard(row, { showDate, allowNoShow: true })).join("")}`
       : "",
+    guestBody,
   ].join("");
   const noshowSection = document.getElementById("noshow-section");
   const noshowList = document.getElementById("noshow-list");
@@ -816,7 +827,8 @@ function renderOverview() {
   }
   const suffix =
     state.dateMode === "upcoming" ? " from today" : state.dateMode === "all" ? "" : "";
-  document.getElementById("overview-status").textContent = `${visible.length} booking${
+  const noun = guestOnly ? "guest list request" : "booking";
+  document.getElementById("overview-status").textContent = `${visible.length} ${noun}${
     visible.length === 1 ? "" : "s"
   }${suffix}`;
 }
@@ -1691,17 +1703,174 @@ function closeBlockModal() {
   blockModal.hidden = true;
 }
 
+function guestGroupsHtml(guests, slots, eventId) {
+  const list = Array.isArray(guests) ? guests : [];
+  const groups = (slots.length ? slots : [{ start: "", end: "" }]).map((slot) => ({ slot, items: [] }));
+  list.forEach((guest, index) => {
+    const key = slotValue(guest.slot);
+    const match = groups.find((group) => slotValue(group.slot) === key);
+    (match || groups[0]).items.push({ guest, index });
+  });
+  return groups
+    .map((group) => {
+      const heading = slotLabel(group.slot);
+      const body = group.items.length
+        ? `<ul class="kv">${group.items
+            .map(({ guest, index }) => {
+              const status = guest.status === "confirmed" || guest.status === "contacted" ? guest.status : "pending";
+              const options = ["pending", "contacted", "confirmed"]
+                .map(
+                  (value) =>
+                    `<option value="${value}"${status === value ? " selected" : ""}>${guestStatusLabel(value)}</option>`
+                )
+                .join("");
+              return `<li><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax · ${guestStatusLabel(status)}</span><span>${escapeHtml([guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—")} <select data-guest-status data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(guest.id || String(index))}" data-current="${status}" aria-label="Guest list status">${options}</select></span></li>`;
+            })
+            .join("")}</ul>`
+        : `<p class="muted">No guests for this time.</p>`;
+      return `${heading ? `<h4 style="margin:16px 0 8px">${escapeHtml(heading)}</h4>` : ""}${body}`;
+    })
+    .join("");
+}
+
 function pendingGuestCount(row) {
   return (row?.payload?.event?.guests || []).filter((guest) => guest.status === "pending").length;
 }
 
-function guestRowHtml(guest = {}) {
+function guestStatusLabel(status) {
+  if (status === "confirmed") return "Confirmed";
+  if (status === "contacted") return "Contacted";
+  return "Pending";
+}
+
+function guestRequests() {
+  const items = [];
+  state.rows.forEach((row) => {
+    if (row.source !== "event" || row.synthetic) return;
+    (row.payload?.event?.guests || []).forEach((guest, index) => {
+      if (!guest?.name && !guest?.email && !guest?.phone) return;
+      items.push({
+        eventId: row.id,
+        guestId: guest.id || String(index),
+        name: guest.name || "Guest",
+        email: guest.email || "",
+        phone: guest.phone || "",
+        pax: Number(guest.pax) || 1,
+        status: guest.status === "confirmed" || guest.status === "contacted" ? guest.status : "pending",
+        slot: slotLabel(guest.slot),
+        party_date: row.party_date || "",
+        party_time: guest.slot?.start || row.party_time || "",
+        eventName: row.payload?.event?.name || row.contact_name || "Event",
+        public_code: row.public_code || "",
+      });
+    });
+  });
+  return items;
+}
+
+function guestMatchesOverview(item) {
+  const filter = state.overviewStatus;
+  if (filter === "all") return true;
+  if (filter === "pending") return item.status === "pending" || item.status === "contacted";
+  if (filter === "new") return item.status === "pending";
+  if (filter === "contacted") return item.status === "contacted";
+  if (filter === "booked") return item.status === "confirmed";
+  return false;
+}
+
+function guestMatchesDate(item) {
+  const today = todayIso();
+  if (!item.party_date) return state.dateMode === "all";
+  if (state.dateMode === "upcoming") return item.party_date >= today;
+  if (state.dateMode === "day") return item.party_date === state.selectedDate;
+  return true;
+}
+
+function visibleGuestRequests() {
+  if (state.filters.type !== "all" && state.filters.type !== "guestlist") return [];
+  return guestRequests()
+    .filter((item) => guestMatchesOverview(item) && guestMatchesDate(item))
+    .sort((a, b) => {
+      const byDate = String(a.party_date).localeCompare(String(b.party_date));
+      if (byDate) return byDate;
+      return String(a.party_time).localeCompare(String(b.party_time));
+    });
+}
+
+function guestRequestCard(item) {
+  const options = ["pending", "contacted", "confirmed"]
+    .map(
+      (value) =>
+        `<option value="${value}"${item.status === value ? " selected" : ""}>${guestStatusLabel(value)}</option>`
+    )
+    .join("");
+  return `<article class="booking-card guest-request">
+    <div>
+      <div class="code">${escapeHtml(item.public_code)}</div>
+      <h3>${escapeHtml(item.name)}</h3>
+      <div class="muted">${escapeHtml([item.email, item.phone].filter(Boolean).join(" · ") || "—")}</div>
+    </div>
+    <div>
+      <span class="badge badge--${item.status === "confirmed" ? "booked" : item.status === "contacted" ? "contacted" : "new"}">${escapeHtml(guestStatusLabel(item.status))}</span>
+      <div class="muted">Guest list · ${escapeHtml(item.eventName)}</div>
+    </div>
+    <div class="time">${escapeHtml(item.slot || timeLabel(item.party_time))}
+      <div class="muted">${escapeHtml(item.party_date ? formatShortDate(item.party_date) : "No date")} · ${escapeHtml(item.pax)} ${item.pax === 1 ? "ticket" : "tickets"}</div>
+    </div>
+    <label class="guest-status">
+      <span>Status</span>
+      <select data-guest-status data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}" data-current="${escapeHtml(item.status)}" aria-label="Guest list status">${options}</select>
+    </label>
+  </article>`;
+}
+
+async function setGuestRequestStatus(eventId, guestId, status) {
+  const row = state.rows.find((item) => item.id === eventId);
+  if (!row) throw new Error("Could not find that event.");
+  const guests = [...(row.payload?.event?.guests || [])];
+  const index = guests.findIndex((guest, i) => (guest.id || String(i)) === guestId);
+  if (index < 0) throw new Error("Could not find that guest.");
+  guests[index] = { ...guests[index], status };
+  const nextPayload = { ...row.payload, event: { ...(row.payload?.event || {}), guests } };
+  const { error } = await supabase.from("requests").update({ payload: nextPayload }).eq("id", eventId).eq("source", "event");
+  if (error) throw error;
+  row.payload = nextPayload;
+}
+
+function slotValue(slot) {
+  const start = String(slot?.start || "").slice(0, 5);
+  const end = String(slot?.end || "").slice(0, 5);
+  return start && end ? `${start}|${end}` : "";
+}
+
+function slotFromValue(value) {
+  const [start, end] = String(value || "").split("|");
+  if (!start || !end) return null;
+  return { start: start.slice(0, 5), end: end.slice(0, 5) };
+}
+
+function slotLabel(slot) {
+  const value = slotValue(slot);
+  return value ? value.replace("|", "–") : "";
+}
+
+function guestRowHtml(guest = {}, slots = []) {
+  const chosen = slotValue(guest.slot) || (slots[0] ? slotValue(slots[0]) : "");
+  const slotControl = slots.length
+    ? `<select name="guest-slot" aria-label="Time slot">${slots
+        .map((slot) => {
+          const value = slotValue(slot);
+          return `<option value="${escapeHtml(value)}"${value === chosen ? " selected" : ""}>${escapeHtml(slotLabel(slot))}</option>`;
+        })
+        .join("")}</select>`
+    : `<input type="hidden" name="guest-slot" value="${escapeHtml(chosen)}">`;
   return `<div class="guest-row">
     <input type="hidden" name="guest-id" value="${escapeHtml(guest.id || "")}">
     <input type="hidden" name="guest-token" value="${escapeHtml(guest.token || "")}">
     <input type="hidden" name="guest-status" value="${escapeHtml(guest.status || "")}">
     <input type="hidden" name="guest-source" value="${escapeHtml(guest.source || "")}">
     <input type="hidden" name="guest-created" value="${escapeHtml(guest.created_at || "")}">
+    ${slotControl}
     <input type="text" name="guest-name" placeholder="Name" value="${escapeHtml(guest.name || "")}">
     <input type="number" name="guest-pax" min="1" placeholder="PAX" value="${escapeHtml(guest.pax || 1)}">
     <input type="tel" name="guest-phone" placeholder="Phone" value="${escapeHtml(guest.phone || "")}">
@@ -1726,11 +1895,13 @@ function readGuestRows(selector) {
       const status = row.querySelector('[name="guest-status"]')?.value.trim() || "";
       const source = row.querySelector('[name="guest-source"]')?.value.trim() || "";
       const createdAt = row.querySelector('[name="guest-created"]')?.value.trim() || "";
+      const slot = slotFromValue(row.querySelector('[name="guest-slot"]')?.value || "");
       if (id) guest.id = id;
       if (token) guest.token = token;
       if (status) guest.status = status;
       if (source) guest.source = source;
       if (createdAt) guest.created_at = createdAt;
+      if (slot) guest.slot = slot;
       return guest;
     })
     .filter((guest) => guest.name || guest.phone || guest.email);
@@ -1895,6 +2066,18 @@ function fillEventSlots(slots) {
   host.innerHTML = list.map((slot) => slotRowHtml(slot)).join("");
 }
 
+function fillEventGuests(guests) {
+  const host = document.getElementById("event-guests");
+  if (!host) return;
+  const slots = readEventSlots();
+  const list = guests?.length ? guests : [{}];
+  host.innerHTML = list.map((guest) => guestRowHtml(guest, slots)).join("");
+}
+
+function refreshGuestSlotSelects() {
+  fillEventGuests(readGuestList());
+}
+
 function openEventModal(opts = {}) {
   state.editingEventId = opts.id || null;
   document.getElementById("event-modal-title").textContent = opts.id ? "Edit event" : "Add event";
@@ -1915,7 +2098,7 @@ function openEventModal(opts = {}) {
   });
   fillEventPricing(opts.pricing || {});
   fillEventTableList(opts.tableIds || []);
-  document.getElementById("event-guests").innerHTML = (opts.guests?.length ? opts.guests : [{}]).map(guestRowHtml).join("");
+  fillEventGuests(opts.guests);
   document.getElementById("event-status").textContent = "";
   document.getElementById("event-status").className = "status";
   syncEventLocationFields();
@@ -1929,20 +2112,45 @@ function closeEventModal() {
   state.editingEventId = null;
 }
 
+function eventCoversRange(row, from, to) {
+  if (!row?.party_date) return false;
+  const repeat = eventRepeat(row);
+  const seriesEnd = repeat.freq && repeat.freq !== "none" ? repeat.until || "9999-12-31" : row.party_date;
+  if (seriesEnd < from) return false;
+  if (to && row.party_date > to) return false;
+  return true;
+}
+
 function renderEvents() {
   syncFilterInputs();
+  const today = todayIso();
+  const mode = state.eventsDateMode === "range" ? "range" : "upcoming";
+  const from = mode === "range" ? state.eventsFrom || today : today;
+  const to = mode === "range" ? state.eventsTo || "" : "";
+  const modeInput = document.getElementById("events-date-mode");
+  const fromWrap = document.getElementById("events-from-wrap");
+  const toWrap = document.getElementById("events-to-wrap");
+  const fromInput = document.getElementById("events-from");
+  const toInput = document.getElementById("events-to");
+  if (modeInput) modeInput.value = mode;
+  if (fromWrap) fromWrap.hidden = mode !== "range";
+  if (toWrap) toWrap.hidden = mode !== "range";
+  if (fromInput && document.activeElement !== fromInput) fromInput.value = state.eventsFrom || today;
+  if (toInput && document.activeElement !== toInput) toInput.value = state.eventsTo || "";
   const rows = state.rows
     .filter((row) => row.source === "event")
     .filter(matchesStatus)
-    .filter((row) => row.party_date === state.selectedDate)
-    .sort((a, b) => timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)));
-  document.getElementById("events-count").textContent = `${rows.length} event${
-    rows.length === 1 ? "" : "s"
-  } on this date`;
+    .filter((row) => eventCoversRange(row, from, to))
+    .sort((a, b) => String(a.party_date).localeCompare(String(b.party_date)) || timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)));
+  const rangeLabel =
+    mode === "range"
+      ? `${formatShortDate(from)}${to ? ` – ${formatShortDate(to)}` : " onward"}`
+      : "from today";
+  document.getElementById("events-count").textContent = `${rows.length} event${rows.length === 1 ? "" : "s"} ${rangeLabel}`;
   const list = document.getElementById("events-list");
   list.innerHTML = rows.length
-    ? rows.map((row) => bookingCard(row)).join("")
-    : `<p class="muted">No events on this date. Add one to block tables, keep a guest list, and push it to Google Calendar.</p>`;
+    ? rows.map((row) => bookingCard(row, { showDate: true })).join("")
+    : `<p class="muted">No events ${escapeHtml(rangeLabel)}. Add one to block tables, keep a guest list, and push it to Google Calendar.</p>`;
 }
 
 async function uploadEventPhotos(requestId, fileList) {
@@ -2983,26 +3191,7 @@ async function loadDetail(id) {
             <button class="btn btn--outline" type="button" id="export-guests">Export guest list PDF</button>
             <button class="btn btn--outline" type="button" id="share-guests">Share guest list</button>
           </div>
-          ${
-            (payload.event?.guests || []).length
-              ? `<ul class="kv">${payload.event.guests
-                  .map((guest, index) => {
-                    const pending = guest.status === "pending";
-                    const confirmed = guest.status === "confirmed";
-                    const stateLabel = pending ? "Pending" : confirmed ? "Confirmed" : "";
-                    return `<li><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax${
-                      stateLabel ? ` · ${stateLabel}` : ""
-                    }</span><span>${escapeHtml(
-                      [guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—"
-                    )}${
-                      pending
-                        ? ` <button class="btn" type="button" data-confirm-guest="${index}">Confirm</button>`
-                        : ""
-                    }</span></li>`;
-                  })
-                  .join("")}</ul>`
-              : `<p class="muted">No guests added.</p>`
-          }
+          ${guestGroupsHtml(payload.event?.guests || [], eventTimeSlots(row), row.id)}
         </section>
         ${
           isEvent && eventPricingFromRow(row)
@@ -3236,7 +3425,7 @@ async function loadDetail(id) {
           ? guests
               .map(
                 (guest) =>
-                  `<li><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</span><span>${escapeHtml(
+                  `<li><span>${escapeHtml(slotLabel(guest.slot) || "Time")} · ${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</span><span>${escapeHtml(
                     [guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—"
                   )}</span></li>`
               )
@@ -3259,7 +3448,7 @@ async function loadDetail(id) {
       `${formatLongDate(row.party_date)} · ${slotRange(row)}`,
       ...guests.map(
         (guest) =>
-          `${guest.name || "Guest"} · ${guest.pax || 1} pax${guest.phone ? ` · ${guest.phone}` : ""}${
+          `${slotLabel(guest.slot) ? `${slotLabel(guest.slot)} · ` : ""}${guest.name || "Guest"} · ${guest.pax || 1} pax${guest.phone ? ` · ${guest.phone}` : ""}${
             guest.email ? ` · ${guest.email}` : ""
           }`
       ),
@@ -3813,6 +4002,22 @@ signOutBtn?.addEventListener("click", async () => {
   showApp(false);
 });
 
+document.getElementById("app")?.addEventListener("change", (e) => {
+  const select = e.target.closest("[data-guest-status]");
+  if (!select) return;
+  const previous = select.dataset.current || "pending";
+  setGuestRequestStatus(select.dataset.eventId, select.dataset.guestId, select.value)
+    .then(() => {
+      select.dataset.current = select.value;
+      if (state.view === "overview") showInbox("overview");
+      else if (location.hash.includes("/request/")) loadDetail(select.dataset.eventId);
+    })
+    .catch((err) => {
+      select.value = previous;
+      window.alert(err.message || "Could not update the guest list status.");
+    });
+});
+
 document.getElementById("inbox-views")?.addEventListener("click", (e) => {
   const noshowBtn = e.target.closest("[data-noshow]");
   if (noshowBtn) {
@@ -3996,11 +4201,25 @@ eventModal?.addEventListener("click", (e) => {
 });
 document.getElementById("event-location")?.addEventListener("change", syncEventLocationFields);
 document.getElementById("event-full-terrace")?.addEventListener("change", applyFullTerrace);
+document.getElementById("events-date-mode")?.addEventListener("change", (e) => {
+  state.eventsDateMode = e.target.value === "range" ? "range" : "upcoming";
+  if (state.eventsDateMode === "range" && !state.eventsFrom) state.eventsFrom = todayIso();
+  if (state.view === "events") renderEvents();
+});
+document.getElementById("events-from")?.addEventListener("change", (e) => {
+  state.eventsFrom = e.target.value || todayIso();
+  if (state.view === "events") renderEvents();
+});
+document.getElementById("events-to")?.addEventListener("change", (e) => {
+  state.eventsTo = e.target.value || "";
+  if (state.view === "events") renderEvents();
+});
 document.getElementById("event-guest-add")?.addEventListener("click", () => {
-  document.getElementById("event-guests")?.insertAdjacentHTML("beforeend", guestRowHtml());
+  document.getElementById("event-guests")?.insertAdjacentHTML("beforeend", guestRowHtml({}, readEventSlots()));
 });
 document.getElementById("event-slot-add")?.addEventListener("click", () => {
   document.getElementById("event-slots")?.insertAdjacentHTML("beforeend", slotRowHtml());
+  refreshGuestSlotSelects();
 });
 document.getElementById("event-slots")?.addEventListener("click", (e) => {
   if (!e.target.closest("[data-remove-slot]")) return;
@@ -4008,13 +4227,17 @@ document.getElementById("event-slots")?.addEventListener("click", (e) => {
   const host = document.getElementById("event-slots");
   if (host && host.querySelectorAll(".event-slot").length <= 1) return;
   row?.remove();
+  refreshGuestSlotSelects();
+});
+document.getElementById("event-slots")?.addEventListener("change", () => {
+  refreshGuestSlotSelects();
 });
 document.getElementById("event-guests")?.addEventListener("click", (e) => {
   if (!e.target.closest("[data-remove-guest]")) return;
   const row = e.target.closest(".guest-row");
   const host = document.getElementById("event-guests");
   row?.remove();
-  if (host && !host.querySelector(".guest-row")) host.insertAdjacentHTML("beforeend", guestRowHtml());
+  if (host && !host.querySelector(".guest-row")) host.insertAdjacentHTML("beforeend", guestRowHtml({}, readEventSlots()));
 });
 document.getElementById("event-form")?.addEventListener("input", (e) => {
   if (e.target.closest("#event-pricing")) refreshEventPricingPreview();

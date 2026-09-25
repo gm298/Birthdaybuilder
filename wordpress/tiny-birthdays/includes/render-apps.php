@@ -31,5 +31,7 @@ function tiny_birthdays_render_cake_app($attrs) {
 
 function tiny_birthdays_render_events() {
     $hero = 'https://tinyhealthycafe.com/birthdays/builder/img/decor/terrace.jpg';
-    return '<div id="events-app" data-hero="' . esc_url($hero) . '"></div>';
+    $video = tiny_birthdays_asset('events/video/cooking-class.mp4');
+    $logo = tiny_birthdays_asset('birthdays/img/logo-dark.png');
+    return '<div id="events-app" data-hero="' . esc_url($hero) . '" data-video="' . esc_url($video) . '" data-logo="' . esc_url($logo) . '"></div>';
 }

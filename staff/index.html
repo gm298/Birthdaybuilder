@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/staff.css?v=20260924e">
+  <link rel="stylesheet" href="css/staff.css?v=20260925d">
 </head>
 <body>
   <div class="staff-shell">
@@ -75,6 +75,7 @@
               <option value="birthday">Birthday</option>
               <option value="reservation">Reservation</option>
               <option value="event">Event</option>
+              <option value="guestlist">Guest list</option>
             </select>
           </label>
           <label class="filter">
@@ -215,6 +216,21 @@
         <div id="events-view" hidden>
           <div class="tables-toolbar">
             <p class="muted" id="events-count"></p>
+            <label class="filter">
+              <span>Dates</span>
+              <select id="events-date-mode" aria-label="Event dates">
+                <option value="upcoming">All dates from today</option>
+                <option value="range">Date range</option>
+              </select>
+            </label>
+            <label class="filter" id="events-from-wrap" hidden>
+              <span>From</span>
+              <input type="date" id="events-from" aria-label="From date">
+            </label>
+            <label class="filter" id="events-to-wrap" hidden>
+              <span>To</span>
+              <input type="date" id="events-to" aria-label="To date">
+            </label>
             <button class="btn" type="button" id="add-event">Add event</button>
           </div>
           <div class="booking-list" id="events-list"></div>
@@ -367,6 +383,6 @@
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/reserve-tables.js?v=20260924e"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js"></script>
-  <script type="module" src="js/app.js?v=20260924f"></script>
+  <script type="module" src="js/app.js?v=20260925d"></script>
 </body>
 </html>

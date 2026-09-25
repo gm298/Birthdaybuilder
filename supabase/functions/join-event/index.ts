@@ -65,8 +65,19 @@ function guestLink(token: string) {
   return `${siteOrigin()}/events/?g=${encodeURIComponent(token)}`;
 }
 
-function whatsappHref(eventName: string, date: string) {
-  const text = `Hi Tiny! I'd like to join the guest list for ${eventName}${date ? ` on ${date}` : ""}.`;
+function whatsappHref(details: { name: string; email: string; eventName: string; slot: string; pax: number }) {
+  const count = Number(details.pax) || 1;
+  const tickets = count === 1 ? "1 person / 1 ticket" : `${count} people / ${count} tickets`;
+  const text = [
+    "Hi Tiny! I'd like to book a spot.",
+    `Guest: ${details.name}`,
+    `Email: ${details.email}`,
+    `Event: ${details.eventName}`,
+    details.slot ? `Time: ${details.slot}` : "",
+    `Tickets: ${tickets}`,
+  ]
+    .filter(Boolean)
+    .join("\n");
   return `https://wa.me/${WA}?text=${encodeURIComponent(text)}`;
 }
 
@@ -81,7 +92,38 @@ type Guest = {
   token?: string;
   source?: string;
   created_at?: string;
+  slot?: { start?: string; end?: string };
 };
+
+function slotFrom(value: unknown) {
+  if (value && typeof value === "object") {
+    const record = value as { start?: unknown; end?: unknown };
+    const start = asString(record.start).slice(0, 5);
+    const end = asString(record.end).slice(0, 5);
+    return start && end ? { start, end } : null;
+  }
+  const [start, end] = asString(value).split("|");
+  if (!start || !end) return null;
+  return { start: start.slice(0, 5), end: end.slice(0, 5) };
+}
+
+function slotLabel(slot?: { start?: string; end?: string } | null) {
+  const start = asString(slot?.start).slice(0, 5);
+  const end = asString(slot?.end).slice(0, 5);
+  return start && end ? `${start}–${end}` : "";
+}
+
+function eventSlots(event: Record<string, unknown>, row: { party_time?: string; payload?: { reservation?: { endTime?: string } } }) {
+  const raw = Array.isArray(event.slots) ? event.slots : [];
+  const slots = raw
+    .map((item) => slotFrom(item))
+    .filter((item): item is { start: string; end: string } => Boolean(item));
+  if (slots.length) return slots;
+  const start = asString(row.party_time).slice(0, 5);
+  const end = asString(row.payload?.reservation?.endTime).slice(0, 5);
+  if (start) return [{ start, end: end || start }];
+  return [];
+}
 
 Deno.serve(async (req) => {
   const origin = req.headers.get("origin");
@@ -120,14 +162,14 @@ Deno.serve(async (req) => {
       const guest = guests.find((item) => item.token === token);
       if (!guest) continue;
       const eventName = row.payload?.event?.name || row.contact_name || "Event";
-      const start = String(row.party_time || "").slice(0, 5);
+      const start = slotLabel(guest.slot) || String(row.party_time || "").slice(0, 5);
       return json(
         {
           ok: true,
           guest: {
             name: guest.name || "Guest",
             pax: Number(guest.pax) || 1,
-            status: guest.status === "confirmed" ? "confirmed" : "pending",
+            status: guest.status === "confirmed" || guest.status === "contacted" ? guest.status : "pending",
             eventName,
             partyDate: row.party_date,
             startTime: start,
@@ -183,6 +225,11 @@ Deno.serve(async (req) => {
 
   const payload = row.payload && typeof row.payload === "object" ? row.payload : {};
   const event = payload.event && typeof payload.event === "object" ? payload.event : {};
+  const slots = eventSlots(event as Record<string, unknown>, row);
+  const chosen = slotFrom(body.slot);
+  const matched = chosen ? slots.find((slot) => slot.start === chosen.start && slot.end === chosen.end) : null;
+  if (!matched) return json({ ok: false, error: "Choose a time slot first." }, 400, origin);
+
   const guests = Array.isArray(event.guests) ? [...event.guests] : [];
   const existing = guests.find(
     (guest: Guest) =>
@@ -190,17 +237,11 @@ Deno.serve(async (req) => {
   );
   const eventName = event.name || row.contact_name || "Event";
   const date = row.party_date || "";
-  if (existing?.token) {
+  if (existing) {
+    const when = slotLabel(existing.slot) || slotLabel(slots[0]);
     return json(
-      {
-        ok: true,
-        already: true,
-        token: existing.token,
-        link: guestLink(existing.token),
-        whatsappHref: whatsappHref(eventName, date),
-        status: existing.status === "confirmed" ? "confirmed" : "pending",
-      },
-      200,
+      { ok: false, error: `You're already on the guest list${when ? ` for ${when}` : ""}.` },
+      409,
       origin
     );
   }
@@ -216,32 +257,42 @@ Deno.serve(async (req) => {
     status: "pending",
     token,
     source: "website",
+    slot: matched,
     created_at: new Date().toISOString(),
   });
   const nextPayload = { ...payload, event: { ...event, guests } };
   const { error: updateError } = await supabase.from("requests").update({ payload: nextPayload }).eq("id", row.id);
   if (updateError) return json({ ok: false, error: "Could not save the guest list." }, 500, origin);
 
-  const start = String(row.party_time || "").slice(0, 5);
-  await sendBookingEmail({
-    kind: "event",
-    to: email,
-    publicCode: row.public_code,
-    manageToken: token,
-    guestName: name,
-    partyDate: date,
-    partyTime: start,
-    guestsLabel: `${pax}`,
-    eventName,
-    link: guestLink(token),
-  });
+  try {
+    await sendBookingEmail({
+      kind: "event",
+      to: email,
+      publicCode: row.public_code,
+      manageToken: token,
+      guestName: name,
+      partyDate: date,
+      partyTime: slotLabel(matched),
+      guestsLabel: `${pax}`,
+      eventName,
+      link: guestLink(token),
+    });
+  } catch (_emailError) {
+    /* The guest is saved even if the confirmation email cannot be sent. */
+  }
 
   return json(
     {
       ok: true,
       token,
       link: guestLink(token),
-      whatsappHref: whatsappHref(eventName, date),
+      whatsappHref: whatsappHref({
+        name,
+        email,
+        eventName,
+        slot: slotLabel(matched),
+        pax,
+      }),
       status: "pending",
     },
     200,

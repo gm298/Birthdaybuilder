@@ -384,6 +384,26 @@ textarea {
 
 .booking-card:hover { background: #f4f7f4; }
 
+.guest-request {
+  grid-template-columns: 1.2fr 1fr auto auto;
+  cursor: default;
+}
+
+.guest-status {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted, #5c6b63);
+}
+
+.guest-status select {
+  border: 1px solid rgba(100, 124, 110, 0.28);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  font: inherit;
+}
+
 .booking-card-wrap {
   display: grid;
   grid-template-columns: 1fr auto;
