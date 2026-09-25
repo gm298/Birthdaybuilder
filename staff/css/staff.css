@@ -420,6 +420,24 @@ textarea {
   font: inherit;
 }
 
+.guest-detail-row {
+  align-items: start;
+}
+
+.guest-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.btn--tiny {
+  padding: 6px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .booking-card-wrap {
   display: grid;
   grid-template-columns: 1fr auto;

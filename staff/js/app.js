@@ -151,7 +151,12 @@ function timeLabel(value) {
   return String(value || "").slice(0, 5) || "—";
 }
 
+function isGuestListVisit(row) {
+  return Boolean(row?.guestList || row?.payload?.guestListEntry);
+}
+
 function eventType(row) {
+  if (isGuestListVisit(row)) return "guestlist";
   if (row?.synthetic || row?.source === "event") return "event";
   if (row?.source === "reservation") return "reservation";
   return "birthday";
@@ -174,7 +179,7 @@ function sourceLabel(source) {
 
 function typeLabel(type) {
   if (type === "reservation") return "Reservation";
-  if (type === "event") return "Event booking";
+  if (type === "guestlist" || type === "event") return "Guest list";
   return "Birthday";
 }
 
@@ -986,6 +991,7 @@ function shiftMonth(yearMonth, delta) {
 
 function openTarget(row) {
   if (row.synthetic) return `#/cooking/${row.party_date}`;
+  if (isGuestListVisit(row) && row.eventId) return `#/request/${row.eventId}`;
   return `#/request/${row.id}`;
 }
 
@@ -1328,6 +1334,7 @@ function guestKey(row) {
   const email = String(row.email || "").trim().toLowerCase();
   if (phone) return `p:${phone}`;
   if (email) return `e:${email}`;
+  if (isGuestListVisit(row) && row.eventId && row.guestId) return `gl:${row.eventId}:${row.guestId}`;
   return `id:${row.id}`;
 }
 
@@ -1365,8 +1372,40 @@ function splitPhone(raw) {
 }
 
 function isCompletedVisit(row) {
+  if (isGuestListVisit(row)) {
+    return (
+      normalizeGuestStatus(row.status) === "confirmed" &&
+      Boolean(row.party_date) &&
+      row.party_date < todayIso()
+    );
+  }
   if (row.status === "closed") return true;
   return row.status === "booked" && Boolean(row.party_date) && row.party_date < todayIso();
+}
+
+function guestListVisitFrom(row, guest, index) {
+  const guestId = guest.id || String(index);
+  return {
+    id: null,
+    guestList: true,
+    eventId: row.id,
+    guestId,
+    source: "event",
+    contact_name: guest.name || "Guest",
+    email: guest.email || "",
+    phone: guest.phone || "",
+    party_date: row.party_date || "",
+    party_time: guest.slot?.start || row.party_time || "",
+    status: normalizeGuestStatus(guest.status),
+    public_code: row.public_code || "",
+    created_at: guest.created_at || row.created_at || "",
+    archived_at: guest.archived_at || null,
+    payload: {
+      event: row.payload?.event,
+      guestListEntry: true,
+      guest,
+    },
+  };
 }
 
 function isPaidInFull(row) {
@@ -1378,46 +1417,64 @@ function customerRecords(opts = {}) {
   const includeArchived = Boolean(opts.archived);
   const source = includeArchived ? archivedRows() : activeRows();
   const groups = new Map();
+
+  function upsert(row) {
+    const key = guestKey(row);
+    if (!groups.has(key)) {
+      const phoneParts = splitPhone(row.phone);
+      groups.set(key, {
+        key,
+        name: customerName(row),
+        phone: row.phone || "",
+        email: row.email || "",
+        countryCode: phoneParts.code,
+        nationalPhone: phoneParts.national,
+        types: new Set(),
+        birthdayDate: "",
+        visits: [],
+      });
+    }
+    const guest = groups.get(key);
+    if (!guest.name || guest.name === "Guest") guest.name = customerName(row);
+    if (!guest.phone && row.phone) {
+      guest.phone = row.phone;
+      const phoneParts = splitPhone(row.phone);
+      guest.countryCode = phoneParts.code;
+      guest.nationalPhone = phoneParts.national;
+    }
+    if (!guest.email && row.email) guest.email = row.email;
+    guest.types.add(eventType(row));
+    if (eventType(row) === "birthday" && row.party_date && row.party_date > (guest.birthdayDate || "")) {
+      guest.birthdayDate = row.party_date;
+    }
+    guest.visits.push(row);
+  }
+
   source
     .slice()
     .sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")))
     .forEach((row) => {
       if (eventType(row) === "event") return;
-      const key = guestKey(row);
-      if (!groups.has(key)) {
-        const phoneParts = splitPhone(row.phone);
-        groups.set(key, {
-          key,
-          name: customerName(row),
-          phone: row.phone || "",
-          email: row.email || "",
-          countryCode: phoneParts.code,
-          nationalPhone: phoneParts.national,
-          types: new Set(),
-          birthdayDate: "",
-          visits: [],
-        });
-      }
-      const guest = groups.get(key);
-      if (!guest.name || guest.name === "Guest") guest.name = customerName(row);
-      if (!guest.phone && row.phone) {
-        guest.phone = row.phone;
-        const phoneParts = splitPhone(row.phone);
-        guest.countryCode = phoneParts.code;
-        guest.nationalPhone = phoneParts.national;
-      }
-      if (!guest.email && row.email) guest.email = row.email;
-      guest.types.add(eventType(row));
-      if (eventType(row) === "birthday" && row.party_date && row.party_date > (guest.birthdayDate || "")) {
-        guest.birthdayDate = row.party_date;
-      }
-      guest.visits.push(row);
+      upsert(row);
     });
+
+  state.rows.forEach((row) => {
+    if (row.source !== "event" || row.synthetic) return;
+    (row.payload?.event?.guests || []).forEach((guest, index) => {
+      if (!guest?.name && !guest?.email && !guest?.phone) return;
+      const archived = Boolean(guest.archived_at) || isArchived(row);
+      if (includeArchived ? !archived : archived) return;
+      const visit = guestListVisitFrom(row, guest, index);
+      if (!visit.archived_at && isArchived(row)) visit.archived_at = row.archived_at;
+      upsert(visit);
+    });
+  });
+
   return [...groups.values()];
 }
 
 function usageTypesLabel(guest) {
-  return ["birthday", "reservation"]
+  return ["birthday", "reservation", "guestlist"]
     .filter((type) => guest.types.has(type))
     .map(typeLabel)
     .join(", ");
@@ -1436,9 +1493,10 @@ function renderCustomers() {
     return true;
   });
   const allGuests = customerRecords({ archived: showArchived });
-  const completed = (showArchived ? archivedRows() : activeRows()).filter(
-    (row) => eventType(row) !== "event" && isCompletedVisit(row)
-  ).length;
+  const completed = allGuests.reduce(
+    (count, guest) => count + guest.visits.filter((row) => isCompletedVisit(row)).length,
+    0
+  );
   const modeToggle = document.getElementById("customers-archive-toggle");
   if (modeToggle) {
     modeToggle.textContent = showArchived ? "Show active" : "Show archived";
@@ -1491,7 +1549,7 @@ function renderCustomers() {
 
 function visitGroupLabel(type) {
   if (type === "reservation") return "Reservations";
-  if (type === "event") return "Event bookings";
+  if (type === "guestlist" || type === "event") return "Guest list";
   return "Birthdays";
 }
 
@@ -1512,7 +1570,7 @@ function loadCustomer(key) {
   const guestArchived = guest.visits.every((row) => isArchived(row));
   const waDigits = String(guest.phone || "").replace(/\D/g, "");
   const wa = waDigits ? `https://wa.me/${waDigits}` : "";
-  const groups = ["birthday", "reservation"].map((type) => ({
+  const groups = ["birthday", "reservation", "guestlist"].map((type) => ({
     type,
     rows: guest.visits.filter((row) => eventType(row) === type),
   }));
@@ -1561,16 +1619,22 @@ function loadCustomer(key) {
             <h3>${escapeHtml(visitGroupLabel(group.type))}</h3>
             <ul class="customer-history">
               ${group.rows
-                .map(
-                  (row) => `<li>
+                .map((row) => {
+                  const visitStatus = isGuestListVisit(row)
+                    ? guestStatusLabel(row.status)
+                    : statusLabel(row.status);
+                  const eventName = isGuestListVisit(row)
+                    ? row.payload?.event?.name || row.public_code || "Event"
+                    : row.public_code || displayName(row);
+                  return `<li>
                     <a href="${escapeHtml(openTarget(row))}">
-                      <strong>${escapeHtml(row.public_code || displayName(row))}</strong>
+                      <strong>${escapeHtml(eventName)}</strong>
                       <span>${escapeHtml(row.party_date ? formatShortDate(row.party_date) : "No date")} · ${escapeHtml(
                         timeLabel(row.party_time)
-                      )} · ${escapeHtml(statusLabel(row.status))}${isArchived(row) ? " · Archived" : ""}</span>
+                      )} · ${escapeHtml(visitStatus)}${isArchived(row) ? " · Archived" : ""}</span>
                     </a>
-                  </li>`
-                )
+                  </li>`;
+                })
                 .join("")}
             </ul>
           </section>`;
@@ -1617,13 +1681,24 @@ async function saveCustomerDetails(key) {
   if (emailRaw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email.");
   if (phoneRaw && !phone) throw new Error("Enter a valid phone with country code (e.g. +62…).");
   if (!email && !phone) throw new Error("Email or phone is required.");
-  const ids = guest.visits.map((row) => row.id).filter(Boolean);
-  if (!ids.length) throw new Error("No bookings to update.");
+  if (!guest.visits.length) throw new Error("No bookings to update.");
   if (statusEl) {
     statusEl.textContent = "Saving…";
     statusEl.className = "status";
   }
   for (const row of guest.visits) {
+    if (isGuestListVisit(row)) {
+      const found = findGuestOnEvent(row.eventId, row.guestId);
+      if (!found) throw new Error("Could not find that guest list booking.");
+      found.guests[found.index] = {
+        ...found.guests[found.index],
+        name,
+        email: email || "",
+        phone: phone || "",
+      };
+      await saveEventGuests(found.row, found.guests);
+      continue;
+    }
     const payload = { ...(row.payload || {}) };
     if (payload.reservation && typeof payload.reservation === "object") {
       payload.reservation = { ...payload.reservation, name };
@@ -1640,7 +1715,7 @@ async function saveCustomerDetails(key) {
     if (error) throw error;
   }
   await loadRows();
-  const nextKey = guestKey({ id: ids[0], phone, email });
+  const nextKey = guestKey({ id: guest.visits.find((row) => row.id)?.id || guest.key, phone, email });
   if (statusEl) {
     statusEl.textContent = "Saved.";
     statusEl.className = "status is-success";
@@ -1664,14 +1739,20 @@ async function archiveCustomer(key) {
     confirmLabel: "Archive",
   });
   if (!ok) return;
-  const ids = guest.visits.map((row) => row.id).filter(Boolean);
-  if (!ids.length) return;
-  const uid = await currentStaffId();
-  const { error } = await supabase
-    .from("requests")
-    .update({ archived_at: new Date().toISOString(), archived_by: uid })
-    .in("id", ids);
-  if (error) throw error;
+  const requestIds = guest.visits.filter((row) => row.id && !isGuestListVisit(row)).map((row) => row.id);
+  const guestListVisits = guest.visits.filter((row) => isGuestListVisit(row));
+  if (!requestIds.length && !guestListVisits.length) return;
+  if (requestIds.length) {
+    const uid = await currentStaffId();
+    const { error } = await supabase
+      .from("requests")
+      .update({ archived_at: new Date().toISOString(), archived_by: uid })
+      .in("id", requestIds);
+    if (error) throw error;
+  }
+  for (const row of guestListVisits) {
+    await archiveGuestRequest(row.eventId, row.guestId, { silent: true });
+  }
   await loadRows();
   showInbox("customers");
   if (location.hash !== "#/customers") go("customers");
@@ -1683,13 +1764,19 @@ async function restoreCustomer(key) {
     window.alert("Guest not found.");
     return;
   }
-  const ids = guest.visits.map((row) => row.id).filter(Boolean);
-  if (!ids.length) return;
-  const { error } = await supabase
-    .from("requests")
-    .update({ archived_at: null, archived_by: null })
-    .in("id", ids);
-  if (error) throw error;
+  const requestIds = guest.visits.filter((row) => row.id && !isGuestListVisit(row)).map((row) => row.id);
+  const guestListVisits = guest.visits.filter((row) => isGuestListVisit(row));
+  if (!requestIds.length && !guestListVisits.length) return;
+  if (requestIds.length) {
+    const { error } = await supabase
+      .from("requests")
+      .update({ archived_at: null, archived_by: null })
+      .in("id", requestIds);
+    if (error) throw error;
+  }
+  for (const row of guestListVisits) {
+    await restoreGuestRequest(row.eventId, row.guestId);
+  }
   await loadRows();
   state.customersShowArchived = false;
   showInbox("customers");
@@ -1712,10 +1799,16 @@ async function deleteCustomer(key) {
     confirmLabel: "Delete",
   });
   if (!ok) return;
-  const ids = guest.visits.map((row) => row.id).filter(Boolean);
-  if (!ids.length) return;
-  const { error } = await supabase.from("requests").delete().in("id", ids);
-  if (error) throw error;
+  const requestIds = guest.visits.filter((row) => row.id && !isGuestListVisit(row)).map((row) => row.id);
+  const guestListVisits = guest.visits.filter((row) => isGuestListVisit(row));
+  if (!requestIds.length && !guestListVisits.length) return;
+  if (requestIds.length) {
+    const { error } = await supabase.from("requests").delete().in("id", requestIds);
+    if (error) throw error;
+  }
+  for (const row of guestListVisits) {
+    await deleteGuestRequest(row.eventId, row.guestId, { silent: true });
+  }
   await loadRows();
   showInbox("customers");
   if (location.hash !== "#/customers") go("customers");
@@ -1996,6 +2089,7 @@ function guestGroupsHtml(guests, slots, eventId) {
   const list = Array.isArray(guests) ? guests : [];
   const groups = (slots.length ? slots : [{ start: "", end: "" }]).map((slot) => ({ slot, items: [] }));
   list.forEach((guest, index) => {
+    if (guest?.archived_at) return;
     const key = slotValue(guest.slot);
     const match = groups.find((group) => slotValue(group.slot) === key);
     (match || groups[0]).items.push({ guest, index });
@@ -2006,14 +2100,13 @@ function guestGroupsHtml(guests, slots, eventId) {
       const body = group.items.length
         ? `<ul class="kv">${group.items
             .map(({ guest, index }) => {
-              const status = guest.status === "confirmed" || guest.status === "contacted" ? guest.status : "pending";
-              const options = ["pending", "contacted", "confirmed"]
-                .map(
-                  (value) =>
-                    `<option value="${value}"${status === value ? " selected" : ""}>${guestStatusLabel(value)}</option>`
-                )
-                .join("");
-              return `<li><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax · ${guestStatusLabel(status)}</span><span>${escapeHtml([guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—")} <select data-guest-status data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(guest.id || String(index))}" data-current="${status}" aria-label="Guest list status">${options}</select></span></li>`;
+              const status = normalizeGuestStatus(guest.status);
+              const guestId = guest.id || String(index);
+              const options = GUEST_STATUSES.map(
+                (value) =>
+                  `<option value="${value}"${status === value ? " selected" : ""}>${guestStatusLabel(value)}</option>`
+              ).join("");
+              return `<li class="guest-detail-row"><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax · ${guestStatusLabel(status)}</span><span class="guest-detail-actions">${escapeHtml([guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—")} <select data-guest-status data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(guestId)}" data-current="${status}" aria-label="Guest list status">${options}</select> <button class="btn btn--outline btn--tiny" type="button" data-archive-guest data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(guestId)}">Archive</button> <button class="btn btn--outline btn--tiny" type="button" data-delete-guest data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(guestId)}">Delete</button></span></li>`;
             })
             .join("")}</ul>`
         : `<p class="muted">No guests for this time.</p>`;
@@ -2023,21 +2116,35 @@ function guestGroupsHtml(guests, slots, eventId) {
 }
 
 function pendingGuestCount(row) {
-  return (row?.payload?.event?.guests || []).filter((guest) => guest.status === "pending").length;
+  return (row?.payload?.event?.guests || []).filter(
+    (guest) => !guest?.archived_at && normalizeGuestStatus(guest.status) === "pending"
+  ).length;
+}
+
+const GUEST_STATUSES = ["pending", "contacted", "confirmed", "rejected"];
+
+function normalizeGuestStatus(status) {
+  if (status === "confirmed" || status === "contacted" || status === "rejected") return status;
+  return "pending";
 }
 
 function guestStatusLabel(status) {
   if (status === "confirmed") return "Confirmed";
   if (status === "contacted") return "Contacted";
+  if (status === "rejected") return "Rejected";
   return "Pending";
 }
 
-function guestRequests() {
+function guestRequests(opts = {}) {
+  const includeArchived = Boolean(opts.archived);
   const items = [];
-  activeRows().forEach((row) => {
+  state.rows.forEach((row) => {
     if (row.source !== "event" || row.synthetic) return;
+    if (!includeArchived && isArchived(row)) return;
     (row.payload?.event?.guests || []).forEach((guest, index) => {
       if (!guest?.name && !guest?.email && !guest?.phone) return;
+      const archived = Boolean(guest.archived_at);
+      if (includeArchived ? !archived : archived) return;
       items.push({
         eventId: row.id,
         guestId: guest.id || String(index),
@@ -2045,7 +2152,9 @@ function guestRequests() {
         email: guest.email || "",
         phone: guest.phone || "",
         pax: Number(guest.pax) || 1,
-        status: guest.status === "confirmed" || guest.status === "contacted" ? guest.status : "pending",
+        status: normalizeGuestStatus(guest.status),
+        archived,
+        archived_at: guest.archived_at || "",
         slot: slotLabel(guest.slot),
         party_date: row.party_date || "",
         party_time: guest.slot?.start || row.party_time || "",
@@ -2064,6 +2173,7 @@ function guestMatchesOverview(item) {
   if (filter === "new") return item.status === "pending";
   if (filter === "contacted") return item.status === "contacted";
   if (filter === "booked") return item.status === "confirmed";
+  if (filter === "rejected") return item.status === "rejected";
   return false;
 }
 
@@ -2087,20 +2197,20 @@ function visibleGuestRequests() {
 }
 
 function guestRequestCard(item) {
-  const options = ["pending", "contacted", "confirmed"]
-    .map(
-      (value) =>
-        `<option value="${value}"${item.status === value ? " selected" : ""}>${guestStatusLabel(value)}</option>`
-    )
-    .join("");
-  return `<article class="booking-card guest-request">
+  const options = GUEST_STATUSES.map(
+    (value) =>
+      `<option value="${value}"${item.status === value ? " selected" : ""}>${guestStatusLabel(value)}</option>`
+  ).join("");
+  const badgeClass =
+    item.status === "confirmed" ? "booked" : item.status === "contacted" ? "contacted" : item.status === "rejected" ? "rejected" : "new";
+  const card = `<article class="booking-card guest-request">
     <div>
       <div class="code">${escapeHtml(item.public_code)}</div>
       <h3>${escapeHtml(item.name)}</h3>
       <div class="muted">${escapeHtml([item.email, item.phone].filter(Boolean).join(" · ") || "—")}</div>
     </div>
     <div>
-      <span class="badge badge--${item.status === "confirmed" ? "booked" : item.status === "contacted" ? "contacted" : "new"}">${escapeHtml(guestStatusLabel(item.status))}</span>
+      <span class="badge badge--${badgeClass}">${escapeHtml(guestStatusLabel(item.status))}</span>
       <div class="muted">Guest list · ${escapeHtml(item.eventName)}</div>
     </div>
     <div class="time">${escapeHtml(item.slot || timeLabel(item.party_time))}
@@ -2108,22 +2218,86 @@ function guestRequestCard(item) {
     </div>
     <label class="guest-status">
       <span>Status</span>
-      <select data-guest-status data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}" data-current="${escapeHtml(item.status)}" aria-label="Guest list status">${options}</select>
+      <select data-guest-status data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}" data-current="${escapeHtml(item.status)}" aria-label="Guest list status"${item.archived ? " disabled" : ""}>${options}</select>
     </label>
   </article>`;
+  const actions = item.archived
+    ? `<button class="btn btn--outline" type="button" data-restore-guest data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Restore</button>
+       <button class="btn btn--outline" type="button" data-delete-guest data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Delete</button>`
+    : `<button class="btn btn--outline" type="button" data-archive-guest data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Archive</button>
+       <button class="btn btn--outline" type="button" data-delete-guest data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Delete</button>`;
+  return `<div class="booking-card-wrap">${card}<div class="booking-card-actions">${actions}</div></div>`;
+}
+
+function findGuestOnEvent(eventId, guestId) {
+  const row = state.rows.find((item) => item.id === eventId);
+  if (!row) return null;
+  const guests = [...(row.payload?.event?.guests || [])];
+  const index = guests.findIndex((guest, i) => (guest.id || String(i)) === guestId);
+  if (index < 0) return null;
+  return { row, guests, index };
+}
+
+async function saveEventGuests(row, guests) {
+  const nextPayload = { ...row.payload, event: { ...(row.payload?.event || {}), guests } };
+  const { error } = await supabase.from("requests").update({ payload: nextPayload }).eq("id", row.id).eq("source", "event");
+  if (error) throw error;
+  row.payload = nextPayload;
 }
 
 async function setGuestRequestStatus(eventId, guestId, status) {
-  const row = state.rows.find((item) => item.id === eventId);
-  if (!row) throw new Error("Could not find that event.");
-  const guests = [...(row.payload?.event?.guests || [])];
-  const index = guests.findIndex((guest, i) => (guest.id || String(i)) === guestId);
-  if (index < 0) throw new Error("Could not find that guest.");
-  guests[index] = { ...guests[index], status };
-  const nextPayload = { ...row.payload, event: { ...(row.payload?.event || {}), guests } };
-  const { error } = await supabase.from("requests").update({ payload: nextPayload }).eq("id", eventId).eq("source", "event");
-  if (error) throw error;
-  row.payload = nextPayload;
+  const found = findGuestOnEvent(eventId, guestId);
+  if (!found) throw new Error("Could not find that guest.");
+  const nextStatus = normalizeGuestStatus(status);
+  found.guests[found.index] = { ...found.guests[found.index], status: nextStatus };
+  await saveEventGuests(found.row, found.guests);
+}
+
+async function archiveGuestRequest(eventId, guestId, opts = {}) {
+  const found = findGuestOnEvent(eventId, guestId);
+  if (!found) throw new Error("Could not find that guest.");
+  const guest = found.guests[found.index];
+  if (!opts.silent) {
+    const ok = await confirmAction({
+      title: "Are you sure?",
+      message: `Archive ${guest.name || "this guest list request"}? You can restore it later from Archive.`,
+      confirmLabel: "Archive",
+    });
+    if (!ok) return false;
+  }
+  found.guests[found.index] = {
+    ...guest,
+    archived_at: new Date().toISOString(),
+  };
+  await saveEventGuests(found.row, found.guests);
+  return true;
+}
+
+async function restoreGuestRequest(eventId, guestId) {
+  const found = findGuestOnEvent(eventId, guestId);
+  if (!found) throw new Error("Could not find that guest.");
+  const guest = { ...found.guests[found.index] };
+  delete guest.archived_at;
+  found.guests[found.index] = guest;
+  await saveEventGuests(found.row, found.guests);
+  return true;
+}
+
+async function deleteGuestRequest(eventId, guestId, opts = {}) {
+  const found = findGuestOnEvent(eventId, guestId);
+  if (!found) throw new Error("Could not find that guest.");
+  const guest = found.guests[found.index];
+  if (!opts.silent) {
+    const ok = await confirmAction({
+      title: "Are you sure?",
+      message: `Delete ${guest.name || "this guest list request"} permanently? This cannot be undone.`,
+      confirmLabel: "Delete",
+    });
+    if (!ok) return false;
+  }
+  found.guests.splice(found.index, 1);
+  await saveEventGuests(found.row, found.guests);
+  return true;
 }
 
 function slotValue(slot) {
@@ -3759,7 +3933,7 @@ async function loadDetail(id) {
     });
   });
   document.getElementById("export-guests")?.addEventListener("click", async () => {
-    const guests = payload.event?.guests || [];
+    const guests = (payload.event?.guests || []).filter((guest) => !guest?.archived_at);
     const host = document.createElement("div");
     host.style.cssText = "padding:24px;font-family:Jost,sans-serif;color:#2c3a32;width:720px;background:#fff";
     host.innerHTML = `<h2>Guest list · ${escapeHtml(displayName(row))}</h2>
@@ -3769,7 +3943,7 @@ async function loadDetail(id) {
           ? guests
               .map(
                 (guest) =>
-                  `<li><span>${escapeHtml(slotLabel(guest.slot) || "Time")} · ${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</span><span>${escapeHtml(
+                  `<li><span>${escapeHtml(slotLabel(guest.slot) || "Time")} · ${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax · ${escapeHtml(guestStatusLabel(guest.status))}</span><span>${escapeHtml(
                     [guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—"
                   )}</span></li>`
               )
@@ -3786,13 +3960,13 @@ async function loadDetail(id) {
     host.remove();
   });
   document.getElementById("share-guests")?.addEventListener("click", () => {
-    const guests = payload.event?.guests || [];
+    const guests = (payload.event?.guests || []).filter((guest) => !guest?.archived_at);
     const text = [
       `Guest list for ${displayName(row)}`,
       `${formatLongDate(row.party_date)} · ${slotRange(row)}`,
       ...guests.map(
         (guest) =>
-          `${slotLabel(guest.slot) ? `${slotLabel(guest.slot)} · ` : ""}${guest.name || "Guest"} · ${guest.pax || 1} pax${guest.phone ? ` · ${guest.phone}` : ""}${
+          `${slotLabel(guest.slot) ? `${slotLabel(guest.slot)} · ` : ""}${guest.name || "Guest"} · ${guest.pax || 1} pax · ${guestStatusLabel(guest.status)}${guest.phone ? ` · ${guest.phone}` : ""}${
             guest.email ? ` · ${guest.email}` : ""
           }`
       ),
@@ -4291,15 +4465,26 @@ function renderArchive() {
   const rows = archivedRows()
     .slice()
     .sort((a, b) => String(b.archived_at || b.created_at || "").localeCompare(String(a.archived_at || a.created_at || "")));
+  const guests = guestRequests({ archived: true }).sort((a, b) =>
+    String(b.archived_at || "").localeCompare(String(a.archived_at || ""))
+  );
+  const total = rows.length + guests.length;
   const count = document.getElementById("archive-count");
   if (count) {
-    count.textContent = `${rows.length} archived request${rows.length === 1 ? "" : "s"}`;
+    count.textContent = `${total} archived request${total === 1 ? "" : "s"}`;
   }
   const list = document.getElementById("archive-list");
   if (!list) return;
-  list.innerHTML = rows.length
-    ? rows.map((row) => bookingCard(row, { showDate: true })).join("")
-    : `<p class="muted">No archived requests.</p>`;
+  const bookingBody = rows.length ? rows.map((row) => bookingCard(row, { showDate: true })).join("") : "";
+  const guestBody = guests.length
+    ? `${rows.length ? `<p class="date-label undated-label">Guest list requests</p>` : ""}${guests
+        .map((item) => guestRequestCard(item))
+        .join("")}`
+    : "";
+  list.innerHTML =
+    bookingBody || guestBody
+      ? `${bookingBody}${guestBody}`
+      : `<p class="muted">No archived requests.</p>`;
 }
 
 async function route() {
@@ -4390,6 +4575,48 @@ document.getElementById("app")?.addEventListener("change", (e) => {
       select.value = previous;
       window.alert(err.message || "Could not update the guest list status.");
     });
+});
+
+document.getElementById("app")?.addEventListener("click", (e) => {
+  const archiveGuestBtn = e.target.closest("[data-archive-guest]");
+  if (archiveGuestBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    archiveGuestRequest(archiveGuestBtn.dataset.eventId, archiveGuestBtn.dataset.guestId)
+      .then((ok) => {
+        if (!ok) return;
+        if (state.view === "overview") showInbox("overview");
+        else if (location.hash.includes("/request/")) loadDetail(archiveGuestBtn.dataset.eventId);
+        else if (state.view === "archive") showInbox("archive");
+      })
+      .catch((err) => window.alert(err.message || "Could not archive guest list request."));
+    return;
+  }
+  const restoreGuestBtn = e.target.closest("[data-restore-guest]");
+  if (restoreGuestBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    restoreGuestRequest(restoreGuestBtn.dataset.eventId, restoreGuestBtn.dataset.guestId)
+      .then(() => {
+        if (state.view === "archive") showInbox("archive");
+        else if (location.hash.includes("/request/")) loadDetail(restoreGuestBtn.dataset.eventId);
+        else showInbox(state.view);
+      })
+      .catch((err) => window.alert(err.message || "Could not restore guest list request."));
+    return;
+  }
+  const deleteGuestBtn = e.target.closest("[data-delete-guest]");
+  if (deleteGuestBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    deleteGuestRequest(deleteGuestBtn.dataset.eventId, deleteGuestBtn.dataset.guestId)
+      .then((ok) => {
+        if (!ok) return;
+        if (state.view === "overview" || state.view === "archive") showInbox(state.view);
+        else if (location.hash.includes("/request/")) loadDetail(deleteGuestBtn.dataset.eventId);
+      })
+      .catch((err) => window.alert(err.message || "Could not delete guest list request."));
+  }
 });
 
 document.getElementById("inbox-views")?.addEventListener("click", (e) => {

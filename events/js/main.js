@@ -527,7 +527,13 @@
       return `<div class="guest-card"><h1>Guest list</h1><p>${escapeHtml(message || "We couldn’t find that request.")}</p><p><a href="${escapeHtml(window.location.pathname)}">See events</a></p></div>`;
     }
     const status =
-      guest.status === "confirmed" ? "Confirmed" : guest.status === "contacted" ? "Contacted" : "Waiting for Tiny to confirm";
+      guest.status === "confirmed"
+        ? "Confirmed"
+        : guest.status === "contacted"
+          ? "Contacted"
+          : guest.status === "rejected"
+            ? "Not confirmed"
+            : "Waiting for Tiny to confirm";
     return `<div class="guest-card">
       <p class="muted">${escapeHtml(guest.publicCode || "")}</p>
       <h1>${escapeHtml(guest.eventName || "Event")}</h1>
