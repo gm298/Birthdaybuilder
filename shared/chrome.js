@@ -13,7 +13,21 @@
   };
 
   const PATHS = {
+    home: {
+      home: "./",
+      birthdays: "birthdays/",
+      cakes: "cakes/",
+      builder: "birthdays/builder/",
+      reserve: "reserve/",
+      booking: "booking/",
+      eventsPage: "events/",
+      menu: "menu/",
+      location: "location/",
+      logoDark: "birthdays/img/logo-dark.png",
+      logoLight: "birthdays/img/logo-light.png",
+    },
     landing: {
+      home: "../",
       birthdays: "./",
       cakes: "../cakes/",
       builder: "./builder/",
@@ -26,6 +40,7 @@
       logoLight: "img/logo-light.png",
     },
     builder: {
+      home: "../../",
       birthdays: "../",
       cakes: "../../cakes/",
       builder: "./",
@@ -38,6 +53,7 @@
       logoLight: "../img/logo-light.png",
     },
     cakes: {
+      home: "../",
       birthdays: "../birthdays/",
       cakes: "./",
       builder: "../birthdays/builder/",
@@ -50,6 +66,7 @@
       logoLight: "img/logo-light.png",
     },
     reserve: {
+      home: "../",
       birthdays: "../birthdays/",
       cakes: "../cakes/",
       builder: "../birthdays/builder/",
@@ -62,6 +79,7 @@
       logoLight: "img/logo-light.png",
     },
     booking: {
+      home: "../",
       birthdays: "../birthdays/",
       cakes: "../cakes/",
       builder: "../birthdays/builder/",
@@ -74,6 +92,7 @@
       logoLight: "../reserve/img/logo-light.png",
     },
     events: {
+      home: "../",
       birthdays: "../birthdays/",
       cakes: "../cakes/",
       builder: "../birthdays/builder/",
@@ -86,6 +105,7 @@
       logoLight: "../birthdays/img/logo-light.png",
     },
     location: {
+      home: "../",
       birthdays: "../birthdays/",
       cakes: "../cakes/",
       builder: "../birthdays/builder/",
@@ -98,6 +118,7 @@
       logoLight: "../birthdays/img/logo-light.png",
     },
     menu: {
+      home: "../",
       birthdays: "../birthdays/",
       cakes: "../cakes/",
       builder: "../birthdays/builder/",
@@ -113,6 +134,7 @@
 
   if (window.TINY_WP && window.TINY_WP.birthdaysUrl) {
     const sharedPaths = {
+      home: CAFE.home,
       birthdays: window.TINY_WP.birthdaysUrl,
       cakes: window.TINY_WP.cakesUrl,
       builder: window.TINY_WP.builderUrl,
@@ -175,11 +197,11 @@
     const birthdayClass = birthdayOpen(page) ? " is-current" : "";
     return `
     <header class="site-header" id="top">
-      <a class="site-header__logo" href="${CAFE.home}" aria-label="Tiny Healthy Cafe home">
+      <a class="site-header__logo" href="${p.home || CAFE.home}" aria-label="Tiny Healthy Cafe home">
         <img src="${p.logoDark}" alt="Tiny" height="48">
       </a>
       <nav class="site-nav" aria-label="Header menu">
-        <a class="${current(page, "home").trim()}" href="${CAFE.home}">Home</a>
+        <a class="${current(page, "home").trim()}" href="${p.home || CAFE.home}">Home</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
         <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
         <a class="${current(page, "events").trim()}" href="${eventsLink(page, p)}">Events</a>
@@ -202,7 +224,7 @@
     <div class="nav-drawer" id="nav-drawer" aria-hidden="true">
       <div class="nav-drawer__panel" role="dialog" aria-label="Navigation">
         <button class="nav-drawer__close" type="button" aria-label="Close menu">&times;</button>
-        <a class="${current(page, "home").trim()}" href="${CAFE.home}">Home</a>
+        <a class="${current(page, "home").trim()}" href="${p.home || CAFE.home}">Home</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
         <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
         <a class="${current(page, "events").trim()}" href="${eventsLink(page, p)}">Events</a>
@@ -229,7 +251,7 @@
         <span>Tiny Healthy Cafe · Berawa, Bali, Indonesia</span>
       </div>
       <nav class="site-footer__pages" aria-label="Footer menu">
-        <a href="${CAFE.home}">Home</a>
+        <a href="${p.home || CAFE.home}">Home</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
         <a class="${current(page, "landing").trim()}" href="${p.birthdays}">Birthdays</a>
         <a class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>

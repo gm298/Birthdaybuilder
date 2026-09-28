@@ -1,0 +1,326 @@
+/* Static copy of the tinyhealthycafe.com theme home page (The Coffee Shop). */
+
+.home-wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.home-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: calc(0.667em + 2px) calc(1.333em + 2px);
+  background: #647c6e;
+  color: #fff;
+  border: 1px solid #647c6e;
+  font-family: "Tenor Sans", sans-serif;
+  font-size: clamp(16px, 1rem + ((1vw - 3.2px) * 0.227), 18px);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-decoration: none;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.home-btn:hover {
+  background: #586e62;
+  border-color: #586e62;
+  color: #fff;
+}
+
+.home-btn--outline {
+  background: transparent;
+  border: 2px solid #fff;
+}
+
+.home-btn--outline:hover {
+  background: #fff;
+  border-color: #fff;
+  color: #30271c;
+}
+
+.home-btn--outline-dark {
+  background: transparent;
+  color: #647c6e;
+}
+
+.home-btn--outline-dark:hover {
+  background: #647c6e;
+  color: #fff;
+}
+
+/* Hero */
+
+.home-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: min(88vh, 820px);
+  padding: 96px 24px;
+  overflow: hidden;
+  color: #fdfdfd;
+  text-align: center;
+}
+
+.home-hero__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 60% 66%;
+}
+
+.home-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(48, 39, 28, 0.4);
+}
+
+.home-hero__inner {
+  position: relative;
+  z-index: 1;
+  max-width: 720px;
+}
+
+.home-hero__logo {
+  width: 63px;
+  height: auto;
+  margin: 0 auto 30px;
+}
+
+.home-hero h1 {
+  margin: 0;
+  font-family: "Tenor Sans", sans-serif;
+  font-weight: 400;
+  font-size: clamp(40px, 2.5rem + ((1vw - 3.2px) * 2.727), 64px);
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.home-hero p {
+  margin: 20px 0 0;
+  font-size: clamp(16px, 1rem + ((1vw - 3.2px) * 0.227), 18px);
+  line-height: 1.6;
+}
+
+.home-hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  justify-content: center;
+  margin-top: 32px;
+}
+
+/* Tiny World */
+
+.home-world {
+  background: #fbf8eb;
+  padding: 88px 0;
+}
+
+.home-world h2 {
+  margin: 0 0 40px;
+  font-family: "Tenor Sans", sans-serif;
+  font-weight: 300;
+  font-size: clamp(32px, 2rem + ((1vw - 3.2px) * 1.818), 48px);
+  color: #000;
+}
+
+.home-world__grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.home-card img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+}
+
+.home-card h3 {
+  margin: 18px 0 8px;
+  font-family: "Tenor Sans", sans-serif;
+  font-weight: 400;
+  font-size: clamp(18px, 1.125rem + ((1vw - 3.2px) * 0.227), 20px);
+  color: #000;
+}
+
+.home-card p {
+  margin: 0 0 12px;
+  font-size: 15px;
+  line-height: 1.6;
+  color: #62513c;
+}
+
+.home-card__link {
+  font-style: italic;
+  color: #000;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.home-card__link:hover {
+  color: #647c6e;
+}
+
+/* Best family spot */
+
+.home-spot {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  min-height: 658px;
+  padding: 187px 24px 88px;
+  overflow: hidden;
+  border-bottom: 1px solid #62513c;
+}
+
+.home-spot__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-spot::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.home-spot__text {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  text-align: right;
+  font-family: "Oswald", sans-serif;
+  font-size: clamp(40px, 2.5rem + ((1vw - 3.2px) * 2.727), 64px);
+  line-height: 1.15;
+  text-transform: uppercase;
+  color: #647c6e;
+}
+
+/* Opening hours */
+
+.home-open {
+  background: #fbf8eb;
+  padding: 88px 0;
+}
+
+.home-open__inner {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 48px;
+  align-items: center;
+}
+
+.home-open__eyebrow {
+  margin: 0;
+  color: #647c6e;
+  font-size: clamp(16px, 1rem + ((1vw - 3.2px) * 0.227), 18px);
+  text-transform: uppercase;
+}
+
+.home-open h2 {
+  margin: 8px 0 28px;
+  font-family: "Tenor Sans", sans-serif;
+  font-weight: 400;
+  font-size: clamp(32px, 2rem + ((1vw - 3.2px) * 1.818), 48px);
+  line-height: 1.2;
+  color: #000;
+}
+
+.home-open__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.home-open__img {
+  width: 433px;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Reviews */
+
+.home-reviews {
+  background: #fbf8eb;
+  padding: 0 0 88px;
+}
+
+.home-reviews__inner {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 40px;
+  border-top: 1px solid rgba(100, 124, 110, 0.25);
+}
+
+.home-reviews__rating {
+  margin: 0;
+  font-size: 22px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #000;
+}
+
+.home-reviews__rating span {
+  color: #f6bb06;
+  letter-spacing: 0;
+}
+
+.home-reviews__count {
+  margin: 6px 0 0;
+  color: #62513c;
+}
+
+@media (max-width: 1100px) {
+  .home-world__grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .home-world,
+  .home-open {
+    padding: 64px 0;
+  }
+
+  .home-world__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  .home-open__inner {
+    grid-template-columns: 1fr;
+  }
+
+  .home-spot {
+    min-height: 420px;
+    padding: 120px 24px 56px;
+  }
+}
+
+@media (max-width: 480px) {
+  .home-world__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-hero__actions .home-btn {
+    width: 100%;
+  }
+}
