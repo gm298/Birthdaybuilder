@@ -8,7 +8,16 @@
   const BDAY_BEFORE = 60;
   const BDAY_AFTER = 180;
   const INDOOR_MAX = 8;
-  const JOIN_GROUPS = [["in-1", "in-2"]];
+  const FLEX_TERRACE_MIN = 15;
+  const JOIN_GROUPS = [
+    ["in-1", "in-2"],
+    ["in-3", "in-4"],
+  ];
+  const TERRACE_PRESETS = [
+    { min: 8, max: 10, ids: ["tr-18", "tr-19"], capacity: 10 },
+    { min: 11, max: 12, ids: ["tr-18", "tr-19", "tr-13"], capacity: 12 },
+    { min: 13, max: 14, ids: ["tr-18", "tr-19", "tr-12", "tr-13"], capacity: 14 },
+  ];
   const OPEN_MINUTES = 8 * 60 + 30;
   const LAST_START_MINUTES = 16 * 60;
   const CLOSE_MINUTES = 18 * 60;
@@ -155,21 +164,145 @@
   }
 
   function groupSeats(ids) {
-    return ids.reduce((sum, id) => sum + (findTable(id)?.seats || 0), 0);
+    return [...ids].reduce((sum, id) => sum + (findTable(id)?.seats || 0), 0);
+  }
+
+  function sameIds(a, b) {
+    const left = [...a].map(String);
+    const right = [...b].map(String);
+    if (left.length !== right.length) return false;
+    const set = new Set(left);
+    return right.every((id) => set.has(id));
+  }
+
+  function terracePreset(guests) {
+    const pax = Math.max(0, Number(guests) || 0);
+    return TERRACE_PRESETS.find((preset) => pax >= preset.min && pax <= preset.max) || null;
+  }
+
+  function flexibleTerrace(guests) {
+    return Math.max(0, Number(guests) || 0) >= FLEX_TERRACE_MIN;
+  }
+
+  function selectionCapacity(ids, guests) {
+    const list = [...ids].map(String);
+    const preset = TERRACE_PRESETS.find((item) => sameIds(list, item.ids));
+    const pax = Math.max(0, Number(guests) || 0);
+    if (preset && pax >= preset.min && pax <= preset.max) return preset.capacity;
+    return groupSeats(list);
+  }
+
+  function selectionFits(ids, guests) {
+    const list = [...ids].map(String).filter(Boolean);
+    const pax = Math.max(0, Number(guests) || 0);
+    if (!list.length || pax < 1) return false;
+    const tables = list.map(findTable).filter(Boolean);
+    if (tables.length !== list.length) return false;
+    const area = tables[0].area;
+    if (tables.some((table) => table.area !== area)) return false;
+    if (area === "indoor") {
+      if (pax > INDOOR_MAX) return false;
+      if (tables.length === 1) return tables[0].seats >= pax;
+      return JOIN_GROUPS.some((group) => sameIds(list, group) && groupSeats(group) >= pax);
+    }
+    const preset = terracePreset(pax);
+    if (preset) return sameIds(list, preset.ids);
+    if (flexibleTerrace(pax)) return groupSeats(list) >= pax;
+    return tables.length === 1 && tables[0].seats >= pax;
+  }
+
+  function selectionStillValid(ids, guests) {
+    const list = [...ids].map(String).filter(Boolean);
+    if (!list.length) return true;
+    if (selectionFits(list, guests)) return true;
+    if (!flexibleTerrace(guests)) return false;
+    const tables = list.map(findTable).filter(Boolean);
+    return tables.length === list.length && tables.every((table) => table.area === "terrace");
+  }
+
+  function seatingHint(guests) {
+    const pax = Math.max(0, Number(guests) || 0);
+    const held = " Held tables are blocked for this slot.";
+    if (flexibleTerrace(pax)) {
+      return `Indoor seats up to ${INDOOR_MAX}. Join any free terrace tables that together seat ${pax}.${held}`;
+    }
+    if (pax >= 13) return `Join terrace tables 18, 19, 12 and 13 for up to 14 guests.${held}`;
+    if (pax >= 11) return `Join terrace tables 18, 19 and 13 for up to 12 guests.${held}`;
+    if (pax >= 9) {
+      return `Indoor seats up to ${INDOOR_MAX}. Join terrace tables 18 and 19 for 8–10 guests.${held}`;
+    }
+    if (pax >= 5) {
+      return `Indoor max is ${INDOOR_MAX} — join tables 1 & 2 or 3 & 4. Terrace tables 18 & 19 seat 8–10.${held}`;
+    }
+    return `Tables shown fit your party. Indoor tables 1 & 2 or 3 & 4 join for up to ${INDOOR_MAX}. Terrace tables 18 & 19 join for 8–10.${held}`;
+  }
+
+  function unavailableReason(table, guests) {
+    const pax = Math.max(1, Number(guests) || 1);
+    if (table?.area === "indoor" && pax > INDOOR_MAX) {
+      return `Indoor seats up to ${INDOOR_MAX}. Choose terrace tables for ${pax} guests.`;
+    }
+    const preset = table?.area === "terrace" ? terracePreset(pax) : null;
+    if (preset && !preset.ids.includes(table.id)) {
+      const numbers = preset.ids.map((id) => findTable(id)?.number).filter(Boolean).join(", ");
+      return `For ${pax} guests, join terrace tables ${numbers}.`;
+    }
+    if (table?.area === "indoor" && pax > (table.seats || 0)) {
+      return `That table is too small. Join indoor tables 1 & 2 or 3 & 4 for up to ${INDOOR_MAX}.`;
+    }
+    return "That table is too small for this party.";
   }
 
   function neededIds(table, guests) {
     if (!table) return [];
-    if (table.seats >= guests) return [table.id];
-    const group = joinGroup(table.id);
-    if (group.length > 1 && groupSeats(group) >= guests) return group.slice();
+    const pax = Math.max(1, Number(guests) || 1);
+    if (table.seats >= pax) return [table.id];
+    if (table.area === "indoor" && pax <= INDOOR_MAX) {
+      const group = joinGroup(table.id);
+      if (group.length > 1 && groupSeats(group) >= pax) return group.slice();
+    }
+    if (table.area === "terrace") {
+      const preset = terracePreset(pax);
+      if (preset?.ids.includes(table.id)) return preset.ids.slice();
+    }
     return [table.id];
   }
 
   function canTakeTable(table, guests) {
     if (!table) return false;
-    if (table.area === "indoor" && guests > INDOOR_MAX) return false;
-    return groupSeats(neededIds(table, guests)) >= guests;
+    const pax = Math.max(1, Number(guests) || 1);
+    if (table.area === "indoor" && pax > INDOOR_MAX) return false;
+    if (table.area === "terrace" && flexibleTerrace(pax)) return true;
+    return selectionCapacity(neededIds(table, pax), pax) >= pax;
+  }
+
+  function optionIsFree(ids, held) {
+    return ids.every((id) => !held.has(String(id)));
+  }
+
+  function hasFreeSeating(guests, held) {
+    const pax = Math.max(1, Number(guests) || 1);
+    const blocked = held || new Set();
+    if (pax <= INDOOR_MAX) {
+      const indoorFree = TABLES.some((table) => {
+        if (table.area !== "indoor" || !canTakeTable(table, pax)) return false;
+        return optionIsFree(neededIds(table, pax), blocked);
+      });
+      if (indoorFree) return true;
+    }
+    const preset = terracePreset(pax);
+    if (preset) return optionIsFree(preset.ids, blocked);
+    if (flexibleTerrace(pax)) {
+      const freeSeats = TABLES.filter((table) => table.area === "terrace" && !blocked.has(table.id)).reduce(
+        (sum, table) => sum + table.seats,
+        0
+      );
+      return freeSeats >= pax;
+    }
+    return TABLES.some((table) => {
+      if (table.area !== "terrace" || !canTakeTable(table, pax)) return false;
+      return optionIsFree(neededIds(table, pax), blocked);
+    });
   }
 
   function slotIsBooked(occupancy, time, kind, guests, requiredIds, ignoreIds) {
@@ -178,9 +311,8 @@
     const required = (requiredIds || []).map(String).filter(Boolean);
     if (required.length) return required.some((id) => held.has(id));
     const pax = Math.max(1, Number(guests) || 1);
-    const options = TABLES.filter((table) => canTakeTable(table, pax));
-    if (!options.length) return false;
-    return options.every((table) => neededIds(table, pax).some((id) => held.has(String(id))));
+    if (!TABLES.some((table) => canTakeTable(table, pax))) return false;
+    return !hasFreeSeating(pax, held);
   }
 
   function heldTableIds(occupancy, time, kind) {
@@ -200,7 +332,16 @@
     const selected = new Set(current || []);
     if (!table) return selected;
     if (held?.has(id) && !selected.has(id)) return selected;
-    const ids = neededIds(table, guests);
+    const pax = Math.max(1, Number(guests) || 1);
+    if (table.area === "terrace" && flexibleTerrace(pax)) {
+      [...selected].forEach((item) => {
+        if (findTable(item)?.area !== "terrace") selected.delete(item);
+      });
+      if (selected.has(id)) selected.delete(id);
+      else selected.add(id);
+      return selected;
+    }
+    const ids = neededIds(table, pax);
     if (ids.some((item) => held?.has(item) && !selected.has(item))) return selected;
     if (ids.length && ids.every((item) => selected.has(item))) {
       ids.forEach((item) => selected.delete(item));
@@ -284,7 +425,9 @@
     BDAY_BEFORE,
     BDAY_AFTER,
     INDOOR_MAX,
+    FLEX_TERRACE_MIN,
     JOIN_GROUPS,
+    TERRACE_PRESETS,
     OPEN_MINUTES,
     LAST_START_MINUTES,
     CLOSE_MINUTES,
@@ -313,8 +456,16 @@
     findTable,
     joinGroup,
     groupSeats,
+    terracePreset,
+    flexibleTerrace,
+    selectionCapacity,
+    selectionFits,
+    selectionStillValid,
+    seatingHint,
+    unavailableReason,
     neededIds,
     canTakeTable,
+    hasFreeSeating,
     heldTableIds,
     slotIsBooked,
     nextSelection,

@@ -8,13 +8,10 @@ if (!$type) {
     $type = 'landing';
 }
 
-$data_page = $type === 'builder' ? 'builder' : ($type === 'cakes' ? 'cakes' : ($type === 'landing-revised' ? 'landing-revised' : ($type === 'events' ? 'events' : 'landing')));
+$data_page = $type;
 $body_classes = ['tiny-canvas', 'tiny-canvas--' . $type];
 if ($type === 'builder') {
     $body_classes[] = 'is-wizard';
-}
-if ($type === 'landing-revised') {
-    $body_classes[] = 'tiny-canvas--landing';
 }
 if (is_admin_bar_showing()) {
     $body_classes[] = 'admin-bar';
@@ -36,6 +33,9 @@ $og_image = $type === 'cakes'
   <meta charset="<?php bloginfo('charset'); ?>">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?php echo esc_html($title); ?></title>
+  <?php if ($type === 'booking') : ?>
+    <meta name="robots" content="noindex,nofollow">
+  <?php endif; ?>
   <?php if ($description) : ?>
     <meta name="description" content="<?php echo esc_attr($description); ?>">
   <?php endif; ?>

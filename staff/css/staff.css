@@ -385,8 +385,75 @@ textarea {
 .booking-card:hover { background: #f4f7f4; }
 
 .guest-request {
-  grid-template-columns: 1.2fr 1fr auto auto;
-  cursor: default;
+  grid-template-columns: 1.3fr auto auto;
+  cursor: pointer;
+}
+
+.guest-slot-nav {
+  display: grid;
+  gap: 10px;
+}
+
+.guest-slot-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  text-align: left;
+  background: var(--white);
+  border: 1px solid rgba(100, 124, 110, 0.16);
+  border-radius: 12px;
+  padding: 16px;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.guest-slot-card:hover { background: #f4f7f4; }
+
+.guest-slot-card strong {
+  display: block;
+  font-size: 18px;
+}
+
+.guest-slot-card small {
+  display: block;
+  margin-top: 4px;
+  color: var(--sage);
+  font-size: 13px;
+}
+
+.slot-guest {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(140px, auto) minmax(140px, auto);
+  gap: 12px 16px;
+  align-items: center;
+  border: 1px solid rgba(100, 124, 110, 0.16);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 0 0 10px;
+  background: #fff;
+}
+
+.slot-guest.is-focus {
+  border-color: #2c3a32;
+  box-shadow: 0 0 0 2px rgba(44, 58, 50, 0.12);
+}
+
+.slot-guest h3 {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.slot-guest p { margin: 0; }
+
+.slot-guest-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  grid-column: 1 / -1;
 }
 
 .event-photos-existing {
@@ -916,8 +983,10 @@ textarea {
 }
 
 .table-hit.is-held {
-  background: rgba(61, 79, 69, 0.55);
-  border-color: rgba(61, 79, 69, 0.8);
+  background: #000;
+  border-color: #000;
+  color: #fff;
+  opacity: 1;
 }
 
 .table-hit__note {
@@ -1656,6 +1725,10 @@ textarea {
   margin: 8px 0 10px;
 }
 
+.guest-list--edit {
+  overflow-x: auto;
+}
+
 .guest-row {
   display: grid;
   grid-template-columns: 1.2fr 70px 1fr 1.2fr 1fr auto;
@@ -1663,13 +1736,29 @@ textarea {
   align-items: center;
 }
 
-.guest-row input {
+.guest-row--with-slot {
+  grid-template-columns: minmax(132px, 0.9fr) minmax(120px, 1.2fr) 72px minmax(110px, 1fr) minmax(140px, 1.2fr) minmax(100px, 1fr) auto;
+  min-width: 760px;
+}
+
+.guest-row--labels {
+  font-size: 12px;
+  color: var(--sage);
+}
+
+.guest-row input,
+.guest-row select {
   width: 100%;
 }
 
 @media (max-width: 900px) {
   .guest-row,
+  .guest-row--with-slot,
   .field-row:has(#event-date) {
+    grid-template-columns: 1fr;
+    min-width: 0;
+  }
+  .slot-guest {
     grid-template-columns: 1fr;
   }
 }

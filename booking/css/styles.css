@@ -422,8 +422,9 @@ h3 {
 }
 
 .table-picker .table-hit.is-held {
-  background: rgba(61, 79, 69, 0.55);
-  border-color: rgba(61, 79, 69, 0.8);
+  background: #000;
+  border-color: #000;
+  color: #fff;
   cursor: not-allowed;
   opacity: 1;
 }
@@ -440,6 +441,12 @@ h3 {
 .table-picker .table-hit.is-small {
   opacity: 0.22;
   cursor: not-allowed;
+}
+
+.table-picker .table-hit.is-held {
+  background: #000;
+  border-color: #000;
+  opacity: 1;
 }
 
 .table-picker .table-hit:focus {

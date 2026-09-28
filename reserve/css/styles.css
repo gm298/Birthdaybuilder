@@ -942,7 +942,7 @@ h3 {
   scroll-margin-top: calc(var(--site-header-h, 80px) + 8px);
 }
 
-.wizard:has([data-panel="3"].is-active) {
+.wizard:has([data-panel="2"].is-active) {
   display: flex;
   flex-direction: column;
   margin-bottom: 16px;
@@ -950,38 +950,63 @@ h3 {
   padding: 16px 32px 16px;
 }
 
-.wizard:has([data-panel="3"].is-active) .wizard__top {
+.wizard:has([data-panel="2"].is-active) .wizard__top {
   margin-bottom: 10px;
 }
 
-.wizard:has([data-panel="3"].is-active) .steps {
+.wizard:has([data-panel="2"].is-active) .steps {
   margin-bottom: 12px;
   padding-bottom: 12px;
 }
 
-.wizard:has([data-panel="3"].is-active) #reserve-form {
+.wizard:has([data-panel="2"].is-active) #reserve-form {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
 }
 
-.wizard-panel[data-panel="3"].is-active {
+.wizard-panel[data-panel="2"].is-active {
   flex: 1;
   min-height: 0;
   gap: 10px;
   overflow: hidden;
 }
 
-.wizard-panel[data-panel="3"] .plan__head {
+.wizard-panel[data-panel="2"] .plan__head {
   flex-shrink: 0;
 }
 
-.wizard:has([data-panel="3"].is-active) .wizard__nav {
+@media (min-width: 981px) {
+  .wizard-panel[data-panel="2"].is-active .plan__stage {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .wizard-panel[data-panel="2"].is-active .plan__canvas,
+  .wizard-panel[data-panel="2"].is-active .plan-map,
+  .wizard-panel[data-panel="2"].is-active .plan-map img {
+    max-height: 100%;
+    height: 100%;
+  }
+
+  .wizard-panel[data-panel="2"].is-active .plan-map {
+    width: auto;
+    max-width: 100%;
+  }
+
+  .wizard-panel[data-panel="2"].is-active .plan-map img {
+    width: auto;
+    max-width: 100%;
+    object-fit: contain;
+  }
+}
+
+.wizard:has([data-panel="2"].is-active) .wizard__nav {
   margin-top: 10px;
 }
 
-.wizard:has([data-panel="3"].is-active) .form-status:empty {
+.wizard:has([data-panel="2"].is-active) .form-status:empty {
   display: none;
 }
 
@@ -1360,6 +1385,63 @@ body.time-modal-open {
   gap: 8px;
 }
 
+.time-modal .time-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.2;
+  padding: 11px 8px;
+  min-height: 52px;
+  border-radius: 12px;
+  border: 1px solid rgba(100, 124, 110, 0.28);
+  background: var(--white);
+  color: var(--deep);
+  font: inherit;
+  cursor: pointer;
+}
+
+.time-modal .time-chip strong {
+  font-weight: 700;
+  color: var(--deep);
+}
+
+.time-modal .time-chip span {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.time-modal .time-chip.is-active {
+  border-color: var(--sage);
+  background: rgba(100, 124, 110, 0.12);
+  color: var(--deep);
+  box-shadow: 0 0 0 1px var(--sage);
+}
+
+.time-modal .time-chip.is-active strong,
+.time-modal .time-chip.is-active span {
+  color: var(--deep);
+}
+
+.time-modal .time-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.time-modal .time-chip.is-booked,
+.time-modal .time-chip.is-booked:disabled {
+  opacity: 1;
+  background: #111;
+  color: #e23b3b;
+  border-color: #111;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.time-modal .time-chip.is-booked strong,
+.time-modal .time-chip.is-booked span {
+  color: #e23b3b;
+}
+
 .summary-card {
   display: grid;
   gap: 0;
@@ -1445,8 +1527,9 @@ body.time-modal-open {
 }
 
 .table-hit.is-held {
-  background: rgba(61, 79, 69, 0.55);
-  border-color: rgba(61, 79, 69, 0.8);
+  background: #000;
+  border-color: #000;
+  color: #fff;
   cursor: not-allowed;
   opacity: 1;
 }
@@ -1463,6 +1546,12 @@ body.time-modal-open {
 .table-hit.is-small {
   opacity: 0.22;
   cursor: not-allowed;
+}
+
+.table-hit.is-held {
+  background: #000;
+  border-color: #000;
+  opacity: 1;
 }
 
 .wizard .time-chip {
@@ -1664,10 +1753,23 @@ body.time-modal-open {
     --plan-map-max: min(42vh, 320px);
   }
 
-  .wizard:has([data-panel="3"].is-active) {
+  .wizard:has([data-panel="2"].is-active) {
     max-height: none;
     overflow: visible;
     padding: 16px;
+  }
+
+  .wizard-panel[data-panel="2"].is-active,
+  .wizard-panel[data-panel="2"].is-active .plan__stage {
+    overflow: visible;
+    min-height: 0;
+  }
+
+  .wizard-panel[data-panel="2"].is-active .plan__canvas,
+  .wizard-panel[data-panel="2"].is-active .plan-map,
+  .wizard-panel[data-panel="2"].is-active .plan-map img {
+    height: auto;
+    max-height: var(--plan-map-max);
   }
 
   .plan-map,

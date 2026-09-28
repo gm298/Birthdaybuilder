@@ -29,6 +29,46 @@ function tiny_birthdays_render_cake_app($attrs) {
     return ob_get_clean();
 }
 
+function tiny_birthdays_render_reserve() {
+    ob_start();
+    include TINY_BIRTHDAYS_DIR . 'templates/partials/reserve.php';
+    return ob_get_clean();
+}
+
+function tiny_birthdays_render_booking() {
+    ob_start();
+    include TINY_BIRTHDAYS_DIR . 'templates/partials/booking.php';
+    return ob_get_clean();
+}
+
+function tiny_birthdays_render_location() {
+    ob_start();
+    include TINY_BIRTHDAYS_DIR . 'templates/partials/location.php';
+    return tiny_birthdays_link_static_pages(ob_get_clean());
+}
+
+function tiny_birthdays_render_menu() {
+    ob_start();
+    include TINY_BIRTHDAYS_DIR . 'templates/partials/menu.php';
+    $html = str_replace('href="pdf/', 'href="' . esc_url(tiny_birthdays_asset('menu/pdf/')), ob_get_clean());
+    return tiny_birthdays_link_static_pages($html);
+}
+
+/** Swap the static site's relative page links (../reserve/ etc.) for WordPress page URLs. */
+function tiny_birthdays_link_static_pages($html) {
+    $pages = [
+        'birthdays' => 'landing',
+        'cakes' => 'cakes',
+        'events' => 'events',
+        'reserve' => 'reserve',
+        'menu' => 'menu',
+        'location' => 'location',
+    ];
+    return preg_replace_callback('#href="\.\./(birthdays|cakes|events|reserve|menu|location)/"#', function ($m) use ($pages) {
+        return 'href="' . esc_url(tiny_birthdays_page_url($pages[$m[1]])) . '"';
+    }, $html);
+}
+
 function tiny_birthdays_render_events() {
     $hero = 'https://tinyhealthycafe.com/birthdays/builder/img/decor/terrace.jpg';
     $video = tiny_birthdays_asset('events/video/cooking-class.mp4');

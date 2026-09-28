@@ -6,7 +6,7 @@
     encodeURIComponent("Hi Tiny! I'd like to book a free cake tasting.");
   const WA_CONTACT = "https://wa.me/6282266484226";
   const CAFE = {
-    home: "https://tinyhealthycafe.com/",
+    home: (window.TINY_WP && window.TINY_WP.homeUrl) || "https://tinyhealthycafe.com/",
     about: "https://tinyhealthycafe.com/about-us/",
     shop: "https://esborder.qs.esb.co.id/TYKB/THFC/mode",
     events: "https://tinyhealthycafe.com/events/",
@@ -15,78 +15,97 @@
   const PATHS = {
     landing: {
       birthdays: "./",
-      revised: "./about-birthdays-revised/",
       cakes: "../cakes/",
       builder: "./builder/",
       reserve: "../reserve/",
       booking: "../booking/",
       eventsPage: "../events/",
+      menu: "../menu/",
+      location: "../location/",
       logoDark: "img/logo-dark.png",
       logoLight: "img/logo-light.png",
     },
-    "landing-revised": {
-      birthdays: "../",
-      revised: "./",
-      cakes: "../../cakes/",
-      builder: "../builder/",
-      reserve: "../../reserve/",
-      booking: "../../booking/",
-      eventsPage: "../../events/",
-      logoDark: "../img/logo-dark.png",
-      logoLight: "../img/logo-light.png",
-    },
     builder: {
       birthdays: "../",
-      revised: "../about-birthdays-revised/",
       cakes: "../../cakes/",
       builder: "./",
       reserve: "../../reserve/",
       booking: "../../booking/",
       eventsPage: "../../events/",
+      menu: "../../menu/",
+      location: "../../location/",
       logoDark: "../img/logo-dark.png",
       logoLight: "../img/logo-light.png",
     },
     cakes: {
       birthdays: "../birthdays/",
-      revised: "../birthdays/about-birthdays-revised/",
       cakes: "./",
       builder: "../birthdays/builder/",
       reserve: "../reserve/",
       booking: "../booking/",
       eventsPage: "../events/",
+      menu: "../menu/",
+      location: "../location/",
       logoDark: "img/logo-dark.png",
       logoLight: "img/logo-light.png",
     },
     reserve: {
       birthdays: "../birthdays/",
-      revised: "../birthdays/about-birthdays-revised/",
       cakes: "../cakes/",
       builder: "../birthdays/builder/",
       reserve: "./",
       booking: "../booking/",
       eventsPage: "../events/",
+      menu: "../menu/",
+      location: "../location/",
       logoDark: "img/logo-dark.png",
       logoLight: "img/logo-light.png",
     },
     booking: {
       birthdays: "../birthdays/",
-      revised: "../birthdays/about-birthdays-revised/",
       cakes: "../cakes/",
       builder: "../birthdays/builder/",
       reserve: "../reserve/",
       booking: "./",
       eventsPage: "../events/",
+      menu: "../menu/",
+      location: "../location/",
       logoDark: "../reserve/img/logo-dark.png",
       logoLight: "../reserve/img/logo-light.png",
     },
     events: {
       birthdays: "../birthdays/",
-      revised: "../birthdays/about-birthdays-revised/",
       cakes: "../cakes/",
       builder: "../birthdays/builder/",
       reserve: "../reserve/",
       booking: "../booking/",
       eventsPage: "./",
+      menu: "../menu/",
+      location: "../location/",
+      logoDark: "../birthdays/img/logo-dark.png",
+      logoLight: "../birthdays/img/logo-light.png",
+    },
+    location: {
+      birthdays: "../birthdays/",
+      cakes: "../cakes/",
+      builder: "../birthdays/builder/",
+      reserve: "../reserve/",
+      booking: "../booking/",
+      eventsPage: "../events/",
+      menu: "../menu/",
+      location: "./",
+      logoDark: "../birthdays/img/logo-dark.png",
+      logoLight: "../birthdays/img/logo-light.png",
+    },
+    menu: {
+      birthdays: "../birthdays/",
+      cakes: "../cakes/",
+      builder: "../birthdays/builder/",
+      reserve: "../reserve/",
+      booking: "../booking/",
+      eventsPage: "../events/",
+      menu: "./",
+      location: "../location/",
       logoDark: "../birthdays/img/logo-dark.png",
       logoLight: "../birthdays/img/logo-light.png",
     },
@@ -95,22 +114,20 @@
   if (window.TINY_WP && window.TINY_WP.birthdaysUrl) {
     const sharedPaths = {
       birthdays: window.TINY_WP.birthdaysUrl,
-      revised: window.TINY_WP.revisedUrl || window.TINY_WP.birthdaysUrl,
       cakes: window.TINY_WP.cakesUrl,
       builder: window.TINY_WP.builderUrl,
       reserve: window.TINY_WP.reserveUrl || "/reserve/",
       booking: window.TINY_WP.bookingUrl || "/booking/",
       eventsPage: window.TINY_WP.eventsUrl || "/events/",
+      menu: window.TINY_WP.menuUrl || "/menu/",
+      location: window.TINY_WP.locationUrl || "/location/",
       logoDark: window.TINY_WP.logoDark,
       logoLight: window.TINY_WP.logoLight,
     };
-    PATHS.landing = sharedPaths;
-    PATHS["landing-revised"] = sharedPaths;
-    PATHS.builder = sharedPaths;
-    PATHS.cakes = sharedPaths;
-    PATHS.reserve = sharedPaths;
-    PATHS.booking = sharedPaths;
-    PATHS.events = sharedPaths;
+    Object.keys(PATHS).forEach((key) => {
+      PATHS[key] = sharedPaths;
+    });
+    PATHS.home = sharedPaths;
   }
 
   function eventsLink(page, p) {
@@ -133,7 +150,6 @@
   function birthdayOpen(page) {
     return (
       page === "landing" ||
-      page === "landing-revised" ||
       page === "builder" ||
       page === "cakes"
     );
@@ -163,7 +179,7 @@
         <img src="${p.logoDark}" alt="Tiny" height="48">
       </a>
       <nav class="site-nav" aria-label="Header menu">
-        <a href="${CAFE.home}">Home</a>
+        <a class="${current(page, "home").trim()}" href="${CAFE.home}">Home</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
         <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
         <a class="${current(page, "events").trim()}" href="${eventsLink(page, p)}">Events</a>
@@ -171,7 +187,6 @@
           <a class="nav-drop__toggle${birthdayClass}" href="${p.birthdays}" aria-haspopup="true" aria-expanded="false">Birthdays</a>
           <div class="nav-drop__menu" role="menu">
             <a role="menuitem" class="${current(page, "landing").trim()}" href="${p.birthdays}">About Birthdays</a>
-            <a role="menuitem" class="${current(page, "landing-revised").trim()}" href="${p.revised}">About Birthdays Revised</a>
             <a role="menuitem" class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
             <a role="menuitem" class="${current(page, "cakes").trim()}" href="${p.cakes}">Cake Builder</a>
           </div>
@@ -187,12 +202,11 @@
     <div class="nav-drawer" id="nav-drawer" aria-hidden="true">
       <div class="nav-drawer__panel" role="dialog" aria-label="Navigation">
         <button class="nav-drawer__close" type="button" aria-label="Close menu">&times;</button>
-        <a href="${CAFE.home}">Home</a>
+        <a class="${current(page, "home").trim()}" href="${CAFE.home}">Home</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
         <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
         <a class="${current(page, "events").trim()}" href="${eventsLink(page, p)}">Events</a>
         <a class="${current(page, "landing").trim()}" href="${p.birthdays}">About Birthdays</a>
-        <a class="${current(page, "landing-revised").trim()}" href="${p.revised}">About Birthdays Revised</a>
         <a class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
         <a class="${current(page, "cakes").trim()}" href="${p.cakes}">Cake Builder</a>
         ${
@@ -221,6 +235,8 @@
         <a class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>
         <a class="${current(page, "cakes").trim()}" href="${p.cakes}">Cake Builder</a>
         <a class="${current(page, "events").trim()}" href="${eventsLink(page, p)}">Events</a>
+        <a class="${current(page, "menu").trim()}" href="${p.menu}">Menu</a>
+        <a class="${current(page, "location").trim()}" href="${p.location}">Location</a>
       </nav>
       <div class="site-footer__links">
         <a class="footer-link" href="${WA_CONTACT}" target="_blank" rel="noopener noreferrer" data-wa="footer_whatsapp" aria-label="WhatsApp +62 822 6648 4226">

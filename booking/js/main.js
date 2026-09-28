@@ -539,7 +539,7 @@
       held: [...heldIdsForEdit(time)],
       guests,
       interactive: true,
-      base: "../reserve/img/",
+      base: window.TINY_WP?.reserveImgBase || "../reserve/img/",
       onPick: toggleEditTable,
     });
     updateEditTableLabel();
@@ -555,6 +555,12 @@
     [...state.editSelected].forEach((id) => {
       if (held.has(id)) state.editSelected.delete(id);
     });
+    if (Map.selectionStillValid) {
+      if (state.editSelected.size && !Map.selectionStillValid([...state.editSelected], guests)) {
+        state.editSelected = new Set();
+      }
+      return;
+    }
     const tables = editSelectedTables();
     if (tables.length && tables.some((table) => !Map.canTakeTable(table, guests))) {
       state.editSelected = new Set();
@@ -573,16 +579,12 @@
       setMsg("That table is already reserved for this 2-hour slot.", "error");
       return;
     }
+    if (!Map.canTakeTable(table, guests)) {
+      setMsg(Map.unavailableReason?.(table, guests) || "That table is too small for this party.", "error");
+      return;
+    }
     const next = Map.nextSelection(state.editSelected, id, guests, held);
-    if (
-      !held.has(id) &&
-      next.size === state.editSelected.size &&
-      [...next].every((item) => state.editSelected.has(item))
-    ) {
-      if (!Map.canTakeTable(table, guests)) {
-        setMsg("That table is too small for this party.", "error");
-        return;
-      }
+    if (next.size === state.editSelected.size && [...next].every((item) => state.editSelected.has(item))) {
       setMsg("The joined table is already reserved for this slot.", "error");
       return;
     }
@@ -786,9 +788,20 @@
             return;
           }
           const guests = editGuestsFromForm(form);
-          const seats = tables.reduce((sum, table) => sum + table.seats, 0);
-          if (seats < guests) {
-            setMsg(`That table seats ${seats}. Pick a larger table or join indoor tables 1 and 2.`, "error");
+          const seats = Map.selectionCapacity
+            ? Map.selectionCapacity(tables.map((table) => table.id), guests)
+            : tables.reduce((sum, table) => sum + table.seats, 0);
+          const fits = Map.selectionFits
+            ? Map.selectionFits(tables.map((table) => table.id), guests)
+            : seats >= guests;
+          if (!fits) {
+            setMsg(
+              guests >= (Map.FLEX_TERRACE_MIN || 15)
+                ? `Those tables seat ${seats}. Add terrace tables until they seat ${guests}.`
+                : Map.seatingHint?.(guests)?.replace(/ Held tables are blocked for this slot\./, "") ||
+                    `That table seats ${seats}. Join indoor tables 1 & 2 or 3 & 4, or the matching terrace tables.`,
+              "error"
+            );
             state.busy = false;
             return;
           }

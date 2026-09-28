@@ -1,0 +1,966 @@
+(() => {
+  "use strict";
+
+  const WA_BASE = "https://wa.me/6282266484226";
+  const TZ = "Asia/Makassar";
+  const Map = window.TinyReserveMap;
+
+  const CAFE = {
+    name: "Tiny Healthy Family Cafe",
+    address: "Gg. Anggrek Gg. Jepun No.5, Tibubeneng, Kec. Kuta Utara, Kabupaten Badung, Bali 80361, Indonesia",
+  };
+
+  const state = {
+    step: 1,
+    area: "indoor",
+    selected: new Set(),
+    kids: 0,
+    adults: 0,
+    guests: 0,
+    time: "",
+    date: "",
+    occupancy: [],
+    occupancyOk: false,
+    submitting: false,
+    saved: false,
+    manageToken: "",
+    publicCode: "",
+  };
+
+  function findTable(id) {
+    return Map.findTable(id);
+  }
+
+  function selectedTables() {
+    return [...state.selected].map(findTable).filter(Boolean);
+  }
+
+  function selectedSeats() {
+    if (Map.selectionCapacity) return Map.selectionCapacity([...state.selected], state.guests);
+    return selectedTables().reduce((sum, table) => sum + table.seats, 0);
+  }
+
+  function heldIds() {
+    return Map.heldTableIds(state.occupancy, state.time);
+  }
+
+  function setStatus(message, kind) {
+    const node = document.getElementById("form-status");
+    if (!node) return;
+    node.textContent = message || "";
+    node.classList.toggle("is-error", kind === "error");
+    node.classList.toggle("is-success", kind === "success");
+  }
+
+  function renderPicked() {
+    const box = document.getElementById("picked");
+    const meta = document.getElementById("picked-meta");
+    const tables = selectedTables();
+    const seats = selectedSeats();
+    if (!tables.length) {
+      box.innerHTML = "<h3>No table yet</h3><p>Tap a numbered table on the layout.</p>";
+      meta.hidden = true;
+      return;
+    }
+    box.innerHTML = `<h3>${Map.tableLabel(tables)}</h3><p>${tables
+      .map((table) => table.hint)
+      .join(" · ")}</p>`;
+    meta.hidden = false;
+    meta.innerHTML = `
+      <div><dt>Seats</dt><dd>${seats}</dd></div>
+      <div><dt>Guests</dt><dd>${state.kids} kids · ${state.adults} adults</dd></div>
+      <div><dt>Slot</dt><dd>${Map.timeRangeLabel(state.time)}</dd></div>
+    `;
+  }
+
+  function fitPlanToPage() {
+    if (state.step !== 2) return;
+    const wizard = document.querySelector(".wizard");
+    const head = document.querySelector('[data-panel="2"] .plan__head');
+    const nav = document.querySelector(".wizard__nav");
+    if (!wizard) return;
+    const headerH = document.querySelector(".site-header")?.getBoundingClientRect().height || 80;
+    const topH = document.querySelector(".wizard__top")?.getBoundingClientRect().height || 0;
+    const stepsH = document.querySelector(".steps")?.getBoundingClientRect().height || 0;
+    const headH = head?.getBoundingClientRect().height || 0;
+    const navH = nav?.getBoundingClientRect().height || 0;
+    const status = document.getElementById("form-status");
+    const statusH = status?.textContent ? status.getBoundingClientRect().height : 0;
+    const styles = getComputedStyle(wizard);
+    const pad = (parseFloat(styles.paddingTop) || 0) + (parseFloat(styles.paddingBottom) || 0);
+    const gaps = 28;
+    const used = headerH + topH + stepsH + headH + navH + statusH + pad + gaps + 16;
+    let mapMax = Math.max(200, Math.floor(window.innerHeight - used));
+    if (window.matchMedia("(max-width: 980px)").matches) {
+      mapMax = Math.min(mapMax, Math.floor(window.innerHeight * 0.42), 320);
+    }
+    document.documentElement.style.setProperty("--plan-map-max", `${mapMax}px`);
+  }
+
+  function renderPlan() {
+    const host = document.getElementById("floorplan");
+    if (!host || !Map) return;
+    syncAreaTabs();
+    Map.renderMap(host, {
+      area: state.area,
+      selected: [...state.selected],
+      held: [...heldIds()],
+      guests: state.guests,
+      interactive: true,
+      base: window.TINY_WP?.reserveImgBase || "img/",
+      onPick: toggleTable,
+    });
+    renderPicked();
+    fitPlanToPage();
+    updateSeatingHint();
+  }
+
+  function updateSeatingHint() {
+    const hint = document.getElementById("guests-hint");
+    if (!hint || !Map.seatingHint) return;
+    hint.textContent = Map.seatingHint(state.guests);
+  }
+
+  function syncAreaTabs() {
+    const indoorBlocked = state.guests > Map.INDOOR_MAX;
+    if (indoorBlocked && state.area === "indoor") state.area = "terrace";
+    document.querySelectorAll(".plan-tab").forEach((tab) => {
+      const area = tab.getAttribute("data-area");
+      const on = area === state.area;
+      const blocked = area === "indoor" && indoorBlocked;
+      tab.classList.toggle("is-active", on);
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+      tab.disabled = blocked;
+      tab.title = blocked ? `Indoor seats up to ${Map.INDOOR_MAX}` : "";
+    });
+  }
+
+  function pruneSelection() {
+    [...state.selected].forEach((id) => {
+      if (heldIds().has(id)) state.selected.delete(id);
+    });
+    if (state.guests > Map.INDOOR_MAX && [...state.selected].some((id) => findTable(id)?.area === "indoor")) {
+      state.selected = new Set();
+      state.area = "terrace";
+    }
+    if (state.selected.size && Map.selectionStillValid && !Map.selectionStillValid([...state.selected], state.guests)) {
+      state.selected = new Set();
+    }
+  }
+
+  function toggleTable(id) {
+    const table = findTable(id);
+    if (!table) return;
+    const held = heldIds();
+    if (held.has(id) && !state.selected.has(id)) {
+      setStatus("That table is already reserved for this 2-hour slot.", "error");
+      return;
+    }
+    if (!Map.canTakeTable(table, state.guests)) {
+      setStatus(Map.unavailableReason?.(table, state.guests) || "That table is too small for this party.", "error");
+      return;
+    }
+    const next = Map.nextSelection(state.selected, id, state.guests, held);
+    if (next.size === state.selected.size && [...next].every((item) => state.selected.has(item))) {
+      setStatus("The joined table is already reserved for this slot.", "error");
+      return;
+    }
+    state.area = table.area;
+    state.selected = next;
+    document.querySelectorAll(".plan-tab").forEach((tab) => {
+      const on = tab.getAttribute("data-area") === state.area;
+      tab.classList.toggle("is-active", on);
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    renderPlan();
+    setStatus("");
+  }
+
+  function setArea(area) {
+    if (area === "indoor" && state.guests > Map.INDOOR_MAX) {
+      setStatus(`Indoor seats up to ${Map.INDOOR_MAX}. Choose the terrace for ${state.guests} guests.`, "error");
+      syncAreaTabs();
+      return;
+    }
+    state.area = area;
+    document.querySelectorAll(".plan-tab").forEach((tab) => {
+      const on = tab.getAttribute("data-area") === area;
+      tab.classList.toggle("is-active", on);
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    if ([...state.selected].some((id) => findTable(id)?.area !== area)) {
+      state.selected = new Set();
+    }
+    renderPlan();
+  }
+
+  function readGuests() {
+    const kidsRaw = document.getElementById("guest-kids")?.value;
+    const adultsRaw = document.getElementById("guest-adults")?.value;
+    const kids = kidsRaw === "" || kidsRaw == null ? 0 : Math.max(0, Number(kidsRaw) || 0);
+    const adults = adultsRaw === "" || adultsRaw == null ? 0 : Math.max(0, Number(adultsRaw) || 0);
+    state.kids = kids;
+    state.adults = adults;
+    state.guests = kids + adults;
+    pruneSelection();
+    renderPlan();
+  }
+
+  function setGuests(kids, adults) {
+    state.kids = Math.max(0, kids);
+    state.adults = Math.max(0, adults);
+    state.guests = state.kids + state.adults;
+    const kidsInput = document.getElementById("guest-kids");
+    const adultsInput = document.getElementById("guest-adults");
+    if (kidsInput) kidsInput.value = String(state.kids);
+    if (adultsInput) adultsInput.value = String(state.adults);
+    paintCountValue("guest-kids");
+    paintCountValue("guest-adults");
+    pruneSelection();
+    renderPlan();
+  }
+
+  const COUNT_SLIDERS = {
+    "guest-kids": {
+      title: "How many kids?",
+      note: "Little guests joining the table.",
+      unit: "Kids",
+      min: 0,
+      max: 30,
+      start: 2,
+      label: (n) => `${n} ${n === 1 ? "kid" : "kids"}`,
+      confirm: (n) => `Got it — ${n} ${n === 1 ? "kid" : "kids"}.`,
+    },
+    "guest-adults": {
+      title: "How many adults?",
+      note: "Grown-ups joining the table.",
+      unit: "Adults",
+      min: 0,
+      max: 20,
+      start: 2,
+      label: (n) => `${n} ${n === 1 ? "adult" : "adults"}`,
+      confirm: (n) => `Got it — ${n} ${n === 1 ? "adult" : "adults"}.`,
+    },
+  };
+
+  function paintCountValue(id) {
+    const spec = COUNT_SLIDERS[id];
+    const input = document.getElementById(id);
+    const label = document.getElementById(`${id}-value`);
+    if (!spec || !input || !label) return;
+    const value = input.value;
+    label.textContent = value === "" ? "Slide to choose" : spec.label(Number(value));
+  }
+
+  function initCountSliders() {
+    const modal = document.getElementById("count-modal");
+    const range = document.getElementById("count-modal-range");
+    const title = document.getElementById("count-modal-title");
+    const note = document.getElementById("count-modal-note");
+    const valueEl = document.getElementById("count-modal-value");
+    const unit = document.getElementById("count-modal-unit");
+    const minLabel = document.getElementById("count-modal-min");
+    const maxLabel = document.getElementById("count-modal-max");
+    const confirm = document.getElementById("count-modal-confirm");
+    if (!modal || !range) return;
+    let activeId = "";
+
+    const paint = () => {
+      const spec = COUNT_SLIDERS[activeId];
+      if (!spec) return;
+      const n = Number(range.value);
+      if (valueEl) valueEl.textContent = String(n);
+      if (confirm) confirm.textContent = spec.confirm(n);
+    };
+
+    const close = () => {
+      modal.hidden = true;
+      activeId = "";
+    };
+
+    const open = (id) => {
+      const spec = COUNT_SLIDERS[id];
+      const input = document.getElementById(id);
+      if (!spec || !input) return;
+      activeId = id;
+      range.min = String(spec.min);
+      range.max = String(spec.max);
+      range.value = input.value === "" ? String(spec.start) : String(input.value);
+      if (title) title.textContent = spec.title;
+      if (note) note.textContent = spec.note;
+      if (unit) unit.textContent = spec.unit;
+      if (minLabel) minLabel.textContent = String(spec.min);
+      if (maxLabel) maxLabel.textContent = String(spec.max);
+      paint();
+      modal.hidden = false;
+    };
+
+    Object.keys(COUNT_SLIDERS).forEach((id) => {
+      paintCountValue(id);
+      document.getElementById(`${id}-trigger`)?.addEventListener("click", () => open(id));
+    });
+    range.addEventListener("input", paint);
+    document.getElementById("count-modal-done")?.addEventListener("click", () => {
+      const input = document.getElementById(activeId);
+      if (input) {
+        input.value = range.value;
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        paintCountValue(activeId);
+      }
+      close();
+    });
+    modal.querySelectorAll("[data-close-count]").forEach((el) => el.addEventListener("click", close));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !modal.hidden) close();
+    });
+  }
+
+  function baliNowParts() {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      timeZone: TZ,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+    const grab = (type) => parts.find((part) => part.type === type).value;
+    return {
+      date: `${grab("year")}-${grab("month")}-${grab("day")}`,
+      hour: Number(grab("hour")),
+      minute: Number(grab("minute")),
+    };
+  }
+
+  function parseIsoDate(value) {
+    const [year, month, day] = String(value || "").split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, day));
+  }
+
+  function addDays(iso, days) {
+    const date = parseIsoDate(iso);
+    date.setUTCDate(date.getUTCDate() + days);
+    return date.toISOString().slice(0, 10);
+  }
+
+  function prettyDate(value, opts) {
+    if (!value) return "";
+    return parseIsoDate(value).toLocaleDateString("en-GB", {
+      weekday: opts?.weekday || "long",
+      day: "numeric",
+      month: opts?.month || "long",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }
+
+  function weekdayShort(value) {
+    return parseIsoDate(value).toLocaleDateString("en-GB", { weekday: "short", timeZone: "UTC" });
+  }
+
+  function dayNum(value) {
+    return String(Number(value.split("-")[2]));
+  }
+
+  function guestName() {
+    const salutation = document.getElementById("reserve-salutation")?.value || "";
+    const name = document.getElementById("reserve-name")?.value.trim() || "";
+    return [salutation, name].filter(Boolean).join(" ");
+  }
+
+  function guestNameParts() {
+    return {
+      salutation: document.getElementById("reserve-salutation")?.value || "",
+      name: document.getElementById("reserve-name")?.value.trim() || "",
+    };
+  }
+
+  function composeMessage(code) {
+    const notes = document.getElementById("reserve-notes")?.value.trim() || "";
+    const purpose = document.getElementById("reserve-purpose")?.value || "";
+    const email = document.getElementById("contact-email")?.value.trim() || "";
+    const phone = window.TinyContact?.readContact?.()?.phone || document.getElementById("contact-phone")?.value.trim() || "";
+    return [
+      "Hi Tiny! I’d like to reserve a table.",
+      code ? `Request: ${code}` : null,
+      "",
+      `Name: ${guestName()}`,
+      `Date: ${prettyDate(state.date)}`,
+      `Time: ${Map.timeRangeLabel(state.time)} (2-hour table)`,
+      `Please arrive by ${Map.graceLabel(state.time)} or the reservation is cancelled.`,
+      `Guests: ${state.kids} kids, ${state.adults} adults`,
+      Map.tableLabel(selectedTables()) ? `Table: ${Map.tableLabel(selectedTables())}` : null,
+      purpose ? `Purpose: ${purpose}` : null,
+      notes ? `Notes: ${notes}` : null,
+      phone ? `My WhatsApp: ${phone}` : null,
+      email ? `Email: ${email}` : null,
+      "",
+      "Please confirm if this table is free.",
+    ]
+      .filter((line) => line !== null)
+      .join("\n");
+  }
+
+  function buildPayload() {
+    const tables = selectedTables();
+    return {
+      party: {
+        date: state.date,
+        time: state.time,
+        day: weekdayShort(state.date),
+        guestAdults: state.adults,
+        guestKids: state.kids,
+      },
+      reservation: {
+        name: guestNameParts().name,
+        salutation: guestNameParts().salutation,
+        purpose: document.getElementById("reserve-purpose")?.value || "",
+        notes: document.getElementById("reserve-notes")?.value.trim() || "",
+        guests: state.guests,
+        kids: state.kids,
+        adults: state.adults,
+        area: tables[0]?.area || state.area,
+        tableIds: tables.map((table) => table.id),
+        tableNumbers: tables.map((table) => table.number),
+        tableLabel: Map.tableLabel(tables),
+        slotMinutes: Map.SLOT_MINUTES,
+        graceMinutes: Map.GRACE_MINUTES,
+        occupyBefore: Map.RES_BEFORE,
+        occupyAfter: Map.RES_AFTER,
+        occupyLabel: Map.occupyLabel(state.time, "reservation"),
+        holdUntil: Map.graceLabel(state.time),
+      },
+    };
+  }
+
+  function validateStep(step) {
+    if (step === 1) {
+      if (!state.date) return "Please choose a date.";
+      if (!state.occupancyOk) return "Couldn’t check availability — try again.";
+      if (!state.time) return "Please choose a time.";
+      if (state.guests < 1) return "Please choose how many kids and adults are coming.";
+      if (Map.slotIsBooked?.(state.occupancy, state.time, "reservation", state.guests || 1)) {
+        return "That time isn’t free. Please pick another slot.";
+      }
+      return "";
+    }
+    if (step === 2) {
+      const tables = selectedTables();
+      const seats = selectedSeats();
+      if (!state.occupancyOk) return "Couldn’t check availability — try again.";
+      if (!tables.length) return "Please tap a table on the floor plan.";
+      if (Map.selectionFits && !Map.selectionFits([...state.selected], state.guests)) {
+        if (state.guests >= (Map.FLEX_TERRACE_MIN || 15)) {
+          return `Those tables seat ${seats}. Add terrace tables until they seat ${state.guests}.`;
+        }
+        return Map.seatingHint?.(state.guests)?.replace(/ Held tables are blocked for this slot\./, "") || "Those tables don’t fit this party.";
+      }
+      if (!Map.selectionFits && seats < state.guests) {
+        return `That table seats ${seats}. Pick a larger table or join indoor tables 1 & 2 or 3 & 4.`;
+      }
+      if (tables.some((table) => heldIds().has(table.id))) {
+        return "That table is already reserved for this 2-hour slot.";
+      }
+      return "";
+    }
+    if (step === 3) {
+      if (!document.getElementById("reserve-name")?.value.trim()) return "Please add your name.";
+      const contact = window.TinyContact?.validateContact?.();
+      if (!contact?.ok) return contact?.message || "Please add an email or WhatsApp number.";
+      const email = contact.email || "";
+      const phone = contact.phone || "";
+      if (!email) return "Please add your email so we can send your reservation link.";
+      if (!phone) return "Please add your WhatsApp number.";
+      return "";
+    }
+    return "";
+  }
+
+  function setScheduleOccupancyStatus(message, kind) {
+    const el = document.getElementById("schedule-occupancy-status");
+    if (!el) return;
+    if (!message) {
+      el.hidden = true;
+      el.textContent = "";
+      el.className = "form-status";
+      return;
+    }
+    el.hidden = false;
+    el.textContent = message;
+    el.className = kind ? `form-status is-${kind}` : "form-status";
+  }
+
+  async function loadOccupancy() {
+    const cfg = window.TINY_SUPABASE || {};
+    if (!cfg.url || !cfg.anonKey || !state.date) {
+      state.occupancy = Map.withFixedHolds ? Map.withFixedHolds(state.date, []) : [];
+      state.occupancyOk = Boolean(state.date);
+      pruneSelection();
+      renderPlan();
+      renderTimes();
+      return;
+    }
+    try {
+      const res = await fetch(`${cfg.url}/rest/v1/rpc/reservation_occupancy`, {
+        method: "POST",
+        headers: {
+          apikey: cfg.anonKey,
+          Authorization: `Bearer ${cfg.anonKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ target_date: state.date }),
+      });
+      if (!res.ok) throw new Error("occupancy failed");
+      const data = await res.json();
+      const rows = Array.isArray(data) ? data : [];
+      state.occupancy = Map.withFixedHolds ? Map.withFixedHolds(state.date, rows) : rows;
+      state.occupancyOk = true;
+      setScheduleOccupancyStatus("");
+    } catch (_) {
+      state.occupancyOk = false;
+      setScheduleOccupancyStatus("Couldn’t check availability — try again.", "error");
+    }
+    pruneSelection();
+    renderPlan();
+    renderTimes();
+  }
+
+  function setDate(value) {
+    const now = baliNowParts();
+    state.date = value && value >= now.date ? value : now.date;
+    const input = document.getElementById("reserve-date");
+    if (input) input.value = state.date;
+    renderDateChips();
+    disablePastTimes();
+    updateTimeTrigger();
+    loadOccupancy();
+  }
+
+  function renderDateChips() {
+    const host = document.getElementById("date-chips");
+    if (!host) return;
+    const now = baliNowParts();
+    let start = now.date;
+    if (state.date > addDays(now.date, 3)) start = addDays(state.date, -3);
+    const unique = [0, 1, 2, 3].map((offset) => addDays(start, offset));
+    host.innerHTML = "";
+    unique.forEach((iso) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "date-chip" + (iso === state.date ? " is-active" : "");
+      btn.innerHTML = `<span>${iso === now.date ? "Today" : weekdayShort(iso)}</span><strong>${dayNum(iso)}</strong>`;
+      btn.addEventListener("click", () => setDate(iso));
+      host.appendChild(btn);
+    });
+    const more = document.createElement("button");
+    more.type = "button";
+    more.className = "date-more";
+    more.innerHTML = `<span>${parseIsoDate(state.date).toLocaleDateString("en-GB", {
+      month: "short",
+      timeZone: "UTC",
+    })}</span>`;
+    more.addEventListener("click", () => {
+      const input = document.getElementById("reserve-date");
+      if (input?.showPicker) input.showPicker();
+      else input?.click();
+    });
+    host.appendChild(more);
+  }
+
+  function disablePastTimes() {
+    const now = baliNowParts();
+    const buttons = document.querySelectorAll(".time-chip");
+    buttons.forEach((btn) => {
+      const [hour, minute] = btn.dataset.time.split(":").map(Number);
+      const past = state.date === now.date && hour * 60 + minute <= now.hour * 60 + now.minute;
+      const booked = btn.dataset.booked === "1";
+      btn.disabled = past || booked;
+      btn.classList.toggle("is-booked", booked);
+      if (past && state.time === btn.dataset.time) {
+        const next = [...buttons].find((item) => !item.disabled);
+        state.time = next ? next.dataset.time : "";
+      }
+    });
+    if (!state.time) {
+      const next = [...buttons].find((item) => !item.disabled);
+      state.time = next ? next.dataset.time : "";
+    }
+    buttons.forEach((btn) => btn.classList.toggle("is-active", btn.dataset.time === state.time));
+  }
+
+  function updateTimeTrigger() {
+    const label = document.getElementById("time-trigger-label");
+    const hint = document.getElementById("time-trigger-hint");
+    if (!label) return;
+    if (state.time) {
+      label.textContent = Map.timeRangeLabel(state.time);
+      if (hint) hint.textContent = `Arrive by ${Map.graceLabel(state.time)}`;
+    } else {
+      label.textContent = "Select time";
+      if (hint) hint.textContent = "Choose an available 2-hour slot";
+    }
+  }
+
+  function openTimeModal() {
+    if (!state.occupancyOk) {
+      setStatus("Couldn’t check availability — try again.", "error");
+      loadOccupancy();
+      return;
+    }
+    const modal = document.getElementById("time-modal");
+    const trigger = document.getElementById("time-trigger");
+    if (!modal) return;
+    renderTimes();
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    trigger?.setAttribute("aria-expanded", "true");
+    document.body.classList.add("time-modal-open");
+  }
+
+  function closeTimeModal() {
+    const modal = document.getElementById("time-modal");
+    const trigger = document.getElementById("time-trigger");
+    if (!modal) return;
+    modal.hidden = true;
+    modal.setAttribute("aria-hidden", "true");
+    trigger?.setAttribute("aria-expanded", "false");
+    document.body.classList.remove("time-modal-open");
+  }
+
+  function renderTimes() {
+    const grid = document.getElementById("time-grid");
+    if (!grid) return;
+    grid.innerHTML = "";
+    Map.timeSlots().forEach((time) => {
+      const btn = document.createElement("button");
+      const booked = Map.slotIsBooked?.(state.occupancy, time, "reservation", state.guests || 1);
+      btn.type = "button";
+      btn.className = "time-chip" + (time === state.time ? " is-active" : "") + (booked ? " is-booked" : "");
+      btn.dataset.time = time;
+      btn.dataset.booked = booked ? "1" : "";
+      btn.innerHTML = `<strong>${time}</strong><span>${booked ? "Booked" : `until ${Map.addMinutes(time, Map.SLOT_MINUTES)}`}</span>`;
+      if (booked) btn.disabled = true;
+      btn.addEventListener("click", () => {
+        if (btn.disabled) return;
+        state.time = time;
+        grid.querySelectorAll(".time-chip").forEach((item) => {
+          item.classList.toggle("is-active", item === btn);
+        });
+        pruneSelection();
+        renderPlan();
+        updateTimeTrigger();
+        setStatus("");
+        closeTimeModal();
+      });
+      grid.appendChild(btn);
+    });
+    disablePastTimes();
+    updateTimeTrigger();
+  }
+
+  function setStep(step, options) {
+    state.step = Math.min(4, Math.max(1, step));
+    document.querySelectorAll(".wizard-panel").forEach((panel) => {
+      const on = Number(panel.getAttribute("data-panel")) === state.step;
+      panel.classList.toggle("is-active", on);
+      panel.hidden = !on;
+    });
+    document.querySelectorAll(".steps__item").forEach((item, index) => {
+      const n = index + 1;
+      item.classList.toggle("is-active", n === state.step);
+      item.classList.toggle("is-done", n < state.step);
+    });
+    const back = document.getElementById("wizard-back");
+    const next = document.getElementById("wizard-next");
+    const submit = document.getElementById("wizard-submit");
+    const wa = document.getElementById("wa-open");
+    const manage = document.getElementById("post-save-actions");
+    if (back) back.hidden = state.step === 1 || state.saved;
+    if (next) next.hidden = state.step === 4 || state.saved;
+    if (submit) submit.hidden = state.step !== 4 || state.saved;
+    if (wa) wa.hidden = !(state.saved && state.step === 4);
+    if (manage) manage.hidden = !(state.saved && state.step === 4);
+    if (state.step === 2) renderPlan();
+    if (state.step === 4) renderSummary();
+    if (!options?.silent) {
+      document.getElementById("book")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    if (state.step === 2) requestAnimationFrame(fitPlanToPage);
+  }
+
+  function renderSummary() {
+    const host = document.getElementById("summary-card");
+    if (!host) return;
+    const purpose = document.getElementById("reserve-purpose")?.value || "—";
+    const notes = document.getElementById("reserve-notes")?.value.trim() || "—";
+    const email = document.getElementById("contact-email")?.value.trim() || "";
+    const phone = window.TinyContact?.readContact?.()?.phone || document.getElementById("contact-phone")?.value.trim() || "";
+    host.innerHTML = `
+      <div class="summary-block">
+        <p class="summary-cafe">${CAFE.name}</p>
+        <p class="field__hint">${CAFE.address}</p>
+      </div>
+      <div class="summary-block">
+        <div class="summary-head">
+          <h3>Schedule</h3>
+          <button class="summary-edit" type="button" data-goto="1">Edit</button>
+        </div>
+        <div class="summary-row">
+          <div><span>Date</span><strong>${prettyDate(state.date, { weekday: "short", month: "short" })}</strong></div>
+          <div><span>Time</span><strong>${Map.timeRangeLabel(state.time)}</strong></div>
+          <div><span>Guests</span><strong>${state.kids} kids · ${state.adults} adults</strong></div>
+        </div>
+        <p class="field__hint">Arrive by ${Map.graceLabel(state.time)}. After that the table is released.</p>
+      </div>
+      <div class="summary-block">
+        <div class="summary-head">
+          <h3>Table</h3>
+          <button class="summary-edit" type="button" data-goto="2">Edit</button>
+        </div>
+        <p>${Map.tableLabel(selectedTables())}</p>
+      </div>
+      <div class="summary-block">
+        <div class="summary-head">
+          <h3>Reservation details</h3>
+          <button class="summary-edit" type="button" data-goto="3">Edit</button>
+        </div>
+        <p><strong>${guestName()}</strong></p>
+        <p class="field__hint">${[email, phone].filter(Boolean).join(" · ") || "—"}</p>
+        <p class="summary-kicker">Purpose</p>
+        <p>${purpose || "—"}</p>
+        <p class="summary-kicker">Notes</p>
+        <p>${notes}</p>
+      </div>
+    `;
+    host.querySelectorAll("[data-goto]").forEach((btn) => {
+      btn.addEventListener("click", () => setStep(Number(btn.getAttribute("data-goto"))));
+    });
+  }
+
+  function updateNotesCount() {
+    const notes = document.getElementById("reserve-notes");
+    const count = document.getElementById("notes-count");
+    if (!notes || !count) return;
+    count.textContent = `${notes.value.length} / ${notes.maxLength || 120}`;
+  }
+
+  function resetWizard() {
+    document.getElementById("reserve-form")?.reset();
+    window.TinyContact?.initDialCombobox?.();
+    state.selected = new Set();
+    state.area = "indoor";
+    state.saved = false;
+    document.getElementById("guest-kids").value = "";
+    document.getElementById("guest-adults").value = "";
+    paintCountValue("guest-kids");
+    paintCountValue("guest-adults");
+    readGuests();
+    setDate(baliNowParts().date);
+    setStep(1);
+    setStatus("");
+    updateNotesCount();
+  }
+
+  function bindForm() {
+    const date = document.getElementById("reserve-date");
+    const now = baliNowParts();
+    date.min = now.date;
+    date.value = now.date;
+    state.date = now.date;
+    date.addEventListener("change", () => setDate(date.value));
+
+    document.getElementById("guest-kids")?.addEventListener("input", readGuests);
+    document.getElementById("guest-adults")?.addEventListener("input", readGuests);
+    document.getElementById("reserve-notes")?.addEventListener("input", updateNotesCount);
+
+    document.querySelectorAll(".plan-tab").forEach((tab) => {
+      tab.addEventListener("click", () => setArea(tab.getAttribute("data-area")));
+    });
+
+    document.getElementById("wizard-cancel")?.addEventListener("click", resetWizard);
+    document.getElementById("wizard-back")?.addEventListener("click", () => {
+      setStatus("");
+      setStep(state.step - 1);
+    });
+    document.getElementById("wizard-next")?.addEventListener("click", async () => {
+      if (state.step === 1 || state.step === 2) {
+        setStatus("Checking availability…");
+        await loadOccupancy();
+      }
+      const error = validateStep(state.step);
+      if (error) {
+        setStatus(error, "error");
+        return;
+      }
+      window.TinyContact?.markContactValidity?.(true);
+      setStatus("");
+      setStep(state.step + 1);
+    });
+
+    document.getElementById("time-trigger")?.addEventListener("click", openTimeModal);
+    document.querySelectorAll("[data-close-time]").forEach((el) => {
+      el.addEventListener("click", closeTimeModal);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeTimeModal();
+    });
+
+    document.getElementById("reserve-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (state.submitting) return;
+      setStatus("Checking availability…");
+      await loadOccupancy();
+      const error = validateStep(1) || validateStep(2) || validateStep(3);
+      if (error) {
+        setStatus(error, "error");
+        if (error.includes("time") || error.includes("date") || error.includes("availability") || error.includes("slot")) {
+          setStep(1);
+        } else if (error.includes("table") || error.includes("seats") || error.includes("reserved")) {
+          setStep(2);
+        } else {
+          setStep(3);
+        }
+        return;
+      }
+      const submitBtn = document.getElementById("wizard-submit");
+      state.submitting = true;
+      if (submitBtn) submitBtn.disabled = true;
+      let code = "";
+      let manageToken = "";
+      try {
+        if (!window.TinySubmit?.submitRequest) throw new Error("Saving is not configured yet.");
+        setStatus("Saving your reservation…");
+        const result = await window.TinySubmit.submitRequest({
+          source: "reservation",
+          payload: buildPayload(),
+          onProgress: setStatus,
+        });
+        code = result.publicCode || "";
+        manageToken = result.manageToken || "";
+        window.TinySubmit?.rememberManage?.("reservation", {
+          publicCode: code,
+          manageToken,
+          requestId: result.requestId,
+        });
+        state.saved = true;
+        state.manageToken = manageToken;
+        state.publicCode = code;
+        setStatus(code ? `Saved as ${code}.` : "Saved.", "success");
+        setStep(4);
+        const waHref = `${WA_BASE}?text=${encodeURIComponent(composeMessage(code))}`;
+        const manageHref = manageToken ? window.TinySubmit?.bookingUrl?.(manageToken) || "" : "";
+        if (!manageToken || !manageHref) {
+          setStatus(
+            (code ? `Saved as ${code}. ` : "Saved. ") +
+              "Manage link unavailable — deploy manage_token migration and submit-request, then try again.",
+            "error"
+          );
+        }
+        if (window.TinySuccessModal?.open) {
+          window.TinySuccessModal.open({
+            title: "Reservation saved",
+            code,
+            manageToken,
+            manageHref,
+            whatsappHref: waHref,
+            showEdit: Boolean(manageHref),
+            showCancel: Boolean(manageToken),
+            showShare: Boolean(manageHref),
+            onCancelled: () => {
+              state.saved = true;
+              setStatus("Reservation cancelled.", "success");
+              const manage = document.getElementById("post-save-actions");
+              if (manage) manage.hidden = true;
+              setStep(4);
+            },
+          });
+        }
+        const wa = document.getElementById("wa-open");
+        if (wa) {
+          wa.href = waHref;
+          wa.hidden = false;
+        }
+        wirePostSaveActions(manageHref);
+      } catch (err) {
+        console.error(err);
+        setStatus(err?.message || "Could not save the reservation.", "error");
+      }
+      state.submitting = false;
+      if (submitBtn) submitBtn.disabled = false;
+    });
+
+    document.getElementById("post-save-share")?.addEventListener("click", async () => {
+      const href = state.manageToken ? window.TinySubmit?.bookingUrl?.(state.manageToken) || "" : "";
+      if (!href) {
+        setStatus("Share link unavailable. Save again after manage links are deployed.", "error");
+        return;
+      }
+      const result = (await window.TinySuccessModal?.shareLink?.(href)) || "copied";
+      if (result === "copied") setStatus("Link copied.", "success");
+      else if (result === "shared") setStatus("Shared.", "success");
+      else if (result !== "aborted") setStatus("Copy the link from the prompt.", "success");
+    });
+
+    document.getElementById("post-save-cancel")?.addEventListener("click", async () => {
+      if (!state.manageToken) {
+        setStatus("Cancel unavailable without a manage link.", "error");
+        return;
+      }
+      if (!window.confirm("Cancel this reservation? Tiny will be notified.")) return;
+      try {
+        setStatus("Cancelling…");
+        const contact = window.TinyContact?.readContact?.() || {};
+        await window.TinySubmit.manageRequest({
+          action: "cancel",
+          manageToken: state.manageToken,
+          email: contact.email || "",
+          phone: contact.phone || "",
+        });
+        setStatus("Reservation cancelled.", "success");
+        const manage = document.getElementById("post-save-actions");
+        if (manage) manage.hidden = true;
+      } catch (err) {
+        setStatus(err?.message || "Could not cancel.", "error");
+      }
+    });
+  }
+
+  function wirePostSaveActions(manageHref) {
+    const edit = document.getElementById("post-save-edit");
+    const share = document.getElementById("post-save-share");
+    const cancel = document.getElementById("post-save-cancel");
+    const href = manageHref || (state.manageToken ? window.TinySubmit?.bookingUrl?.(state.manageToken) || "" : "");
+    if (edit) {
+      if (href) {
+        edit.href = href;
+        edit.removeAttribute("aria-disabled");
+        edit.classList.remove("is-disabled");
+      } else {
+        edit.href = "#";
+        edit.setAttribute("aria-disabled", "true");
+        edit.classList.add("is-disabled");
+      }
+    }
+    [share, cancel].forEach((btn) => {
+      if (!btn) return;
+      btn.disabled = !state.manageToken;
+    });
+  }
+
+  function boot() {
+    if (!document.getElementById("floorplan") || !Map) return;
+    bindForm();
+    initCountSliders();
+    renderTimes();
+    setDate(baliNowParts().date);
+    renderPlan();
+    setStep(1, { silent: true });
+    updateNotesCount();
+    window.addEventListener("resize", fitPlanToPage);
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})();

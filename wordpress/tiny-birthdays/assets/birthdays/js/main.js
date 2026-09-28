@@ -1,73 +1,7 @@
 (() => {
   "use strict";
 
-  const WA_BASE = "https://wa.me/6282147830142";
   const HEADER_OFFSET = 80;
-
-  const COUNTRIES = [
-    { iso: "ID", name: "Indonesia", dial: "62", flag: "🇮🇩" },
-    { iso: "AU", name: "Australia", dial: "61", flag: "🇦🇺" },
-    { iso: "SG", name: "Singapore", dial: "65", flag: "🇸🇬" },
-    { iso: "MY", name: "Malaysia", dial: "60", flag: "🇲🇾" },
-    { iso: "US", name: "United States", dial: "1", flag: "🇺🇸" },
-    { iso: "GB", name: "United Kingdom", dial: "44", flag: "🇬🇧" },
-    { iso: "RU", name: "Russia", dial: "7", flag: "🇷🇺" },
-    { iso: "DE", name: "Germany", dial: "49", flag: "🇩🇪" },
-    { iso: "FR", name: "France", dial: "33", flag: "🇫🇷" },
-    { iso: "NL", name: "Netherlands", dial: "31", flag: "🇳🇱" },
-    { iso: "IT", name: "Italy", dial: "39", flag: "🇮🇹" },
-    { iso: "ES", name: "Spain", dial: "34", flag: "🇪🇸" },
-    { iso: "PT", name: "Portugal", dial: "351", flag: "🇵🇹" },
-    { iso: "IN", name: "India", dial: "91", flag: "🇮🇳" },
-    { iso: "JP", name: "Japan", dial: "81", flag: "🇯🇵" },
-    { iso: "KR", name: "South Korea", dial: "82", flag: "🇰🇷" },
-    { iso: "CN", name: "China", dial: "86", flag: "🇨🇳" },
-    { iso: "HK", name: "Hong Kong", dial: "852", flag: "🇭🇰" },
-    { iso: "TW", name: "Taiwan", dial: "886", flag: "🇹🇼" },
-    { iso: "TH", name: "Thailand", dial: "66", flag: "🇹🇭" },
-    { iso: "VN", name: "Vietnam", dial: "84", flag: "🇻🇳" },
-    { iso: "PH", name: "Philippines", dial: "63", flag: "🇵🇭" },
-    { iso: "NZ", name: "New Zealand", dial: "64", flag: "🇳🇿" },
-    { iso: "CA", name: "Canada", dial: "1", flag: "🇨🇦" },
-    { iso: "AE", name: "United Arab Emirates", dial: "971", flag: "🇦🇪" },
-    { iso: "SA", name: "Saudi Arabia", dial: "966", flag: "🇸🇦" },
-    { iso: "ZA", name: "South Africa", dial: "27", flag: "🇿🇦" },
-    { iso: "BR", name: "Brazil", dial: "55", flag: "🇧🇷" },
-    { iso: "MX", name: "Mexico", dial: "52", flag: "🇲🇽" },
-    { iso: "PL", name: "Poland", dial: "48", flag: "🇵🇱" },
-    { iso: "UA", name: "Ukraine", dial: "380", flag: "🇺🇦" },
-    { iso: "SE", name: "Sweden", dial: "46", flag: "🇸🇪" },
-    { iso: "NO", name: "Norway", dial: "47", flag: "🇳🇴" },
-    { iso: "DK", name: "Denmark", dial: "45", flag: "🇩🇰" },
-    { iso: "FI", name: "Finland", dial: "358", flag: "🇫🇮" },
-    { iso: "CH", name: "Switzerland", dial: "41", flag: "🇨🇭" },
-    { iso: "AT", name: "Austria", dial: "43", flag: "🇦🇹" },
-    { iso: "BE", name: "Belgium", dial: "32", flag: "🇧🇪" },
-    { iso: "IE", name: "Ireland", dial: "353", flag: "🇮🇪" },
-    { iso: "TR", name: "Turkey", dial: "90", flag: "🇹🇷" },
-  ];
-
-  let selectedCountry = COUNTRIES[0];
-
-  function track(eventName, params) {
-    try {
-      if (typeof window.gtag === "function") {
-        window.gtag("event", eventName, params || {});
-      } else if (Array.isArray(window.dataLayer)) {
-        window.dataLayer.push({ event: eventName, ...(params || {}) });
-      }
-    } catch (_) {
-      /* analytics optional */
-    }
-  }
-
-  function waUrl(text) {
-    return `${WA_BASE}?text=${encodeURIComponent(text)}`;
-  }
-
-  function packageWaMessage(pkg) {
-    return `Hi Tiny! I'm interested in the ${pkg.name} (${pkg.price}).`;
-  }
 
   const DEFAULT_PACKAGES = {
     legal:
@@ -111,7 +45,7 @@
       {
         id: "terrace",
         name: "Private terrace event",
-        shortName: "Private terrace",
+        shortName: "Private terrace event",
         guests: "20 guests included · add up to 30",
         price: "IDR 12.7M",
         featured: false,
@@ -127,11 +61,36 @@
     ],
   };
 
+  function track(eventName, params) {
+    try {
+      if (typeof window.gtag === "function") {
+        window.gtag("event", eventName, params || {});
+      } else if (Array.isArray(window.dataLayer)) {
+        window.dataLayer.push({ event: eventName, ...(params || {}) });
+      }
+    } catch (_) {
+      /* analytics optional */
+    }
+  }
+
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
   function packageBuilderUrl(pkg) {
     if (window.TINY_WP && window.TINY_WP.builderUrl) {
       return `${String(window.TINY_WP.builderUrl).replace(/\/?$/, "/")}?package=${encodeURIComponent(pkg.id)}`;
     }
     return `builder/?package=${encodeURIComponent(pkg.id)}`;
+  }
+
+  function packagesJsonUrl() {
+    if (window.TINY_WP && window.TINY_WP.packagesJson) return window.TINY_WP.packagesJson;
+    return "data/packages.json";
   }
 
   async function loadPackages() {
@@ -141,12 +100,6 @@
     if (!grid || !compact) return;
 
     if (grid.hasAttribute("data-wp-managed")) {
-      if (legal && legal.dataset.legalMobile) {
-        const isMobile = window.matchMedia("(max-width: 900px)").matches;
-        legal.textContent = isMobile && legal.dataset.legalMobile
-          ? legal.dataset.legalMobile
-          : legal.dataset.legal || legal.textContent;
-      }
       initPackageAccordion(compact);
       return;
     }
@@ -154,9 +107,7 @@
     let data = DEFAULT_PACKAGES;
     if (location.protocol !== "file:") {
       try {
-        const packagesUrl =
-          (window.TINY_WP && window.TINY_WP.packagesJson) || "data/packages.json";
-        const res = await fetch(packagesUrl);
+        const res = await fetch(packagesJsonUrl());
         if (res.ok) data = await res.json();
       } catch (_) {
         data = DEFAULT_PACKAGES;
@@ -177,15 +128,13 @@
           ? `<span class="pkg__badge">${escapeHtml(pkg.badge || "Most popular")}</span>`
           : "";
         return `
-          <a class="pkg${pkg.featured ? " pkg--featured" : ""}" href="${packageBuilderUrl(
-            pkg
-          )}" data-wa="package_${pkg.id}">
+          <a class="pkg${pkg.featured ? " pkg--featured" : ""}" href="${packageBuilderUrl(pkg)}">
             ${badge}
             <h3>${escapeHtml(pkg.name)}</h3>
             <div class="pkg__guests">${escapeHtml(pkg.guests)}</div>
             <div class="pkg__price">${escapeHtml(pkg.price)}</div>
             <ul class="pkg__features">${features}</ul>
-            <div class="pkg__cta">Build with this →</div>
+            <div class="pkg__cta">Customise this →</div>
           </a>`;
       })
       .join("");
@@ -212,9 +161,7 @@
           </button>
           <div class="pkg-compact__panel"${isOpen ? "" : " hidden"}>
             <span class="pkg-compact__summary">${escapeHtml(pkg.mobileSummary || "")}</span>
-            <a class="pkg-compact__cta" href="${packageBuilderUrl(
-              pkg
-            )}" data-wa="package_${pkg.id}_mobile">Build with this →</a>
+            <a class="pkg-compact__cta" href="${packageBuilderUrl(pkg)}">Customise this →</a>
           </div>
         </div>`;
       })
@@ -248,14 +195,6 @@
     });
   }
 
-  function escapeHtml(str) {
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
   function initSmoothScroll() {
     document.addEventListener("click", (e) => {
       const a = e.target.closest('a[href^="#"]');
@@ -267,7 +206,7 @@
       e.preventDefault();
       const top = el.getBoundingClientRect().top + window.scrollY - HEADER_OFFSET;
       window.scrollTo({ top, behavior: "smooth" });
-      closeDrawer();
+      if (window.TinyChrome) window.TinyChrome.closeDrawer();
     });
   }
 
@@ -318,223 +257,111 @@
     playVideo(document.getElementById("hero-video-mobile"));
   }
 
-  function openDrawer() {
-    if (window.TinyChrome) {
-      window.TinyChrome.openDrawer();
-      return;
-    }
-    const drawer = document.getElementById("nav-drawer");
-    const toggle = document.querySelector(".menu-toggle");
-    if (!drawer) return;
-    drawer.classList.add("is-open");
-    drawer.setAttribute("aria-hidden", "false");
-    if (toggle) toggle.setAttribute("aria-expanded", "true");
-    document.body.style.overflow = "hidden";
-  }
+  function initOfferSlider() {
+    const root = document.querySelector(".offer-slider");
+    if (!root) return;
+    const track = root.querySelector(".offer-slider__track");
+    const slides = Array.from(root.querySelectorAll(".offer-slider__slide"));
+    const dotsHost = root.querySelector(".offer-slider__dots");
+    const prev = root.querySelector(".offer-slider__nav--prev");
+    const next = root.querySelector(".offer-slider__nav--next");
+    const viewport = root.querySelector(".offer-slider__viewport");
+    if (!track || !slides.length || !dotsHost) return;
 
-  function closeDrawer() {
-    if (window.TinyChrome) {
-      window.TinyChrome.closeDrawer();
-      return;
-    }
-    const drawer = document.getElementById("nav-drawer");
-    const toggle = document.querySelector(".menu-toggle");
-    if (!drawer) return;
-    drawer.classList.remove("is-open");
-    drawer.setAttribute("aria-hidden", "true");
-    if (toggle) toggle.setAttribute("aria-expanded", "false");
-    document.body.style.overflow = "";
-  }
+    let index = 0;
+    let timer = null;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const AUTO_MS = 5500;
 
-  function initDrawer() {
-    /* Shared chrome.js owns the drawer when present */
-    if (document.getElementById("site-chrome-header")) return;
-    const toggle = document.querySelector(".menu-toggle");
-    const drawer = document.getElementById("nav-drawer");
-    const closeBtn = document.querySelector(".nav-drawer__close");
-    if (toggle) toggle.addEventListener("click", openDrawer);
-    if (closeBtn) closeBtn.addEventListener("click", closeDrawer);
-    if (drawer) {
-      drawer.addEventListener("click", (e) => {
-        if (e.target === drawer) closeDrawer();
+    dotsHost.innerHTML = slides
+      .map(
+        (_, i) =>
+          `<button type="button" class="offer-slider__dot${i === 0 ? " is-active" : ""}" aria-label="Show slide ${
+            i + 1
+          }" role="tab" aria-selected="${i === 0}"></button>`
+      )
+      .join("");
+
+    const dots = Array.from(dotsHost.querySelectorAll(".offer-slider__dot"));
+
+    function goTo(nextIndex) {
+      index = (nextIndex + slides.length) % slides.length;
+      track.style.transform = `translateX(-${index * 100}%)`;
+      slides.forEach((slide, i) => slide.classList.toggle("is-active", i === index));
+      dots.forEach((dot, i) => {
+        dot.classList.toggle("is-active", i === index);
+        dot.setAttribute("aria-selected", i === index ? "true" : "false");
       });
     }
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeDrawer();
-    });
-  }
 
-  function setCountry(country) {
-    selectedCountry = country;
-    const flag = document.getElementById("country-flag");
-    const dial = document.getElementById("country-dial");
-    if (flag) flag.textContent = country.flag;
-    if (dial) dial.textContent = `+${country.dial}`;
-  }
-
-  function renderCountryList(filter) {
-    const picker = document.getElementById("country-picker");
-    if (!picker) return;
-    const q = (filter || "").trim().toLowerCase();
-    const list = COUNTRIES.filter(
-      (c) =>
-        !q ||
-        c.name.toLowerCase().includes(q) ||
-        c.dial.includes(q) ||
-        c.iso.toLowerCase().includes(q)
-    );
-    picker.innerHTML = `
-      <input class="country-picker__search" type="search" placeholder="Search country" aria-label="Search country">
-      ${list
-        .map(
-          (c) => `
-        <button type="button" role="option" data-iso="${c.iso}" aria-selected="${
-            c.iso === selectedCountry.iso
-          }">
-          <span>${c.flag}</span>
-          <span>${escapeHtml(c.name)}</span>
-          <span style="margin-left:auto;color:#8a9c8f">+${c.dial}</span>
-        </button>`
-        )
-        .join("")}`;
-
-    const search = picker.querySelector(".country-picker__search");
-    if (search) {
-      search.addEventListener("input", () => renderCountryList(search.value));
-      search.focus();
+    function stopAuto() {
+      if (timer) {
+        clearInterval(timer);
+        timer = null;
+      }
     }
-    picker.querySelectorAll("button[data-iso]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const country = COUNTRIES.find((c) => c.iso === btn.dataset.iso);
-        if (country) setCountry(country);
-        closeCountryPicker();
+
+    function startAuto() {
+      stopAuto();
+      if (reduceMotion) return;
+      timer = setInterval(() => goTo(index + 1), AUTO_MS);
+    }
+
+    if (prev) prev.addEventListener("click", () => {
+      goTo(index - 1);
+      startAuto();
+    });
+    if (next) next.addEventListener("click", () => {
+      goTo(index + 1);
+      startAuto();
+    });
+    dots.forEach((dot, i) => {
+      dot.addEventListener("click", () => {
+        goTo(i);
+        startAuto();
       });
     });
-  }
 
-  function openCountryPicker() {
-    const picker = document.getElementById("country-picker");
-    const btn = document.getElementById("country-btn");
-    if (!picker) return;
-    picker.classList.add("is-open");
-    if (btn) btn.setAttribute("aria-expanded", "true");
-    renderCountryList("");
-  }
-
-  function closeCountryPicker() {
-    const picker = document.getElementById("country-picker");
-    const btn = document.getElementById("country-btn");
-    if (!picker) return;
-    picker.classList.remove("is-open");
-    if (btn) btn.setAttribute("aria-expanded", "false");
-  }
-
-  function initCountryPicker() {
-    const btn = document.getElementById("country-btn");
-    if (btn) {
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        const picker = document.getElementById("country-picker");
-        if (picker && picker.classList.contains("is-open")) closeCountryPicker();
-        else openCountryPicker();
-      });
-    }
-    document.addEventListener("click", (e) => {
-      const phone = document.querySelector(".pdf-form__phone");
-      if (phone && !phone.contains(e.target)) closeCountryPicker();
-    });
-
-    // Best-effort IP country preselect (skipped on file://)
-    if (location.protocol !== "file:") {
-      fetch("https://ipapi.co/json/")
-        .then((r) => r.json())
-        .then((data) => {
-          if (!data || !data.country_code) return;
-          const match = COUNTRIES.find((c) => c.iso === data.country_code);
-          if (match) setCountry(match);
-        })
-        .catch(() => {});
-    }
-  }
-
-  function validatePhone(nationalNumber) {
-    const cleaned = String(nationalNumber || "").replace(/\D/g, "");
-    if (!cleaned) return { ok: false, message: "Please enter your WhatsApp number." };
-
-    const lp = window.libphonenumber;
-    const parseFn =
-      lp &&
-      (lp.parsePhoneNumberFromString ||
-        lp.parsePhoneNumber ||
-        (lp.default && (lp.default.parsePhoneNumberFromString || lp.default.parsePhoneNumber)));
-    if (typeof parseFn === "function") {
-      try {
-        const phone = parseFn(cleaned, selectedCountry.iso);
-        if (!phone || !phone.isValid()) {
-          return { ok: false, message: "That number doesn’t look valid for the selected country." };
+    let touchX = null;
+    if (viewport) {
+      viewport.addEventListener(
+        "touchstart",
+        (e) => {
+          touchX = e.changedTouches[0].clientX;
+          stopAuto();
+        },
+        { passive: true }
+      );
+      viewport.addEventListener(
+        "touchend",
+        (e) => {
+          if (touchX == null) return;
+          const dx = e.changedTouches[0].clientX - touchX;
+          touchX = null;
+          if (Math.abs(dx) > 40) goTo(index + (dx < 0 ? 1 : -1));
+          startAuto();
+        },
+        { passive: true }
+      );
+      viewport.addEventListener("mouseenter", stopAuto);
+      viewport.addEventListener("mouseleave", startAuto);
+      viewport.addEventListener("focusin", stopAuto);
+      viewport.addEventListener("focusout", startAuto);
+      viewport.addEventListener("keydown", (e) => {
+        if (e.key === "ArrowLeft") {
+          e.preventDefault();
+          goTo(index - 1);
+          startAuto();
+        } else if (e.key === "ArrowRight") {
+          e.preventDefault();
+          goTo(index + 1);
+          startAuto();
         }
-        return { ok: true, e164: phone.format("E.164") };
-      } catch (_) {
-        return { ok: false, message: "That number doesn’t look valid." };
-      }
+      });
     }
 
-    if (cleaned.length < 7 || cleaned.length > 15) {
-      return { ok: false, message: "Please enter a valid WhatsApp number." };
-    }
-    return { ok: true, e164: `+${selectedCountry.dial}${cleaned}` };
-  }
-
-  function getUtmParams() {
-    const params = new URLSearchParams(window.location.search);
-    const keys = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"];
-    const out = {};
-    keys.forEach((k) => {
-      const v = params.get(k);
-      if (v) out[k] = v;
-    });
-    return out;
-  }
-
-  function initPdfForm() {
-    const form = document.getElementById("pdf-form");
-    const status = document.getElementById("pdf-status");
-    const input = document.getElementById("phone-input");
-    if (!form) return;
-
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      if (status) {
-        status.textContent = "";
-        status.className = "pdf-form__status";
-      }
-
-      const result = validatePhone(input ? input.value : "");
-      if (!result.ok) {
-        if (status) {
-          status.textContent = result.message;
-          status.classList.add("is-error");
-        }
-        return;
-      }
-
-      const utm = getUtmParams();
-      const utmNote = Object.keys(utm).length
-        ? ` (via ${Object.entries(utm)
-            .map(([k, v]) => `${k}=${v}`)
-            .join(", ")})`
-        : "";
-
-      const message = `Hi Tiny! Please send me the Tiny Birthday Packages 2026 PDF. My WhatsApp is ${result.e164}.${utmNote}`;
-      track("pdf_form_submit", { country: selectedCountry.iso, ...utm });
-
-      if (status) {
-        status.textContent = "Sent — check WhatsApp";
-        status.classList.add("is-success");
-      }
-
-      window.open(waUrl(message), "_blank", "noopener,noreferrer");
-    });
+    goTo(0);
+    startAuto();
   }
 
   function initWhatsAppTracking() {
@@ -543,25 +370,6 @@
       if (!a) return;
       track("whatsapp_click", { button: a.getAttribute("data-wa") });
     });
-  }
-
-  function initScrollDepth() {
-    const packages = document.getElementById("packages");
-    if (!packages) return;
-    let fired = false;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (!fired && entry.isIntersecting) {
-            fired = true;
-            track("scroll_past_packages", {});
-            obs.disconnect();
-          }
-        });
-      },
-      { threshold: 0.35 }
-    );
-    obs.observe(packages);
   }
 
   function initMobileSticky() {
@@ -589,9 +397,8 @@
     initSmoothScroll();
     initFaq();
     initVideos();
-    initDrawer();
+    initOfferSlider();
     initWhatsAppTracking();
-    initScrollDepth();
     initMobileSticky();
   });
 })();

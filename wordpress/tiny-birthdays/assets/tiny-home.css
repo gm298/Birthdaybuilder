@@ -1,0 +1,58 @@
+/* Tiny header on the theme home page. The theme keeps its content and footer. */
+
+body.tiny-home-chrome header.wp-block-template-part {
+  display: none;
+}
+
+body.tiny-home-chrome .site-header,
+body.tiny-home-chrome .nav-drawer {
+  font-family: "Tenor Sans", system-ui, sans-serif;
+  color: #33413a;
+  line-height: 1.4;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.tiny-home-chrome .site-header *,
+body.tiny-home-chrome .site-header *::before,
+body.tiny-home-chrome .site-header *::after,
+body.tiny-home-chrome .nav-drawer * {
+  box-sizing: border-box;
+}
+
+body.tiny-home-chrome .site-header img {
+  max-width: 100%;
+  display: block;
+}
+
+body.tiny-home-chrome .site-header .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #647c6e;
+  color: #fff;
+  padding: 13px 24px;
+  border-radius: 100px;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  text-decoration: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.2s ease, color 0.2s ease;
+  min-height: 44px;
+}
+
+body.tiny-home-chrome .site-header .btn:hover {
+  background: #586e62;
+  color: #fff;
+}
+
+body.admin-bar.tiny-home-chrome .site-header {
+  top: 32px;
+}
+
+@media screen and (max-width: 782px) {
+  body.admin-bar.tiny-home-chrome .site-header {
+    top: 46px;
+  }
+}

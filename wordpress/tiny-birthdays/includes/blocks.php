@@ -3,8 +3,8 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-require_once TINY_BIRTHDAYS_DIR . 'includes/render-landing.php';
-require_once TINY_BIRTHDAYS_DIR . 'includes/render-landing-revised.php';
+require_once TINY_BIRTHDAYS_DIR . 'includes/render-sections.php';
+require_once TINY_BIRTHDAYS_DIR . 'includes/render-about-birthdays.php';
 require_once TINY_BIRTHDAYS_DIR . 'includes/render-apps.php';
 
 function tiny_birthdays_block_categories($categories) {
@@ -18,54 +18,14 @@ function tiny_birthdays_block_categories($categories) {
 
 function tiny_birthdays_register_blocks() {
     $blocks = [
-        'tiny/hero' => [
-            'title' => 'Tiny Hero',
-            'render_callback' => 'tiny_birthdays_render_hero',
-            'attributes' => tiny_birthdays_hero_attributes(),
-        ],
-        'tiny/included' => [
-            'title' => 'Tiny Included',
-            'render_callback' => 'tiny_birthdays_render_included',
-            'attributes' => tiny_birthdays_included_attributes(),
-        ],
-        'tiny/gallery' => [
-            'title' => 'Tiny Gallery',
-            'render_callback' => 'tiny_birthdays_render_gallery',
-            'attributes' => tiny_birthdays_gallery_attributes(),
-        ],
-        'tiny/reviews' => [
-            'title' => 'Tiny Reviews',
-            'render_callback' => 'tiny_birthdays_render_reviews',
-            'attributes' => tiny_birthdays_reviews_attributes(),
-        ],
-        'tiny/packages' => [
-            'title' => 'Tiny Packages',
-            'render_callback' => 'tiny_birthdays_render_packages',
-            'attributes' => tiny_birthdays_packages_attributes(),
-        ],
-        'tiny/cake-promo' => [
-            'title' => 'Tiny Cake Promo',
-            'render_callback' => 'tiny_birthdays_render_cake_promo',
-            'attributes' => tiny_birthdays_cake_promo_attributes(),
-        ],
-        'tiny/faq' => [
-            'title' => 'Tiny FAQ',
-            'render_callback' => 'tiny_birthdays_render_faq',
-            'attributes' => tiny_birthdays_faq_attributes(),
-        ],
-        'tiny/closing' => [
-            'title' => 'Tiny Closing',
-            'render_callback' => 'tiny_birthdays_render_closing',
-            'attributes' => tiny_birthdays_closing_attributes(),
-        ],
         'tiny/sticky-bar' => [
             'title' => 'Tiny Sticky Bar',
             'render_callback' => 'tiny_birthdays_render_sticky',
             'attributes' => tiny_birthdays_sticky_attributes(),
         ],
-        'tiny/landing-revised' => [
-            'title' => 'Tiny About Birthdays Revised',
-            'render_callback' => 'tiny_birthdays_render_landing_revised',
+        'tiny/about-birthdays' => [
+            'title' => 'Tiny About Birthdays',
+            'render_callback' => 'tiny_birthdays_render_about_birthdays',
             'attributes' => [],
         ],
         'tiny/party-builder' => [
@@ -93,6 +53,26 @@ function tiny_birthdays_register_blocks() {
             'render_callback' => 'tiny_birthdays_render_events',
             'attributes' => [],
         ],
+        'tiny/reserve' => [
+            'title' => 'Tiny Table Reservations',
+            'render_callback' => 'tiny_birthdays_render_reserve',
+            'attributes' => [],
+        ],
+        'tiny/booking' => [
+            'title' => 'Tiny Your Booking',
+            'render_callback' => 'tiny_birthdays_render_booking',
+            'attributes' => [],
+        ],
+        'tiny/location' => [
+            'title' => 'Tiny Location',
+            'render_callback' => 'tiny_birthdays_render_location',
+            'attributes' => [],
+        ],
+        'tiny/menu' => [
+            'title' => 'Tiny Menu Viewer',
+            'render_callback' => 'tiny_birthdays_render_menu',
+            'attributes' => [],
+        ],
     ];
 
     foreach ($blocks as $name => $args) {
@@ -115,13 +95,6 @@ function tiny_birthdays_register_blocks() {
 
     register_block_pattern_category('tiny-birthdays', [
         'label' => 'Tiny Birthdays',
-    ]);
-
-    register_block_pattern('tiny-birthdays/landing', [
-        'title' => 'Tiny Birthdays landing',
-        'categories' => ['tiny-birthdays'],
-        'description' => 'Current Tiny birthday landing page, with editable copy and locked layout.',
-        'content' => tiny_birthdays_default_landing_content(),
     ]);
 
     register_block_pattern('tiny-birthdays/cakes', [

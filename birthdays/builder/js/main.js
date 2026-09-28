@@ -2054,7 +2054,9 @@
           partyState.tableArea = "terrace";
         }
       }
-      const stillFit = partyTables().every((table) => Map.canTakeTable(table, totalGuests()));
+      const stillFit = Map.selectionStillValid
+        ? Map.selectionStillValid(partyState.tableIds, totalGuests())
+        : partyTables().every((table) => Map.canTakeTable(table, totalGuests()));
       if (!stillFit) partyState.tableIds = [];
     } else {
       partyState.tableIds = [];
@@ -2121,8 +2123,8 @@
     if (copy) {
       copy.textContent =
         guests > indoorMax
-          ? `Indoor seating is limited to ${indoorMax} guests — pick terrace tables for this party size. Indoor tables 1 and 2 can be joined when you have 8 or fewer.`
-          : `Pick tables that fit your guest count. Indoor max ${indoorMax} people; indoor tables 1 and 2 can be joined.`;
+          ? `Indoor seating is limited to ${indoorMax} guests. Terrace: 18 & 19 for 8–10, 18, 19 & 13 for 11–12, 18, 19, 12 & 13 for 13–14. Larger parties can join any terrace tables that fit.`
+          : `Indoor max ${indoorMax}. Join tables 1 & 2 or 3 & 4. Terrace tables 18 & 19 join for 8–10.`;
     }
     const blocked = unavailablePartyTables();
     if (status) {
@@ -2151,7 +2153,7 @@
         held: [...heldPartyTableIds()],
         guests,
         interactive,
-        base: "../../reserve/img/",
+        base: window.TINY_WP?.reserveImgBase || "../../reserve/img/",
         onPick: (id) => {
           const table = Map.findTable?.(id);
           if (table?.area === "indoor" && guests > indoorMax) {
@@ -4012,7 +4014,10 @@
           partyState.packageChosen &&
           Boolean(partyState.packageId) &&
           (partyState.tableIds || []).length > 0 &&
-          unavailablePartyTables().length === 0
+          unavailablePartyTables().length === 0 &&
+          (window.TinyReserveMap?.selectionFits
+            ? window.TinyReserveMap.selectionFits(partyState.tableIds, totalGuests())
+            : true)
         );
       case "decor":
         return partyState.decorReviewed || partyState.decorThemeId === "custom";

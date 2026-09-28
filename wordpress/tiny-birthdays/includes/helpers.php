@@ -14,7 +14,11 @@ function tiny_birthdays_canvas_type($post_id = 0) {
         return '';
     }
     $type = get_post_meta($post_id, TINY_BIRTHDAYS_META, true);
-    return in_array($type, ['landing', 'landing-revised', 'builder', 'cakes', 'events'], true) ? $type : '';
+    return in_array($type, tiny_birthdays_canvas_types(), true) ? $type : '';
+}
+
+function tiny_birthdays_canvas_types() {
+    return ['landing', 'builder', 'cakes', 'events', 'reserve', 'booking', 'location', 'menu'];
 }
 
 function tiny_birthdays_is_canvas($post_id = 0) {
@@ -36,10 +40,13 @@ function tiny_birthdays_page_url($type) {
     }
     $map = [
         'landing' => home_url('/birthdays/'),
-        'landing-revised' => home_url('/birthdays/about-birthdays-revised/'),
         'builder' => home_url('/birthdays/builder/'),
         'cakes' => home_url('/cakes/'),
         'events' => home_url('/events/'),
+        'reserve' => home_url('/reserve/'),
+        'booking' => home_url('/booking/'),
+        'location' => home_url('/location/'),
+        'menu' => home_url('/menu/'),
     ];
     return $map[$type] ?? home_url('/');
 }
@@ -98,13 +105,17 @@ function tiny_birthdays_li_list($items, $class = '') {
 
 function tiny_birthdays_localize_config() {
     return [
+        'homeUrl' => home_url('/'),
         'birthdaysUrl' => tiny_birthdays_page_url('landing'),
-        'revisedUrl' => tiny_birthdays_page_url('landing-revised'),
         'builderUrl' => tiny_birthdays_page_url('builder'),
         'cakesUrl' => tiny_birthdays_page_url('cakes'),
-        'reserveUrl' => home_url('/reserve/'),
-        'bookingUrl' => home_url('/booking/'),
+        'reserveUrl' => tiny_birthdays_page_url('reserve'),
+        'bookingUrl' => tiny_birthdays_page_url('booking'),
         'eventsUrl' => tiny_birthdays_page_url('events'),
+        'menuUrl' => tiny_birthdays_page_url('menu'),
+        'locationUrl' => tiny_birthdays_page_url('location'),
+        'reserveImgBase' => tiny_birthdays_asset('reserve/img/'),
+        'menuAssetBase' => tiny_birthdays_asset('menu/'),
         'logoDark' => tiny_birthdays_asset('birthdays/img/logo-dark.png'),
         'logoLight' => tiny_birthdays_asset('birthdays/img/logo-light.png'),
         'cakesAssetBase' => tiny_birthdays_asset('cakes/'),

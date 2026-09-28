@@ -4,33 +4,48 @@ Install this plugin **alongside** the existing Tiny cafe WordPress theme. It doe
 
 ## What you get
 
-After activation, WordPress creates three pages:
+After activation, WordPress creates these pages:
 
-| Page | URL | Edit in block editor |
+| Page | URL | Block editor |
 | --- | --- | --- |
-| Birthdays | `/birthdays/` | Headlines, photos, FAQs, reviews, package *marketing* copy |
-| Build your party | `/birthdays/builder/` | Leave the Party Builder block in place |
-| Cakes | `/cakes/` | Hero/facts copy; leave the Cake Builder block in place |
+| About Birthdays | `/birthdays/` | One About Birthdays block (layout and copy live in the plugin) |
+| Birthday Builder | `/birthdays/builder/` | Leave the Party Builder block in place |
+| Cake Builder | `/cakes/` | Hero/facts copy; leave the Cake Builder block in place |
+| Events | `/events/` | Leave the Events block in place |
+| Reservations | `/reserve/` | Leave the Table Reservations block in place |
+| Your booking | `/booking/` | Leave the Your Booking block in place (guests arrive here from the link in their email) |
+| Location | `/location/` | Embedded Google Map, directions, address, hours |
+| Menu | `/menu/` | Food, Drink and Nights menu PDFs with download buttons |
 
-The party wizard and cake form still use the existing JavaScript, `party.json` / `cakes.json`, WhatsApp, and Supabase `submit-request`. Changing a price on the Birthdays page does **not** change builder quotes.
+The theme's **home page is kept as it is**. The plugin only swaps the theme header on the home page for the Tiny header (Home, Reservations, Shop Online, Events, Birthdays menu, tasting button). The theme's home content and footer are unchanged.
+
+On theme pages, links to the Tiny Google Maps place and to the Google Drive menus (the home page **Our location** and **See our menu** buttons, footer links) are pointed at `/location/` and `/menu/` automatically, so the home page does not need editing.
+
+To update a menu, replace the PDF in `menu/pdf/` (keep the file name: `tiny-food-menu.pdf`, `tiny-drink-menu.pdf`, `tiny-nights-menu.pdf`), run the sync script, and re-upload the plugin.
+
+The builders, reservation wizard and booking page still use the existing JavaScript, `party.json` / `cakes.json`, WhatsApp, and Supabase. Nothing points forms at WordPress.
 
 ## Hostinger switchover
 
-Physical folders currently win over WordPress. Do this in order:
+Physical folders win over WordPress. Do this in order:
 
-1. Zip the `wordpress/tiny-birthdays` folder (the folder that contains `tiny-birthdays.php`).
-2. WordPress Admin → Plugins → Add New → Upload Plugin → activate **Tiny Birthdays**.
-3. Confirm the three pages exist under Pages.
-4. In File Manager, **rename** (safer than delete) these folders so WordPress can own the URLs:
+1. From the repo root run `powershell -ExecutionPolicy Bypass -File wordpress/tiny-birthdays/bin/sync-assets.ps1`.
+2. Zip the `wordpress/tiny-birthdays` folder (the folder that contains `tiny-birthdays.php`).
+3. WordPress Admin → Plugins → Add New → Upload Plugin → activate **Tiny Birthdays** (if an older version is installed, choose **Replace current with uploaded**).
+4. Confirm the eight pages exist under Pages. An old **About Birthdays Revised** page is moved to the trash automatically, and `/birthdays/about-birthdays-revised/` redirects to `/birthdays/`.
+5. In File Manager, **rename** (safer than delete) any of these folders that exist so WordPress can own the URLs:
    - `public_html/birthdays` → `public_html/birthdays-static-backup`
    - `public_html/cakes` → `public_html/cakes-static-backup`
-5. Leave these alone:
+   - `public_html/events` → `public_html/events-static-backup`
+   - `public_html/reserve` → `public_html/reserve-static-backup`
+   - `public_html/booking` → `public_html/booking-static-backup`
+   - `public_html/location` and `public_html/menu` (only if you uploaded the static versions)
+6. Leave these alone:
    - `public_html/staff` (request inbox)
-   - Supabase project / Edge Function
+   - Supabase project / Edge Functions
    - The active cafe theme
-6. Settings → Permalinks → Save.
-7. Visit `/birthdays/`, `/birthdays/builder/?package=signature`, and `/cakes/`.
-8. Edit **Birthdays** in the block editor (right-hand sidebar on each Tiny block).
+7. Settings → Permalinks → Save.
+8. Visit `/`, `/birthdays/`, `/birthdays/builder/?package=signature`, `/cakes/`, `/events/`, `/reserve/`, `/location/`, `/menu/`, and a `/booking/?t=…` link from a confirmation email. On the home page, click **Our location** and **See our menu**.
 
 If a URL still shows the old static page, the physical folder is still in place. If WordPress 404s, flush permalinks again.
 
@@ -47,6 +62,6 @@ Then re-zip and upload the plugin (or copy `wordpress/tiny-birthdays/assets` ove
 ## Do not
 
 - Activate this as a *theme*. It is a plugin.
-- Replace the Party Builder or Cake Builder blocks with columns/HTML.
+- Replace the Party Builder, Cake Builder, Table Reservations or Your Booking blocks with columns/HTML.
 - Point forms at WordPress — requests still go to Supabase.
 - Remove `/staff/` unless you have another inbox.

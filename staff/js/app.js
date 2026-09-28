@@ -36,6 +36,7 @@ const PAYMENT_METHODS = ["Permata EDC", "Permata QRIS", "Bank Transfer", "Cash"]
 const RESERVE_PURPOSES = ["Family meal", "Friends", "Reunion", "Birthday", "Business", "Other"];
 let invoiceSelectedTables = new Set();
 let reservationSelectedTables = new Set();
+let reservationEditId = "";
 let partyCatalog = null;
 
 const state = {
@@ -589,8 +590,23 @@ function noshowRows() {
 
 function parseHash() {
   const hash = (location.hash || "").replace(/^#\/?/, "");
-  const request = hash.match(/^request\/([0-9a-f-]{36})/i);
-  if (request) return { view: "detail", id: request[1] };
+  const request = hash.match(/^request\/([0-9a-f-]{36})(?:\/guests\/(\d{4}-\d{4}))?(?:\/g\/([^/?#]+))?/i);
+  if (request) {
+    let guestId = "";
+    if (request[3]) {
+      try {
+        guestId = decodeURIComponent(request[3]);
+      } catch {
+        guestId = request[3];
+      }
+    }
+    return {
+      view: request[2] ? "guestslot" : "detail",
+      id: request[1],
+      slot: request[2] || "",
+      guestId,
+    };
+  }
   const invoice = hash.match(/^invoice\/([0-9a-f-]{36})/i);
   if (invoice) return { view: "invoice", id: invoice[1] };
   const payment = hash.match(/^payment\/([0-9a-f-]{36})/i);
@@ -991,7 +1007,7 @@ function shiftMonth(yearMonth, delta) {
 
 function openTarget(row) {
   if (row.synthetic) return `#/cooking/${row.party_date}`;
-  if (isGuestListVisit(row) && row.eventId) return `#/request/${row.eventId}`;
+  if (isGuestListVisit(row) && row.eventId) return `#/${guestListPath(row.eventId, row.payload?.guest?.slot, row.guestId)}`;
   return `#/request/${row.id}`;
 }
 
@@ -1882,29 +1898,65 @@ function reservationEditorHtml(row, reservation) {
         </section>`;
 }
 
+function reservationHeldIds(excludeId, date, timeText) {
+  const Map = window.TinyReserveMap;
+  const minutes = Map?.timeToMinutes?.(String(timeText || "").slice(0, 5));
+  if (!date || minutes == null) return [];
+  const held = new Set();
+  const rows = [];
+  activeRows().forEach((row) => {
+    if (!occursOn(row, date)) return;
+    if (row.source !== "event") {
+      rows.push(row);
+      return;
+    }
+    const slots = eventTimeSlots(row);
+    if (!slots.length) {
+      rows.push(row);
+      return;
+    }
+    slots.forEach((slot, index) => rows.push(applyEventSlot({ ...row, party_date: date }, slot, index)));
+  });
+  const cooking = cookingRow(date);
+  if (cooking) rows.push(cooking);
+  rows.forEach((row) => {
+    if (String(row.id) === String(excludeId)) return;
+    if (!row.synthetic && INACTIVE_STATUSES.includes(row.status)) return;
+    const range = rowOccupy(row);
+    if (!range || minutes < range.start || minutes >= range.end) return;
+    bookingTableIds(row).forEach((id) => held.add(String(id)));
+  });
+  return [...held];
+}
+
 function renderReservationMaps() {
   const pick = (id) => {
     if (reservationSelectedTables.has(id)) reservationSelectedTables.delete(id);
     else reservationSelectedTables.add(id);
     renderReservationMaps();
   };
+  const held = reservationHeldIds(
+    reservationEditId,
+    document.getElementById("reserve-edit-date")?.value || "",
+    document.getElementById("reserve-edit-time")?.value || ""
+  );
+  const mapOpts = {
+    held,
+    guests: 1,
+    interactive: true,
+    ignoreCapacity: true,
+    heldNote: false,
+    onPick: pick,
+  };
   paintLayoutMap(document.getElementById("reserve-indoor"), {
+    ...mapOpts,
     area: "indoor",
     selected: [...reservationSelectedTables].filter((id) => String(id).startsWith("in-")),
-    held: [],
-    guests: 1,
-    interactive: true,
-    ignoreCapacity: true,
-    onPick: pick,
   });
   paintLayoutMap(document.getElementById("reserve-terrace"), {
+    ...mapOpts,
     area: "terrace",
     selected: [...reservationSelectedTables].filter((id) => String(id).startsWith("tr-")),
-    held: [],
-    guests: 1,
-    interactive: true,
-    ignoreCapacity: true,
-    onPick: pick,
   });
   const Map = window.TinyReserveMap;
   const summary = document.getElementById("reserve-table-label");
@@ -2085,34 +2137,30 @@ function closeBlockModal() {
   blockModal.hidden = true;
 }
 
-function guestGroupsHtml(guests, slots, eventId) {
-  const list = Array.isArray(guests) ? guests : [];
-  const groups = (slots.length ? slots : [{ start: "", end: "" }]).map((slot) => ({ slot, items: [] }));
-  list.forEach((guest, index) => {
+function guestSlotNavHtml(guests, slots, eventId) {
+  const groups = (slots.length ? slots : []).map((slot) => ({ slot, count: 0, pending: 0 }));
+  if (!groups.length) {
+    return `<p class="muted">Add a time slot to this event, then open it to keep a guest list.</p>`;
+  }
+  (Array.isArray(guests) ? guests : []).forEach((guest) => {
     if (guest?.archived_at) return;
-    const key = slotValue(guest.slot);
-    const match = groups.find((group) => slotValue(group.slot) === key);
-    (match || groups[0]).items.push({ guest, index });
+    const match = groups.find((group) => guestSlotMatch(guest, slots, group.slot));
+    const target = match || groups[0];
+    target.count += 1;
+    if (normalizeGuestStatus(guest.status) === "pending") target.pending += 1;
   });
-  return groups
+  return `<div class="guest-slot-nav">${groups
     .map((group) => {
-      const heading = slotLabel(group.slot);
-      const body = group.items.length
-        ? `<ul class="kv">${group.items
-            .map(({ guest, index }) => {
-              const status = normalizeGuestStatus(guest.status);
-              const guestId = guest.id || String(index);
-              const options = GUEST_STATUSES.map(
-                (value) =>
-                  `<option value="${value}"${status === value ? " selected" : ""}>${guestStatusLabel(value)}</option>`
-              ).join("");
-              return `<li class="guest-detail-row"><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax · ${guestStatusLabel(status)}</span><span class="guest-detail-actions">${escapeHtml([guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—")} <select data-guest-status data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(guestId)}" data-current="${status}" aria-label="Guest list status">${options}</select> <button class="btn btn--outline btn--tiny" type="button" data-archive-guest data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(guestId)}">Archive</button> <button class="btn btn--outline btn--tiny" type="button" data-delete-guest data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(guestId)}">Delete</button></span></li>`;
-            })
-            .join("")}</ul>`
-        : `<p class="muted">No guests for this time.</p>`;
-      return `${heading ? `<h4 style="margin:16px 0 8px">${escapeHtml(heading)}</h4>` : ""}${body}`;
+      const label = slotLabel(group.slot) || "Time slot";
+      const summary = group.count
+        ? `${group.count} guest${group.count === 1 ? "" : "s"}${group.pending ? ` · ${group.pending} pending` : ""}`
+        : "No guests";
+      return `<button class="guest-slot-card" type="button" data-open="${escapeHtml(guestListPath(eventId, group.slot))}">
+        <span><strong>${escapeHtml(label)}</strong><small>${escapeHtml(summary)}</small></span>
+        <span>Open guest list</span>
+      </button>`;
     })
-    .join("");
+    .join("")}</div>`;
 }
 
 function pendingGuestCount(row) {
@@ -2156,6 +2204,7 @@ function guestRequests(opts = {}) {
         archived,
         archived_at: guest.archived_at || "",
         slot: slotLabel(guest.slot),
+        slotKey: slotKey(guest.slot),
         party_date: row.party_date || "",
         party_time: guest.slot?.start || row.party_time || "",
         eventName: row.payload?.event?.name || row.contact_name || "Event",
@@ -2197,30 +2246,26 @@ function visibleGuestRequests() {
 }
 
 function guestRequestCard(item) {
-  const options = GUEST_STATUSES.map(
-    (value) =>
-      `<option value="${value}"${item.status === value ? " selected" : ""}>${guestStatusLabel(value)}</option>`
-  ).join("");
   const badgeClass =
     item.status === "confirmed" ? "booked" : item.status === "contacted" ? "contacted" : item.status === "rejected" ? "rejected" : "new";
-  const card = `<article class="booking-card guest-request">
+  const open = item.slotKey
+    ? guestListPath(item.eventId, slotFromKey(item.slotKey), item.guestId)
+    : `request/${item.eventId}`;
+  const card = `<button class="booking-card guest-request" type="button" data-open="${escapeHtml(open)}">
     <div>
-      <div class="code">${escapeHtml(item.public_code)}</div>
       <h3>${escapeHtml(item.name)}</h3>
-      <div class="muted">${escapeHtml([item.email, item.phone].filter(Boolean).join(" · ") || "—")}</div>
+      <div class="muted">${escapeHtml(item.eventName)}</div>
+      <div class="muted">${escapeHtml([item.phone, item.email].filter(Boolean).join(" · ") || item.public_code || "")}</div>
     </div>
     <div>
       <span class="badge badge--${badgeClass}">${escapeHtml(guestStatusLabel(item.status))}</span>
-      <div class="muted">Guest list · ${escapeHtml(item.eventName)}</div>
     </div>
-    <div class="time">${escapeHtml(item.slot || timeLabel(item.party_time))}
-      <div class="muted">${escapeHtml(item.party_date ? formatShortDate(item.party_date) : "No date")} · ${escapeHtml(item.pax)} ${item.pax === 1 ? "ticket" : "tickets"}</div>
+    <div class="time">${escapeHtml(item.slot || timeLabel(item.party_time) || "Time TBC")}
+      <div class="muted">${escapeHtml(item.party_date ? formatShortDate(item.party_date) : "No date")}${
+        item.pax ? ` · ${escapeHtml(item.pax)} pax` : ""
+      }</div>
     </div>
-    <label class="guest-status">
-      <span>Status</span>
-      <select data-guest-status data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}" data-current="${escapeHtml(item.status)}" aria-label="Guest list status"${item.archived ? " disabled" : ""}>${options}</select>
-    </label>
-  </article>`;
+  </button>`;
   const actions = item.archived
     ? `<button class="btn btn--outline" type="button" data-restore-guest data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Restore</button>
        <button class="btn btn--outline" type="button" data-delete-guest data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Delete</button>`
@@ -2243,6 +2288,17 @@ async function saveEventGuests(row, guests) {
   const { error } = await supabase.from("requests").update({ payload: nextPayload }).eq("id", row.id).eq("source", "event");
   if (error) throw error;
   row.payload = nextPayload;
+}
+
+async function moveGuestRequest(eventId, guestId, value) {
+  const found = findGuestOnEvent(eventId, guestId);
+  if (!found) throw new Error("Could not find that guest.");
+  const slot = slotFromValue(value);
+  if (!slot) throw new Error("Choose a time slot.");
+  if (slotValue(found.guests[found.index].slot) === slotValue(slot)) return false;
+  found.guests[found.index] = { ...found.guests[found.index], slot };
+  await saveEventGuests(found.row, found.guests);
+  return true;
 }
 
 async function setGuestRequestStatus(eventId, guestId, status) {
@@ -2317,6 +2373,65 @@ function slotLabel(slot) {
   return value ? value.replace("|", "–") : "";
 }
 
+function slotKey(slot) {
+  const start = String(slot?.start || "").slice(0, 5);
+  const end = String(slot?.end || "").slice(0, 5);
+  if (!/^\d{2}:\d{2}$/.test(start) || !/^\d{2}:\d{2}$/.test(end)) return "";
+  return `${start.replace(":", "")}-${end.replace(":", "")}`;
+}
+
+function slotFromKey(key) {
+  const match = String(key || "").match(/^(\d{2})(\d{2})-(\d{2})(\d{2})$/);
+  if (!match) return null;
+  return { start: `${match[1]}:${match[2]}`, end: `${match[3]}:${match[4]}` };
+}
+
+function guestListPath(eventId, slot, guestId) {
+  const key = slotKey(slot);
+  if (!eventId || !key) return `request/${eventId || ""}`;
+  const guest = guestId ? `/g/${encodeURIComponent(guestId)}` : "";
+  return `request/${eventId}/guests/${key}${guest}`;
+}
+
+function guestSlotMatch(guest, slots, focusSlot) {
+  const focus = slotValue(focusSlot);
+  const key = slotValue(guest?.slot);
+  if (key && key === focus) return true;
+  const known = (slots || []).some((slot) => slotValue(slot) === key);
+  if (key && known) return false;
+  const first = slotValue((slots || [])[0] || {});
+  return Boolean(focus) && focus === first;
+}
+
+function activeGuestsInSlot(guests, slots, focusSlot) {
+  const items = [];
+  (guests || []).forEach((guest, index) => {
+    if (guest?.archived_at) return;
+    if (!guestSlotMatch(guest, slots, focusSlot)) return;
+    items.push({ guest, index });
+  });
+  return items;
+}
+
+function rememberRow(row) {
+  if (!row?.id) return row;
+  const index = state.rows.findIndex((item) => item.id === row.id);
+  if (index >= 0) state.rows[index] = row;
+  else state.rows.push(row);
+  return state.rows[index >= 0 ? index : state.rows.length - 1];
+}
+
+function mergeSlotGuests(allGuests, slots, focusSlot, edited) {
+  const kept = (allGuests || []).filter((guest) => guest?.archived_at || !guestSlotMatch(guest, slots, focusSlot));
+  const next = edited.map((guest) => ({
+    ...guest,
+    id: guest.id || globalThis.crypto?.randomUUID?.() || `g-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    slot: guest.slot || { start: focusSlot.start, end: focusSlot.end },
+    status: guest.status || "confirmed",
+  }));
+  return kept.concat(next);
+}
+
 function guestRowHtml(guest = {}, slots = []) {
   const chosen = slotValue(guest.slot) || (slots[0] ? slotValue(slots[0]) : "");
   const slotControl = slots.length
@@ -2327,7 +2442,7 @@ function guestRowHtml(guest = {}, slots = []) {
         })
         .join("")}</select>`
     : `<input type="hidden" name="guest-slot" value="${escapeHtml(chosen)}">`;
-  return `<div class="guest-row">
+  return `<div class="guest-row${slots.length ? " guest-row--with-slot" : ""}">
     <input type="hidden" name="guest-id" value="${escapeHtml(guest.id || "")}">
     <input type="hidden" name="guest-token" value="${escapeHtml(guest.token || "")}">
     <input type="hidden" name="guest-status" value="${escapeHtml(guest.status || "")}">
@@ -2689,7 +2804,6 @@ async function saveStaffEvent() {
   const pricing = readEventPricing();
   const hasPricing = pricing.price > 0;
   const photos = document.getElementById("event-photos")?.files;
-  const guests = readGuestList();
   const freq = document.getElementById("event-repeat")?.value || "none";
   const until = document.getElementById("event-until")?.value || "";
   const Map = window.TinyReserveMap;
@@ -2709,7 +2823,6 @@ async function saveStaffEvent() {
   const tables = tableIds.map((id) => Map.findTable(id)).filter(Boolean);
   const tableLabel =
     location === "masterclass" ? "Masterclass" : fullTerrace ? "Full terrace" : Map.tableLabel(tables);
-  const pax = guests.reduce((sum, guest) => sum + (Number(guest.pax) || 0), 0) || null;
   const { data: sessionData } = await supabase.auth.getSession();
   const user = sessionData.session?.user;
   const repeat = freq === "none" ? { freq: "none" } : { freq, until: until || shiftIso(date, 365) };
@@ -2728,6 +2841,8 @@ async function saveStaffEvent() {
     existingEvent = current?.payload?.event || {};
     existingReservation = current?.payload?.reservation || {};
   }
+  const guests = document.querySelector("#event-guests .guest-row") ? readGuestList() : existingEvent.guests || [];
+  const pax = guests.reduce((sum, guest) => sum + (Number(guest.pax) || 0), 0) || null;
   const preservedGallery = eventGalleryFrom(existingEvent);
   const payload = {
     event: {
@@ -3508,6 +3623,232 @@ function renderCookingDetail(iso) {
   });
 }
 
+function slotMoveField(guest, slots, eventId, guestId) {
+  if (!slots || slots.length < 2) return "";
+  const chosen = slotValue(guest.slot) || slotValue(slots[0]);
+  const options = slots
+    .map((slot) => {
+      const value = slotValue(slot);
+      return `<option value="${escapeHtml(value)}"${value === chosen ? " selected" : ""}>${escapeHtml(slotLabel(slot))}</option>`;
+    })
+    .join("");
+  return `<label class="guest-status"><span>Time slot</span><select data-guest-move data-event-id="${escapeHtml(
+    eventId
+  )}" data-guest-id="${escapeHtml(guestId)}" data-current="${escapeHtml(chosen)}" aria-label="Move to time slot">${options}</select></label>`;
+}
+
+function slotGuestCardHtml(entry, slots, eventId, focusGuestId) {
+  const guest = entry.guest;
+  const status = normalizeGuestStatus(guest.status);
+  const guestId = guest.id || String(entry.index);
+  const options = GUEST_STATUSES.map(
+    (value) => `<option value="${value}"${status === value ? " selected" : ""}>${guestStatusLabel(value)}</option>`
+  ).join("");
+  const focused = focusGuestId && focusGuestId === guestId;
+  return `<article class="slot-guest${focused ? " is-focus" : ""}">
+    <div>
+      <h3>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</h3>
+      <p class="muted">${escapeHtml([guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—")}</p>
+    </div>
+    <label class="guest-status">
+      <span>Status</span>
+      <select data-guest-status data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(
+        guestId
+      )}" data-current="${status}" aria-label="Guest list status">${options}</select>
+    </label>
+    ${slotMoveField(guest, slots, eventId, guestId)}
+    <div class="slot-guest-actions">
+      <button class="btn btn--outline btn--tiny" type="button" data-archive-guest data-event-id="${escapeHtml(
+        eventId
+      )}" data-guest-id="${escapeHtml(guestId)}">Archive</button>
+      <button class="btn btn--outline btn--tiny" type="button" data-delete-guest data-event-id="${escapeHtml(
+        eventId
+      )}" data-guest-id="${escapeHtml(guestId)}">Delete</button>
+    </div>
+  </article>`;
+}
+
+async function loadGuestSlot(id, key, focusGuestId = "") {
+  inboxViews.hidden = true;
+  if (viewNav) viewNav.hidden = true;
+  detailView.hidden = false;
+  detailView.innerHTML = `<p class="status">Loading guest list…</p>`;
+  const { data: row, error } = await supabase.from("requests").select("*").eq("id", id).maybeSingle();
+  if (error || !row || row.source !== "event") {
+    detailView.innerHTML = `<p class="status is-error">${escapeHtml(
+      error?.message || "Event not found."
+    )}</p><button class="btn btn--outline back" type="button" id="back-list">Back</button>`;
+    document.getElementById("back-list")?.addEventListener("click", () => {
+      location.hash = backHash();
+    });
+    return;
+  }
+  const eventRow = rememberRow(row);
+  const slots = eventTimeSlots(eventRow);
+  const focus = slots.find((slot) => slotKey(slot) === key) || slotFromKey(key);
+  if (!focus || !slots.some((slot) => slotValue(slot) === slotValue(focus))) {
+    detailView.innerHTML = `<p class="status is-error">That time slot is not on this event.</p>
+      <button class="btn btn--outline back" type="button" id="back-list">Back to event</button>`;
+    document.getElementById("back-list")?.addEventListener("click", () => {
+      location.hash = `#/request/${eventRow.id}`;
+    });
+    return;
+  }
+  const payload = eventRow.payload || {};
+  const eventName = payload.event?.name || displayName(eventRow);
+  const items = activeGuestsInSlot(payload.event?.guests || [], slots, focus);
+  const heading = slotLabel(focus);
+  pageTitle.textContent = eventName;
+  detailView.innerHTML = `
+    <button class="btn btn--outline back" type="button" id="back-list">Back to event</button>
+    <article class="detail">
+      <header class="staff-top">
+        <div>
+          <p class="staff-brand">Guest list</p>
+          <h2>${escapeHtml(eventName)}</h2>
+          <p class="muted">${escapeHtml(eventRow.public_code || "")} · ${escapeHtml(formatLongDate(eventRow.party_date))}</p>
+        </div>
+      </header>
+      <h3>${escapeHtml(heading)}</h3>
+      <div class="contact-actions" style="margin-bottom:12px">
+        <button class="btn" type="button" id="add-slot-guest">Add to guest list</button>
+        <button class="btn btn--outline" type="button" id="edit-slot-guest">Edit guest list</button>
+        <button class="btn btn--outline" type="button" id="export-slot-guests">Export guest list PDF</button>
+        <button class="btn btn--outline" type="button" id="share-slot-guests">Share guest list</button>
+      </div>
+      <div id="slot-guest-list">
+        ${
+          items.length
+            ? items.map((entry) => slotGuestCardHtml(entry, slots, eventRow.id, focusGuestId)).join("")
+            : `<p class="muted">No guests for this time.</p>`
+        }
+      </div>
+      <section id="slot-guest-editor" hidden>
+        <h3 id="slot-guest-editor-title">Edit guest list</h3>
+        <p class="muted">Change the time slot on a guest to move them to another session. Guests in other time slots stay where they are.</p>
+        <div id="slot-guest-rows" class="guest-list guest-list--edit"></div>
+        <div class="contact-actions">
+          <button class="btn btn--outline" type="button" id="slot-guest-add-row">Add another guest</button>
+          <button class="btn" type="button" id="slot-guest-save">Save guest list</button>
+          <button class="btn btn--outline" type="button" id="slot-guest-cancel">Cancel</button>
+        </div>
+        <p class="status" id="slot-guest-status" role="status"></p>
+      </section>
+    </article>
+  `;
+  document.querySelector(".slot-guest.is-focus")?.scrollIntoView({ block: "center" });
+  document.getElementById("back-list")?.addEventListener("click", () => {
+    location.hash = `#/request/${eventRow.id}`;
+  });
+
+  function openSlotEditor(mode) {
+    const editor = document.getElementById("slot-guest-editor");
+    const host = document.getElementById("slot-guest-rows");
+    const title = document.getElementById("slot-guest-editor-title");
+    if (!editor || !host) return;
+    const current = activeGuestsInSlot(eventRow.payload?.event?.guests || [], slots, focus).map(({ guest }) => guest);
+    const blank = { status: "confirmed", slot: focus, source: "staff" };
+    const rows = mode === "add" ? current.concat([blank]) : current.length ? current : [blank];
+    if (title) title.textContent = mode === "add" ? "Add to guest list" : "Edit guest list";
+    host.innerHTML =
+      `<div class="guest-row guest-row--with-slot guest-row--labels" aria-hidden="true"><span>Time slot</span><span>Name</span><span>Pax</span><span>Phone</span><span>Email</span><span>Notes</span><span></span></div>` +
+      rows
+        .map((guest) => {
+          const known = slots.some((slot) => slotValue(slot) === slotValue(guest.slot));
+          return guestRowHtml({ ...guest, slot: known ? guest.slot : focus }, slots);
+        })
+        .join("");
+    editor.hidden = false;
+    editor.scrollIntoView({ block: "nearest" });
+  }
+
+  document.getElementById("add-slot-guest")?.addEventListener("click", () => openSlotEditor("add"));
+  document.getElementById("edit-slot-guest")?.addEventListener("click", () => openSlotEditor("edit"));
+  document.getElementById("slot-guest-add-row")?.addEventListener("click", () => {
+    document
+      .getElementById("slot-guest-rows")
+      ?.insertAdjacentHTML("beforeend", guestRowHtml({ status: "confirmed", slot: focus, source: "staff" }, slots));
+  });
+  document.getElementById("slot-guest-rows")?.addEventListener("click", (e) => {
+    if (!e.target.closest("[data-remove-guest]")) return;
+    e.target.closest(".guest-row")?.remove();
+  });
+  document.getElementById("slot-guest-cancel")?.addEventListener("click", () => {
+    const editor = document.getElementById("slot-guest-editor");
+    if (editor) editor.hidden = true;
+  });
+  document.getElementById("slot-guest-save")?.addEventListener("click", async () => {
+    const statusEl = document.getElementById("slot-guest-status");
+    const button = document.getElementById("slot-guest-save");
+    if (button) button.disabled = true;
+    if (statusEl) {
+      statusEl.textContent = "Saving…";
+      statusEl.className = "status";
+    }
+    try {
+      const edited = readGuestRows("#slot-guest-rows .guest-row");
+      const merged = mergeSlotGuests(eventRow.payload?.event?.guests || [], slots, focus, edited);
+      await saveEventGuests(eventRow, merged);
+      await loadGuestSlot(eventRow.id, slotKey(focus), focusGuestId);
+    } catch (err) {
+      if (button) button.disabled = false;
+      if (statusEl) {
+        statusEl.textContent = err.message || "Could not save the guest list.";
+        statusEl.className = "status is-error";
+      }
+    }
+  });
+  document.getElementById("export-slot-guests")?.addEventListener("click", async () => {
+    const guests = activeGuestsInSlot(eventRow.payload?.event?.guests || [], slots, focus).map(({ guest }) => guest);
+    const host = document.createElement("div");
+    host.style.cssText = "padding:24px;font-family:Jost,sans-serif;color:#2c3a32;width:720px;background:#fff";
+    host.innerHTML = `<h2>Guest list · ${escapeHtml(eventName)}</h2>
+      <p>${escapeHtml(formatLongDate(eventRow.party_date))} · ${escapeHtml(heading)}</p>
+      <ul class="kv">${
+        guests.length
+          ? guests
+              .map(
+                (guest) =>
+                  `<li><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax · ${escapeHtml(
+                    guestStatusLabel(guest.status)
+                  )}</span><span>${escapeHtml([guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—")}</span></li>`
+              )
+              .join("")
+          : "<li><span>No guests</span><span>—</span></li>"
+      }</ul>`;
+    document.body.appendChild(host);
+    try {
+      const blob = await htmlToPdfBlob(host, `${eventRow.public_code}-${key}-guests.pdf`);
+      downloadBlob(blob, `${eventRow.public_code}-${key}-guests.pdf`);
+    } catch (err) {
+      window.print();
+    }
+    host.remove();
+  });
+  document.getElementById("share-slot-guests")?.addEventListener("click", () => {
+    const guests = activeGuestsInSlot(eventRow.payload?.event?.guests || [], slots, focus).map(({ guest }) => guest);
+    const text = [
+      `Guest list for ${eventName}`,
+      `${formatLongDate(eventRow.party_date)} · ${heading}`,
+      ...guests.map(
+        (guest) =>
+          `${guest.name || "Guest"} · ${guest.pax || 1} pax · ${guestStatusLabel(guest.status)}${
+            guest.phone ? ` · ${guest.phone}` : ""
+          }${guest.email ? ` · ${guest.email}` : ""}`
+      ),
+    ].join("\n");
+    const phone = String(eventRow.phone || "").replace(/\D/g, "");
+    if (navigator.share) {
+      navigator.share({ title: `Guest list ${eventRow.public_code} ${heading}`, text }).catch(() => {});
+      return;
+    }
+    if (phone) window.open(`https://wa.me/${phone}?text=${encodeURIComponent(text)}`, "_blank", "noopener");
+    else if (eventRow.email) {
+      window.location.href = `mailto:${eventRow.email}?subject=${encodeURIComponent("Guest list")}&body=${encodeURIComponent(text)}`;
+    } else navigator.clipboard?.writeText(text);
+  });
+}
+
 async function loadDetail(id) {
   inboxViews.hidden = true;
   if (viewNav) viewNav.hidden = true;
@@ -3700,12 +4041,12 @@ async function loadDetail(id) {
           isEvent
             ? `<section>
           <h3>Guest list</h3>
+          <p class="muted">Each time slot has its own guest list. Open a slot to change a status, add a name, or move someone to another time.</p>
           <div class="contact-actions" style="margin-bottom:12px">
-            <button class="btn" type="button" id="add-guest-detail">Add to guest list</button>
             <button class="btn btn--outline" type="button" id="export-guests">Export guest list PDF</button>
             <button class="btn btn--outline" type="button" id="share-guests">Share guest list</button>
           </div>
-          ${guestGroupsHtml(payload.event?.guests || [], eventTimeSlots(row), row.id)}
+          ${guestSlotNavHtml(payload.event?.guests || [], eventTimeSlots(row), row.id)}
         </section>
         ${
           isEvent && eventPricingFromRow(row)
@@ -3814,8 +4155,12 @@ async function loadDetail(id) {
   `;
 
   if (isReservation) {
+    reservationEditId = row.id;
     reservationSelectedTables = new Set(tableIds);
     renderReservationMaps();
+    ["reserve-edit-date", "reserve-edit-time"].forEach((id) => {
+      document.getElementById(id)?.addEventListener("change", () => renderReservationMaps());
+    });
     document.getElementById("save-reservation")?.addEventListener("click", () => {
       persistReservation(row).catch((err) => {
         const statusEl = document.getElementById("reserve-status");
@@ -3907,29 +4252,6 @@ async function loadDetail(id) {
       }
       await loadRows();
       await loadDetail(row.id);
-    });
-  });
-  document.getElementById("add-guest-detail")?.addEventListener("click", () => {
-    const event = payload.event || {};
-    openEventModal({
-      id: row.id,
-      name: row.contact_name || event.name,
-      date: row.party_date,
-      start: timeLabel(row.party_time),
-      end: reservation.endTime || "17:00",
-      slots: event.slots || eventTimeSlots(row),
-      location: event.location || "service",
-      fullTerrace: event.fullTerrace,
-      about: event.about || "",
-      promo: event.promo || "",
-      notes: event.notes || reservation.notes || "",
-      payment: event.payment || "tiny",
-      tableIds: reservation.tableIds || [],
-      guests: [...(event.guests || []), {}],
-      repeat: event.repeat,
-      pricing: event.pricing || eventPricingFromRow(row),
-      coverUrl: event.coverUrl || "",
-      gallery: eventGalleryFrom(event),
     });
   });
   document.getElementById("export-guests")?.addEventListener("click", async () => {
@@ -4493,6 +4815,11 @@ async function route() {
     state.selectedDate = parsed.date;
     state.calendarMonth = parsed.date.slice(0, 7);
   }
+  if (parsed.view === "guestslot") {
+    renderNav("detail");
+    await loadGuestSlot(parsed.id, parsed.slot, parsed.guestId);
+    return;
+  }
   if (parsed.view === "detail") {
     renderNav(parsed.view);
     await loadDetail(parsed.id);
@@ -4561,15 +4888,41 @@ signOutBtn?.addEventListener("click", async () => {
   showApp(false);
 });
 
+function refreshGuestContext(eventId) {
+  const parsed = parseHash();
+  if (parsed.view === "guestslot") return loadGuestSlot(parsed.id, parsed.slot, parsed.guestId);
+  if (parsed.view === "detail") return loadDetail(parsed.id || eventId);
+  const inbox = ["overview", "calendar", "timeline", "tables", "events", "customers", "payments", "archive", "day"].includes(
+    parsed.view
+  )
+    ? parsed.view
+    : state.view || "overview";
+  return showInbox(inbox);
+}
+
 document.getElementById("app")?.addEventListener("change", (e) => {
+  const move = e.target.closest("[data-guest-move]");
+  if (move) {
+    const previous = move.dataset.current || "";
+    moveGuestRequest(move.dataset.eventId, move.dataset.guestId, move.value)
+      .then((changed) => {
+        if (!changed) return;
+        move.dataset.current = move.value;
+        return refreshGuestContext(move.dataset.eventId);
+      })
+      .catch((err) => {
+        move.value = previous;
+        window.alert(err.message || "Could not move that guest.");
+      });
+    return;
+  }
   const select = e.target.closest("[data-guest-status]");
   if (!select) return;
   const previous = select.dataset.current || "pending";
   setGuestRequestStatus(select.dataset.eventId, select.dataset.guestId, select.value)
     .then(() => {
       select.dataset.current = select.value;
-      if (state.view === "overview") showInbox("overview");
-      else if (location.hash.includes("/request/")) loadDetail(select.dataset.eventId);
+      return refreshGuestContext(select.dataset.eventId);
     })
     .catch((err) => {
       select.value = previous;
@@ -4585,9 +4938,7 @@ document.getElementById("app")?.addEventListener("click", (e) => {
     archiveGuestRequest(archiveGuestBtn.dataset.eventId, archiveGuestBtn.dataset.guestId)
       .then((ok) => {
         if (!ok) return;
-        if (state.view === "overview") showInbox("overview");
-        else if (location.hash.includes("/request/")) loadDetail(archiveGuestBtn.dataset.eventId);
-        else if (state.view === "archive") showInbox("archive");
+        return refreshGuestContext(archiveGuestBtn.dataset.eventId);
       })
       .catch((err) => window.alert(err.message || "Could not archive guest list request."));
     return;
@@ -4597,11 +4948,7 @@ document.getElementById("app")?.addEventListener("click", (e) => {
     e.preventDefault();
     e.stopPropagation();
     restoreGuestRequest(restoreGuestBtn.dataset.eventId, restoreGuestBtn.dataset.guestId)
-      .then(() => {
-        if (state.view === "archive") showInbox("archive");
-        else if (location.hash.includes("/request/")) loadDetail(restoreGuestBtn.dataset.eventId);
-        else showInbox(state.view);
-      })
+      .then(() => refreshGuestContext(restoreGuestBtn.dataset.eventId))
       .catch((err) => window.alert(err.message || "Could not restore guest list request."));
     return;
   }
@@ -4612,10 +4959,15 @@ document.getElementById("app")?.addEventListener("click", (e) => {
     deleteGuestRequest(deleteGuestBtn.dataset.eventId, deleteGuestBtn.dataset.guestId)
       .then((ok) => {
         if (!ok) return;
-        if (state.view === "overview" || state.view === "archive") showInbox(state.view);
-        else if (location.hash.includes("/request/")) loadDetail(deleteGuestBtn.dataset.eventId);
+        return refreshGuestContext(deleteGuestBtn.dataset.eventId);
       })
       .catch((err) => window.alert(err.message || "Could not delete guest list request."));
+    return;
+  }
+  const slotOpen = e.target.closest("#detail-view [data-open]");
+  if (slotOpen) {
+    e.preventDefault();
+    go(slotOpen.dataset.open);
   }
 });
 

@@ -61,7 +61,7 @@ values ('USER_UUID_HERE', 'Tiny bookings');
 
 ## WordPress (Hostinger)
 
-A plugin in [`wordpress/tiny-birthdays/`](wordpress/tiny-birthdays/) lets you edit the landing (and cake hero copy) in the WordPress block editor without changing the cafe theme or the Supabase backend. Install notes: [`wordpress/tiny-birthdays/INSTALL.md`](wordpress/tiny-birthdays/INSTALL.md).
+A plugin in [`wordpress/tiny-birthdays/`](wordpress/tiny-birthdays/) serves About Birthdays, the builders, events, reservations and the guest booking page from WordPress, and puts the Tiny header on the theme's existing home page, without changing the cafe theme or the Supabase backend. Install notes: [`wordpress/tiny-birthdays/INSTALL.md`](wordpress/tiny-birthdays/INSTALL.md).
 
 Static GitHub Pages preview above is unchanged.
 
@@ -69,10 +69,12 @@ Static GitHub Pages preview above is unchanged.
 
 | Path | Purpose |
 |------|---------|
-| `birthdays/` | Landing page |
+| `birthdays/` | About Birthdays page |
 | `birthdays/builder/` | All-in-one party builder |
 | `cakes/` | Standalone cake builder & gallery |
 | `reserve/` | Table reservation wizard (saves to Supabase + WhatsApp) |
+| `booking/` | Guest page to view, edit or cancel a booking (private email link) |
+| `events/` | Events and guest-list signup |
 | `staff/` | Private request inbox (Supabase Auth) |
 | `shared/` | Chrome, analytics, Supabase client helpers |
 | `supabase/` | Migrations + Edge Functions `submit-request` and `sync-google-calendar` |

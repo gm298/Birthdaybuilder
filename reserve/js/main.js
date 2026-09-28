@@ -36,6 +36,7 @@
   }
 
   function selectedSeats() {
+    if (Map.selectionCapacity) return Map.selectionCapacity([...state.selected], state.guests);
     return selectedTables().reduce((sum, table) => sum + table.seats, 0);
   }
 
@@ -73,9 +74,9 @@
   }
 
   function fitPlanToPage() {
-    if (state.step !== 3) return;
+    if (state.step !== 2) return;
     const wizard = document.querySelector(".wizard");
-    const head = document.querySelector('[data-panel="3"] .plan__head');
+    const head = document.querySelector('[data-panel="2"] .plan__head');
     const nav = document.querySelector(".wizard__nav");
     if (!wizard) return;
     const headerH = document.querySelector(".site-header")?.getBoundingClientRect().height || 80;
@@ -99,28 +100,52 @@
   function renderPlan() {
     const host = document.getElementById("floorplan");
     if (!host || !Map) return;
+    syncAreaTabs();
     Map.renderMap(host, {
       area: state.area,
       selected: [...state.selected],
       held: [...heldIds()],
       guests: state.guests,
       interactive: true,
-      base: "img/",
+      base: window.TINY_WP?.reserveImgBase || "img/",
       onPick: toggleTable,
     });
     renderPicked();
     fitPlanToPage();
+    updateSeatingHint();
+  }
+
+  function updateSeatingHint() {
+    const hint = document.getElementById("guests-hint");
+    if (!hint || !Map.seatingHint) return;
+    hint.textContent = Map.seatingHint(state.guests);
+  }
+
+  function syncAreaTabs() {
+    const indoorBlocked = state.guests > Map.INDOOR_MAX;
+    if (indoorBlocked && state.area === "indoor") state.area = "terrace";
+    document.querySelectorAll(".plan-tab").forEach((tab) => {
+      const area = tab.getAttribute("data-area");
+      const on = area === state.area;
+      const blocked = area === "indoor" && indoorBlocked;
+      tab.classList.toggle("is-active", on);
+      tab.setAttribute("aria-selected", on ? "true" : "false");
+      tab.disabled = blocked;
+      tab.title = blocked ? `Indoor seats up to ${Map.INDOOR_MAX}` : "";
+    });
   }
 
   function pruneSelection() {
-    const tables = selectedTables();
-    if (!tables.length) return;
-    if (tables.some((table) => !Map.canTakeTable(table, state.guests))) {
-      state.selected = new Set();
-    }
     [...state.selected].forEach((id) => {
       if (heldIds().has(id)) state.selected.delete(id);
     });
+    if (state.guests > Map.INDOOR_MAX && [...state.selected].some((id) => findTable(id)?.area === "indoor")) {
+      state.selected = new Set();
+      state.area = "terrace";
+    }
+    if (state.selected.size && Map.selectionStillValid && !Map.selectionStillValid([...state.selected], state.guests)) {
+      state.selected = new Set();
+    }
   }
 
   function toggleTable(id) {
@@ -131,12 +156,12 @@
       setStatus("That table is already reserved for this 2-hour slot.", "error");
       return;
     }
+    if (!Map.canTakeTable(table, state.guests)) {
+      setStatus(Map.unavailableReason?.(table, state.guests) || "That table is too small for this party.", "error");
+      return;
+    }
     const next = Map.nextSelection(state.selected, id, state.guests, held);
-    if (held.has(id) === false && next.size === state.selected.size && [...next].every((item) => state.selected.has(item))) {
-      if (!Map.canTakeTable(table, state.guests)) {
-        setStatus("That table is too small for this party.", "error");
-        return;
-      }
+    if (next.size === state.selected.size && [...next].every((item) => state.selected.has(item))) {
       setStatus("The joined table is already reserved for this slot.", "error");
       return;
     }
@@ -152,6 +177,11 @@
   }
 
   function setArea(area) {
+    if (area === "indoor" && state.guests > Map.INDOOR_MAX) {
+      setStatus(`Indoor seats up to ${Map.INDOOR_MAX}. Choose the terrace for ${state.guests} guests.`, "error");
+      syncAreaTabs();
+      return;
+    }
     state.area = area;
     document.querySelectorAll(".plan-tab").forEach((tab) => {
       const on = tab.getAttribute("data-area") === area;
@@ -421,8 +451,14 @@
       const seats = selectedSeats();
       if (!state.occupancyOk) return "Couldn’t check availability — try again.";
       if (!tables.length) return "Please tap a table on the floor plan.";
-      if (seats < state.guests) {
-        return `That table seats ${seats}. Pick a larger table or join indoor tables 1 and 2.`;
+      if (Map.selectionFits && !Map.selectionFits([...state.selected], state.guests)) {
+        if (state.guests >= (Map.FLEX_TERRACE_MIN || 15)) {
+          return `Those tables seat ${seats}. Add terrace tables until they seat ${state.guests}.`;
+        }
+        return Map.seatingHint?.(state.guests)?.replace(/ Held tables are blocked for this slot\./, "") || "Those tables don’t fit this party.";
+      }
+      if (!Map.selectionFits && seats < state.guests) {
+        return `That table seats ${seats}. Pick a larger table or join indoor tables 1 & 2 or 3 & 4.`;
       }
       if (tables.some((table) => heldIds().has(table.id))) {
         return "That table is already reserved for this 2-hour slot.";

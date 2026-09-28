@@ -3,6 +3,30 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+function tiny_birthdays_fonts_url() {
+    return 'https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap';
+}
+
+/**
+ * Page stylesheets per canvas type, in load order. They load before chrome.css,
+ * matching the static pages (booking is the exception and loads after it).
+ */
+function tiny_birthdays_page_styles($type) {
+    $map = [
+        'landing' => ['tiny-birthdays-landing' => 'birthdays/css/styles.css'],
+        'cakes' => ['tiny-birthdays-cakes' => 'cakes/css/styles.css'],
+        'builder' => [
+            'tiny-birthdays-cakes' => 'cakes/css/styles.css',
+            'tiny-birthdays-builder' => 'birthdays/builder/css/styles.css',
+        ],
+        'events' => ['tiny-birthdays-events' => 'events/css/styles.css'],
+        'reserve' => ['tiny-birthdays-reserve' => 'reserve/css/styles.css'],
+        'location' => ['tiny-birthdays-info' => 'shared/info-page.css'],
+        'menu' => ['tiny-birthdays-info' => 'shared/info-page.css'],
+    ];
+    return $map[$type] ?? [];
+}
+
 function tiny_birthdays_enqueue_front() {
     if (!tiny_birthdays_is_canvas()) {
         return;
@@ -10,167 +34,48 @@ function tiny_birthdays_enqueue_front() {
 
     $type = tiny_birthdays_canvas_type();
     $ver = TINY_BIRTHDAYS_VERSION;
-    $config = tiny_birthdays_localize_config();
 
-    wp_enqueue_style(
-        'tiny-birthdays-fonts',
-        'https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap',
-        [],
-        null
-    );
-    wp_enqueue_style(
-        'tiny-birthdays-chrome',
-        tiny_birthdays_asset('shared/chrome.css'),
-        [],
-        $ver
-    );
-    wp_enqueue_style(
-        'tiny-birthdays-canvas',
-        TINY_BIRTHDAYS_URL . 'assets/tiny-canvas.css',
-        ['tiny-birthdays-chrome'],
-        $ver
-    );
+    wp_enqueue_style('tiny-birthdays-fonts', tiny_birthdays_fonts_url(), [], null);
 
-    if ($type === 'landing' || $type === 'landing-revised') {
-        wp_enqueue_style(
-            'tiny-birthdays-landing',
-            tiny_birthdays_asset('birthdays/css/styles.css'),
-            ['tiny-birthdays-chrome'],
-            $ver
-        );
+    $deps = [];
+    foreach (tiny_birthdays_page_styles($type) as $handle => $path) {
+        wp_enqueue_style($handle, tiny_birthdays_asset($path), $deps, $ver);
+        $deps = [$handle];
+    }
+    wp_enqueue_style('tiny-birthdays-chrome', tiny_birthdays_asset('shared/chrome.css'), $deps, $ver);
+    if ($type === 'booking') {
+        wp_enqueue_style('tiny-birthdays-booking', tiny_birthdays_asset('booking/css/styles.css'), ['tiny-birthdays-chrome'], $ver);
+    }
+    wp_enqueue_style('tiny-birthdays-canvas', TINY_BIRTHDAYS_URL . 'assets/tiny-canvas.css', ['tiny-birthdays-chrome'], $ver);
+
+    wp_enqueue_script('tiny-birthdays-analytics', tiny_birthdays_asset('shared/analytics.js'), [], $ver, false);
+    wp_enqueue_script('tiny-birthdays-chrome', tiny_birthdays_asset('shared/chrome.js'), [], $ver, true);
+    wp_localize_script('tiny-birthdays-chrome', 'TINY_WP', tiny_birthdays_localize_config());
+
+    $app_deps = ['tiny-birthdays-chrome'];
+    if (in_array($type, ['builder', 'cakes', 'events', 'reserve', 'booking'], true)) {
+        wp_enqueue_script('tiny-birthdays-supabase', tiny_birthdays_asset('shared/supabase-config.js'), [], $ver, true);
+        wp_enqueue_script('tiny-birthdays-submit', tiny_birthdays_asset('shared/submit-request.js'), ['tiny-birthdays-supabase'], $ver, true);
+        wp_enqueue_script('tiny-birthdays-success-modal', tiny_birthdays_asset('shared/success-modal.js'), ['tiny-birthdays-submit'], $ver, true);
+        $app_deps = ['tiny-birthdays-chrome', 'tiny-birthdays-supabase', 'tiny-birthdays-submit', 'tiny-birthdays-success-modal'];
+    }
+    if (in_array($type, ['builder', 'reserve', 'booking'], true)) {
+        wp_enqueue_script('tiny-birthdays-reserve-tables', tiny_birthdays_asset('shared/reserve-tables.js'), [], $ver, true);
+        $app_deps[] = 'tiny-birthdays-reserve-tables';
     }
 
-    if ($type === 'landing-revised') {
-        wp_enqueue_style(
-            'tiny-birthdays-landing-revised',
-            tiny_birthdays_asset('birthdays/about-birthdays-revised/revised.css'),
-            ['tiny-birthdays-landing'],
-            $ver
-        );
-    }
-
-    if ($type === 'cakes') {
-        wp_enqueue_style(
-            'tiny-birthdays-cakes',
-            tiny_birthdays_asset('cakes/css/styles.css'),
-            ['tiny-birthdays-chrome'],
-            $ver
-        );
-    }
-
-    if ($type === 'builder') {
-        wp_enqueue_style(
-            'tiny-birthdays-cakes',
-            tiny_birthdays_asset('cakes/css/styles.css'),
-            ['tiny-birthdays-chrome'],
-            $ver
-        );
-        wp_enqueue_style(
-            'tiny-birthdays-builder',
-            tiny_birthdays_asset('birthdays/builder/css/styles.css'),
-            ['tiny-birthdays-cakes'],
-            $ver
-        );
-    }
-
-    if ($type === 'events') {
-        wp_enqueue_style(
-            'tiny-birthdays-events',
-            tiny_birthdays_asset('events/css/styles.css'),
-            ['tiny-birthdays-chrome'],
-            $ver
-        );
-    }
-
-    wp_enqueue_script(
-        'tiny-birthdays-analytics',
-        tiny_birthdays_asset('shared/analytics.js'),
-        [],
-        $ver,
-        false
-    );
-    wp_enqueue_script(
-        'tiny-birthdays-chrome',
-        tiny_birthdays_asset('shared/chrome.js'),
-        [],
-        $ver,
-        true
-    );
-    wp_localize_script('tiny-birthdays-chrome', 'TINY_WP', $config);
-
-    $needs_supabase = ($type === 'builder' || $type === 'cakes' || $type === 'events');
-    if ($needs_supabase) {
-        wp_enqueue_script(
-            'tiny-birthdays-supabase',
-            tiny_birthdays_asset('shared/supabase-config.js'),
-            [],
-            $ver,
-            true
-        );
-        wp_enqueue_script(
-            'tiny-birthdays-submit',
-            tiny_birthdays_asset('shared/submit-request.js'),
-            ['tiny-birthdays-supabase'],
-            $ver,
-            true
-        );
-        wp_enqueue_script(
-            'tiny-birthdays-success-modal',
-            tiny_birthdays_asset('shared/success-modal.js'),
-            ['tiny-birthdays-submit'],
-            $ver,
-            true
-        );
-    }
-
-    if ($type === 'landing') {
-        wp_enqueue_script(
-            'tiny-birthdays-landing',
-            tiny_birthdays_asset('birthdays/js/main.js'),
-            ['tiny-birthdays-chrome'],
-            $ver,
-            true
-        );
-    }
-
-    if ($type === 'landing-revised') {
-        wp_enqueue_script(
-            'tiny-birthdays-landing-revised',
-            tiny_birthdays_asset('birthdays/about-birthdays-revised/revised.js'),
-            ['tiny-birthdays-chrome'],
-            $ver,
-            true
-        );
-    }
-
-    if ($type === 'cakes') {
-        wp_enqueue_script(
-            'tiny-birthdays-cakes',
-            tiny_birthdays_asset('cakes/js/main.js'),
-            ['tiny-birthdays-chrome', 'tiny-birthdays-submit', 'tiny-birthdays-success-modal'],
-            $ver,
-            true
-        );
-    }
-
-    if ($type === 'builder') {
-        wp_enqueue_script(
-            'tiny-birthdays-builder',
-            tiny_birthdays_asset('birthdays/builder/js/main.js'),
-            ['tiny-birthdays-chrome', 'tiny-birthdays-submit', 'tiny-birthdays-success-modal'],
-            $ver,
-            true
-        );
-    }
-
-    if ($type === 'events') {
-        wp_enqueue_script(
-            'tiny-birthdays-events',
-            tiny_birthdays_asset('events/js/main.js'),
-            ['tiny-birthdays-chrome', 'tiny-birthdays-supabase'],
-            $ver,
-            true
-        );
+    $app_scripts = [
+        'landing' => ['tiny-birthdays-landing', 'birthdays/js/main.js'],
+        'cakes' => ['tiny-birthdays-cakes', 'cakes/js/main.js'],
+        'builder' => ['tiny-birthdays-builder', 'birthdays/builder/js/main.js'],
+        'events' => ['tiny-birthdays-events', 'events/js/main.js'],
+        'reserve' => ['tiny-birthdays-reserve', 'reserve/js/main.js'],
+        'booking' => ['tiny-birthdays-booking', 'booking/js/main.js'],
+        'menu' => ['tiny-birthdays-menu', 'menu/js/main.js'],
+    ];
+    if (isset($app_scripts[$type])) {
+        list($handle, $path) = $app_scripts[$type];
+        wp_enqueue_script($handle, tiny_birthdays_asset($path), $app_deps, $ver, true);
     }
 }
 
@@ -179,40 +84,12 @@ function tiny_birthdays_strip_theme_assets() {
         return;
     }
 
-    $keep_style = [
-        'tiny-birthdays-fonts',
-        'tiny-birthdays-chrome',
-        'tiny-birthdays-canvas',
-        'tiny-birthdays-landing',
-        'tiny-birthdays-landing-revised',
-        'tiny-birthdays-cakes',
-        'tiny-birthdays-builder',
-        'tiny-birthdays-events',
-        'admin-bar',
-        'dashicons',
-    ];
-    $keep_script = [
-        'tiny-birthdays-analytics',
-        'tiny-birthdays-chrome',
-        'tiny-birthdays-supabase',
-        'tiny-birthdays-submit',
-        'tiny-birthdays-success-modal',
-        'tiny-birthdays-landing',
-        'tiny-birthdays-landing-revised',
-        'tiny-birthdays-cakes',
-        'tiny-birthdays-builder',
-        'tiny-birthdays-events',
-        'jquery',
-        'jquery-core',
-        'jquery-migrate',
-        'admin-bar',
-        'wp-embed',
-    ];
+    $keep = ['admin-bar', 'dashicons', 'jquery', 'jquery-core', 'jquery-migrate', 'wp-embed'];
 
     global $wp_styles, $wp_scripts;
     if ($wp_styles && is_array($wp_styles->queue)) {
         foreach ($wp_styles->queue as $handle) {
-            if (!in_array($handle, $keep_style, true) && strpos($handle, 'tiny-birthdays') !== 0) {
+            if (!in_array($handle, $keep, true) && strpos($handle, 'tiny-birthdays') !== 0) {
                 wp_dequeue_style($handle);
                 wp_deregister_style($handle);
             }
@@ -220,12 +97,43 @@ function tiny_birthdays_strip_theme_assets() {
     }
     if ($wp_scripts && is_array($wp_scripts->queue)) {
         foreach ($wp_scripts->queue as $handle) {
-            if (!in_array($handle, $keep_script, true) && strpos($handle, 'tiny-birthdays') !== 0) {
+            if (!in_array($handle, $keep, true) && strpos($handle, 'tiny-birthdays') !== 0) {
                 wp_dequeue_script($handle);
                 wp_deregister_script($handle);
             }
         }
     }
+}
+
+function tiny_birthdays_is_home_chrome() {
+    return is_front_page() && !tiny_birthdays_is_canvas();
+}
+
+/** Theme home page keeps its content; only the header is swapped for the Tiny one. */
+function tiny_birthdays_enqueue_home_chrome() {
+    if (!tiny_birthdays_is_home_chrome()) {
+        return;
+    }
+    $ver = TINY_BIRTHDAYS_VERSION;
+    wp_enqueue_style('tiny-birthdays-fonts', tiny_birthdays_fonts_url(), [], null);
+    wp_enqueue_style('tiny-birthdays-chrome', tiny_birthdays_asset('shared/chrome.css'), [], $ver);
+    wp_enqueue_style('tiny-birthdays-home', TINY_BIRTHDAYS_URL . 'assets/tiny-home.css', ['tiny-birthdays-chrome'], $ver);
+    wp_enqueue_script('tiny-birthdays-chrome', tiny_birthdays_asset('shared/chrome.js'), [], $ver, true);
+    wp_localize_script('tiny-birthdays-chrome', 'TINY_WP', tiny_birthdays_localize_config());
+    wp_add_inline_script('tiny-birthdays-chrome', 'document.body.setAttribute("data-page","home");', 'before');
+}
+
+function tiny_birthdays_home_header_host() {
+    if (tiny_birthdays_is_home_chrome()) {
+        echo '<div id="site-chrome-header"></div>';
+    }
+}
+
+function tiny_birthdays_home_body_class($classes) {
+    if (tiny_birthdays_is_home_chrome()) {
+        $classes[] = 'tiny-home-chrome';
+    }
+    return $classes;
 }
 
 function tiny_birthdays_enqueue_editor() {
@@ -235,12 +143,7 @@ function tiny_birthdays_enqueue_editor() {
     }
 
     $ver = TINY_BIRTHDAYS_VERSION;
-    wp_enqueue_style(
-        'tiny-birthdays-fonts',
-        'https://fonts.googleapis.com/css2?family=Great+Vibes&family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap',
-        [],
-        null
-    );
+    wp_enqueue_style('tiny-birthdays-fonts', tiny_birthdays_fonts_url(), [], null);
     wp_enqueue_style(
         'tiny-birthdays-editor-front',
         tiny_birthdays_asset('birthdays/css/styles.css'),
