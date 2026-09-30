@@ -18,9 +18,9 @@ if (!defined('ABSPATH')) {
 
     <section class="info-wrap" id="menu-app" aria-label="Menus">
       <div class="menu-tabs" role="tablist" aria-label="Choose a menu">
-        <button type="button" class="menu-tab is-active" role="tab" aria-selected="true" id="menu-tab-food" data-menu="food" data-pdf="pdf/tiny-food-menu.pdf" data-title="Food Menu">Food Menu</button>
-        <button type="button" class="menu-tab" role="tab" aria-selected="false" id="menu-tab-drinks" data-menu="drinks" data-pdf="pdf/tiny-drink-menu.pdf" data-title="Drink Menu">Drink Menu</button>
-        <button type="button" class="menu-tab" role="tab" aria-selected="false" id="menu-tab-nights" data-menu="nights" data-pdf="pdf/tiny-nights-menu.pdf" data-title="Nights Menu">Nights Menu</button>
+        <button type="button" class="menu-tab is-active" role="tab" aria-selected="true" id="menu-tab-food" data-menu="food" data-pdf="pdf/tiny-food-menu.pdf" data-pages="36" data-size="1200x1548" data-title="Food Menu">Food Menu</button>
+        <button type="button" class="menu-tab" role="tab" aria-selected="false" id="menu-tab-drinks" data-menu="drinks" data-pdf="pdf/tiny-drink-menu.pdf" data-pages="8" data-size="1200x1988" data-title="Drink Menu">Drink Menu</button>
+        <button type="button" class="menu-tab" role="tab" aria-selected="false" id="menu-tab-nights" data-menu="nights" data-pdf="pdf/tiny-nights-menu.pdf" data-pages="8" data-size="1200x1705" data-title="Nights Menu">Nights Menu</button>
       </div>
 
       <div class="menu-viewer" role="tabpanel" aria-labelledby="menu-tab-food" id="menu-panel">
@@ -31,13 +31,8 @@ if (!defined('ABSPATH')) {
             <a class="btn btn--outline" id="menu-open" href="pdf/tiny-food-menu.pdf" target="_blank" rel="noopener">Open full screen</a>
           </div>
         </div>
-        <div class="menu-viewer__frame" id="menu-frame-wrap">
-          <iframe id="menu-frame" title="Food Menu" allow="fullscreen" allowfullscreen></iframe>
-          <div class="menu-viewer__loading">Loading menu…</div>
-          <div class="menu-viewer__fallback" id="menu-fallback" hidden>
-            <p>This menu opens in your phone's PDF viewer.</p>
-            <a class="btn btn--dark btn--lg" id="menu-fallback-open" href="#" target="_blank" rel="noopener">Open menu</a>
-          </div>
+        <div class="menu-viewer__pages" id="menu-pages" tabindex="0" aria-label="Menu pages">
+          <noscript><p class="menu-viewer__note">Use Download PDF above to view the menu.</p></noscript>
         </div>
       </div>
     </section>

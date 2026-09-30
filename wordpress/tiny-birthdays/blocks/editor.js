@@ -162,7 +162,7 @@
     edit: function () {
       return appNote(
         "Menu viewer",
-        "Shows the Food, Drink and Nights menu PDFs with download buttons. The PDFs ship with the plugin (assets/menu/pdf/tiny-food-menu.pdf, tiny-drink-menu.pdf, tiny-nights-menu.pdf); to update a menu, replace that file with the same name and re-upload the plugin."
+        "Shows the Food, Drink and Nights menu PDFs with download buttons. The PDFs ship with the plugin (assets/menu/pdf/tiny-food-menu.pdf, tiny-drink-menu.pdf, tiny-nights-menu.pdf); the viewer shows page images rendered from them (assets/menu/pages). To update a menu, replace the PDF in the site project, run scripts/render-menu-pages.py and the sync script, then re-upload the plugin."
       );
     },
     save: function () { return null; },

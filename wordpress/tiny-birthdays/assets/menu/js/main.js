@@ -1,8 +1,7 @@
 (() => {
   "use strict";
 
-  // Phones (Android Chrome in particular) cannot show a PDF inside an iframe.
-  const inlinePdf = navigator.pdfViewerEnabled !== false;
+  // Pages are pre-rendered images (scripts/render-menu-pages.py) because phones cannot show a PDF inline.
 
   function track(eventName, params) {
     try {
@@ -13,25 +12,54 @@
     }
   }
 
-  function sourceFor(tab) {
+  function assetUrl(path) {
     const base = (window.TINY_WP && window.TINY_WP.menuAssetBase) || "";
-    const url = new URL(base + tab.dataset.pdf, location.href).href;
-    return { url, view: `${url}#view=FitH&navpanes=0`, filename: tab.dataset.pdf.split("/").pop() };
+    return new URL(base + path, location.href).href;
+  }
+
+  function sourceFor(tab) {
+    const [width, height] = (tab.dataset.size || "1200x1600").split("x").map(Number);
+    return {
+      url: assetUrl(tab.dataset.pdf),
+      filename: tab.dataset.pdf.split("/").pop(),
+      pages: Number(tab.dataset.pages) || 0,
+      width,
+      height,
+    };
   }
 
   document.addEventListener("DOMContentLoaded", () => {
     const tabs = Array.from(document.querySelectorAll(".menu-tab[data-pdf]"));
     const panel = document.getElementById("menu-panel");
     const title = document.getElementById("menu-viewer-title");
-    const frame = document.getElementById("menu-frame");
-    const frameWrap = document.getElementById("menu-frame-wrap");
+    const pagesEl = document.getElementById("menu-pages");
     const download = document.getElementById("menu-download");
     const open = document.getElementById("menu-open");
-    const fallback = document.getElementById("menu-fallback");
-    const fallbackOpen = document.getElementById("menu-fallback-open");
-    if (!tabs.length || !frame) return;
+    if (!tabs.length || !pagesEl) return;
 
-    frame.addEventListener("load", () => frameWrap?.classList.add("is-loaded"));
+    const rendered = new Map();
+
+    function pagesFor(tab) {
+      if (rendered.has(tab)) return rendered.get(tab);
+      const src = sourceFor(tab);
+      const name = tab.dataset.title || tab.textContent.trim();
+      const list = document.createElement("div");
+      list.className = "menu-viewer__list";
+      for (let i = 1; i <= src.pages; i += 1) {
+        const img = document.createElement("img");
+        img.className = "menu-page";
+        img.src = assetUrl(`pages/${tab.dataset.menu}/page-${String(i).padStart(2, "0")}.webp`);
+        img.width = src.width;
+        img.height = src.height;
+        img.alt = `${name}, page ${i} of ${src.pages}`;
+        img.decoding = "async";
+        if (i > 2) img.loading = "lazy";
+        img.addEventListener("error", () => img.classList.add("is-broken"), { once: true });
+        list.appendChild(img);
+      }
+      rendered.set(tab, list);
+      return list;
+    }
 
     function select(tab, { updateHash = true } = {}) {
       const src = sourceFor(tab);
@@ -43,14 +71,11 @@
       });
       panel?.setAttribute("aria-labelledby", tab.id);
       if (title) title.textContent = name;
-      frame.title = name;
 
-      frameWrap?.classList.toggle("is-fallback", !inlinePdf);
-      if (fallback) fallback.hidden = inlinePdf;
-      if (fallbackOpen) fallbackOpen.href = src.url;
-      if (inlinePdf && frame.getAttribute("src") !== src.view) {
-        frameWrap?.classList.remove("is-loaded");
-        frame.src = src.view;
+      const list = pagesFor(tab);
+      if (pagesEl.firstElementChild !== list) {
+        pagesEl.replaceChildren(list);
+        pagesEl.scrollTop = 0;
       }
 
       if (download) {

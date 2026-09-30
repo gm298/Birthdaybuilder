@@ -21,7 +21,7 @@ The theme's **home page is kept as it is**. The plugin only swaps the theme head
 
 On theme pages, links to the Tiny Google Maps place and to the Google Drive menus (the home page **Our location** and **See our menu** buttons, footer links) are pointed at `/location/` and `/menu/` automatically, so the home page does not need editing.
 
-To update a menu, replace the PDF in `menu/pdf/` (keep the file name: `tiny-food-menu.pdf`, `tiny-drink-menu.pdf`, `tiny-nights-menu.pdf`), run the sync script, and re-upload the plugin.
+To update a menu, replace the PDF in `menu/pdf/` (keep the file name: `tiny-food-menu.pdf`, `tiny-drink-menu.pdf`, `tiny-nights-menu.pdf`), run `python scripts/render-menu-pages.py` to rebuild the page images the viewer shows, copy the printed `data-pages` / `data-size` values into `menu/index.html` if the page count changed, then run the sync script and re-upload the plugin.
 
 The builders, reservation wizard and booking page still use the existing JavaScript, `party.json` / `cakes.json`, WhatsApp, and Supabase. Nothing points forms at WordPress.
 

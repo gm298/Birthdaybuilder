@@ -47,6 +47,7 @@ Copy-Tree (Join-Path $root "booking\css") (Join-Path $dest "booking\css")
 Copy-Tree (Join-Path $root "booking\js") (Join-Path $dest "booking\js")
 Copy-Tree (Join-Path $root "menu\js") (Join-Path $dest "menu\js")
 Copy-Tree (Join-Path $root "menu\pdf") (Join-Path $dest "menu\pdf")
+Copy-Tree (Join-Path $root "menu\pages") (Join-Path $dest "menu\pages")
 
 # Reservation and booking markup come straight from the static pages: everything
 # inside <main>, plus any modals placed after the footer host.
