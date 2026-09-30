@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="../shared/info-page.css?v=20260930a">
+  <link rel="stylesheet" href="../shared/info-page.css?v=20260930b">
   <link rel="stylesheet" href="../shared/chrome.css?v=20260928a">
   <script src="../shared/analytics.js?v=20260905a"></script>
 </head>
@@ -45,7 +45,13 @@
             <a class="btn btn--outline" id="menu-open" href="pdf/tiny-food-menu.pdf" target="_blank" rel="noopener">Open full screen</a>
           </div>
         </div>
-        <div class="menu-viewer__pages" id="menu-pages" tabindex="0" aria-label="Menu pages">
+        <div class="flipbook" id="menu-book" tabindex="0" aria-roledescription="flipbook" aria-label="Menu pages. Use the arrow keys to turn pages.">
+          <div class="flipbook__stage" id="menu-stage"></div>
+          <div class="flipbook__controls">
+            <button type="button" class="flipbook__nav" id="menu-prev" aria-label="Previous page">&#8249;</button>
+            <span class="flipbook__status" id="menu-status" aria-live="polite"></span>
+            <button type="button" class="flipbook__nav" id="menu-next" aria-label="Next page">&#8250;</button>
+          </div>
           <noscript><p class="menu-viewer__note">Use Download PDF above to view the menu.</p></noscript>
         </div>
       </div>
@@ -55,6 +61,6 @@
   <div id="site-chrome-footer"></div>
 
   <script src="../shared/chrome.js?v=20260928c" defer></script>
-  <script src="js/main.js?v=20260930a" defer></script>
+  <script src="js/main.js?v=20260930b" defer></script>
 </body>
 </html>

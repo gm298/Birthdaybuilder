@@ -31,7 +31,13 @@ if (!defined('ABSPATH')) {
             <a class="btn btn--outline" id="menu-open" href="pdf/tiny-food-menu.pdf" target="_blank" rel="noopener">Open full screen</a>
           </div>
         </div>
-        <div class="menu-viewer__pages" id="menu-pages" tabindex="0" aria-label="Menu pages">
+        <div class="flipbook" id="menu-book" tabindex="0" aria-roledescription="flipbook" aria-label="Menu pages. Use the arrow keys to turn pages.">
+          <div class="flipbook__stage" id="menu-stage"></div>
+          <div class="flipbook__controls">
+            <button type="button" class="flipbook__nav" id="menu-prev" aria-label="Previous page">&#8249;</button>
+            <span class="flipbook__status" id="menu-status" aria-live="polite"></span>
+            <button type="button" class="flipbook__nav" id="menu-next" aria-label="Next page">&#8250;</button>
+          </div>
           <noscript><p class="menu-viewer__note">Use Download PDF above to view the menu.</p></noscript>
         </div>
       </div>

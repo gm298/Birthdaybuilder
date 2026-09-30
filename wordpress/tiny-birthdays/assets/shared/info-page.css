@@ -291,38 +291,196 @@ a {
   gap: 10px;
 }
 
-.menu-viewer__pages {
-  height: min(82vh, 1100px);
-  min-height: 480px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+.flipbook {
   background: #eceae2;
-  -webkit-overflow-scrolling: touch;
+  padding: 24px 18px 16px;
+  outline: none;
 }
 
-.menu-viewer__pages:focus-visible {
-  outline: 3px solid var(--sage);
-  outline-offset: -3px;
+.flipbook:focus-visible {
+  box-shadow: inset 0 0 0 3px var(--sage);
 }
 
-.menu-viewer__list {
+.flipbook__stage {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 18px;
+  justify-content: center;
+  min-height: var(--page-h, 60vh);
+  perspective: 2400px;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.menu-page {
-  width: 100%;
-  max-width: 760px;
-  height: auto;
+.flipbook__book {
+  position: relative;
+  display: flex;
+  height: var(--page-h);
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.4, 0.1, 0.2, 1);
+}
+
+.flipbook__book.is-double {
+  width: calc(var(--page-w) * 2);
+}
+
+.flipbook__book.is-single {
+  width: var(--page-w);
+}
+
+.flipbook__book.is-double.is-cover {
+  transform: translateX(calc(var(--page-w) * -0.5));
+}
+
+.flipbook__book.is-double.is-back {
+  transform: translateX(calc(var(--page-w) * 0.5));
+}
+
+.flipbook__page,
+.flipbook__face {
+  width: var(--page-w);
+  height: var(--page-h);
+  overflow: hidden;
   background: var(--white);
-  box-shadow: 0 4px 16px rgba(61, 79, 69, 0.14);
+  box-shadow: 0 10px 30px rgba(61, 79, 69, 0.18);
 }
 
-.menu-page.is-broken {
-  display: none;
+.flipbook__page {
+  position: relative;
+  cursor: pointer;
+}
+
+.flipbook__page.is-empty {
+  background: transparent;
+  box-shadow: none;
+  cursor: default;
+}
+
+.flipbook__page img,
+.flipbook__face img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.is-double .flipbook__page--left:not(.is-empty)::after,
+.is-double .flipbook__page--right:not(.is-empty)::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 10%;
+  pointer-events: none;
+}
+
+.is-double .flipbook__page--left:not(.is-empty)::after {
+  right: 0;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.14), transparent);
+}
+
+.is-double .flipbook__page--right:not(.is-empty)::after {
+  left: 0;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.14), transparent);
+}
+
+.flipbook__leaf {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  width: var(--page-w);
+  height: var(--page-h);
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.4, 0.1, 0.2, 1);
+  pointer-events: none;
+}
+
+.flipbook__leaf.is-right {
+  left: 50%;
+  transform-origin: left center;
+}
+
+.is-single .flipbook__leaf.is-right {
+  left: 0;
+}
+
+.flipbook__leaf.is-left {
+  left: 0;
+  transform-origin: right center;
+}
+
+.flipbook__leaf.is-right.is-turning,
+.flipbook__leaf.is-turned {
+  transform: rotateY(-180deg);
+}
+
+.flipbook__leaf.is-left.is-turning {
+  transform: rotateY(180deg);
+}
+
+.flipbook__face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.flipbook__face--back {
+  transform: rotateY(180deg);
+}
+
+.flipbook__face.is-empty {
+  background: #f4f2ea;
+}
+
+.flipbook__controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.flipbook__nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0 0 3px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--white);
+  color: var(--deep);
+  font-size: 26px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.flipbook__nav:hover:not(:disabled) {
+  background: var(--deep);
+  color: var(--white);
+}
+
+.flipbook__nav:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.flipbook__status {
+  min-width: 170px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .flipbook__book,
+  .flipbook__leaf {
+    transition: none;
+  }
 }
 
 .menu-viewer__note {
@@ -345,14 +503,8 @@ a {
     padding-bottom: 48px;
   }
 
-  .menu-viewer__pages {
-    height: 75vh;
-    min-height: 360px;
-  }
-
-  .menu-viewer__list {
-    gap: 10px;
-    padding: 10px;
+  .flipbook {
+    padding: 14px 10px 12px;
   }
 
   .menu-viewer__actions .btn {

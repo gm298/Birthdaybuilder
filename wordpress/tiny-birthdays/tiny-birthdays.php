@@ -3,7 +3,7 @@
  * Plugin Name: Tiny Birthdays
  * Plugin URI: https://tinyhealthycafe.com/birthdays
  * Description: Tiny pages for WordPress: About Birthdays, party builder, cakes, events, table reservations, guest booking, location and menu pages, plus the Tiny header on the theme home page. Builders and Supabase stay as they are.
- * Version: 1.2.1
+ * Version: 1.2.2
  * Author: Tiny Healthy Cafe
  * Text Domain: tiny-birthdays
  * Requires at least: 6.4
@@ -14,7 +14,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('TINY_BIRTHDAYS_VERSION', '1.2.1');
+define('TINY_BIRTHDAYS_VERSION', '1.2.2');
 define('TINY_BIRTHDAYS_FILE', __FILE__);
 define('TINY_BIRTHDAYS_DIR', plugin_dir_path(__FILE__));
 define('TINY_BIRTHDAYS_URL', plugin_dir_url(__FILE__));
