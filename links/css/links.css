@@ -1,0 +1,308 @@
+/* Link-in-bio page, styled after the tinyhealthycafe.com home theme. */
+
+:root {
+  --sage: #647c6e;
+  --sage-hover: #586e62;
+  --cream: #fbf8eb;
+  --brown: #62513c;
+  --line: rgba(100, 124, 110, 0.35);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--cream);
+  color: #000;
+  font-family: "Tenor Sans", Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+.lt {
+  width: min(600px, 100%);
+  margin: 0 auto;
+  background: var(--cream);
+}
+
+/* Hero */
+
+.lt-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  padding: 48px 24px 40px;
+  overflow: hidden;
+  color: #fdfdfd;
+  text-align: center;
+}
+
+.lt-hero__bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: 60% 66%;
+}
+
+.lt-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(48, 39, 28, 0.45);
+}
+
+.lt-hero__inner {
+  position: relative;
+  z-index: 1;
+}
+
+.lt-hero__logo {
+  width: 44px;
+  height: auto;
+  margin: 0 auto 20px;
+}
+
+.lt-hero h1 {
+  margin: 0;
+  font-weight: 400;
+  font-size: clamp(26px, 6vw, 34px);
+  letter-spacing: 1px;
+}
+
+.lt-hero__tag {
+  margin: 10px 0 0;
+  font-size: 13px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.lt-share {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.lt-share:hover,
+.lt-share:focus-visible {
+  background: #fff;
+  color: #30271c;
+}
+
+/* Body */
+
+.lt-body {
+  padding: 28px 20px 40px;
+}
+
+.lt-social {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 28px;
+}
+
+.lt-social a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  color: var(--sage);
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.lt-social a:hover {
+  color: var(--sage-hover);
+  transform: translateY(-2px);
+}
+
+.lt-social svg {
+  width: 24px;
+  height: 24px;
+}
+
+.lt-links {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lt-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 72px;
+  padding: 10px 64px;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: #000;
+  text-decoration: none;
+  text-align: center;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.lt-link:hover,
+.lt-link:focus-visible {
+  background: var(--sage);
+  border-color: var(--sage);
+  color: #fff;
+  transform: translateY(-2px);
+}
+
+.lt-link:focus-visible {
+  outline: 2px solid var(--sage);
+  outline-offset: 3px;
+}
+
+.lt-link__thumb {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  width: 52px;
+  height: 52px;
+  object-fit: cover;
+  transform: translateY(-50%);
+}
+
+.lt-link__thumb--icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--sage);
+  transition: color 0.2s ease;
+}
+
+.lt-link__thumb--icon svg {
+  width: 28px;
+  height: 28px;
+}
+
+.lt-link:hover .lt-link__thumb--icon,
+.lt-link:focus-visible .lt-link__thumb--icon {
+  color: #fff;
+}
+
+.lt-link__text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+}
+
+.lt-link__title {
+  font-size: 16px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.lt-link__sub {
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--brown);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: color 0.2s ease;
+}
+
+.lt-link:hover .lt-link__sub,
+.lt-link:focus-visible .lt-link__sub {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Footer */
+
+.lt-foot {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(100, 124, 110, 0.25);
+  text-align: center;
+  font-size: 13px;
+  color: var(--brown);
+}
+
+.lt-foot p {
+  margin: 0;
+}
+
+.lt-foot__hours {
+  margin-bottom: 6px !important;
+  color: var(--sage);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* Toast */
+
+.lt-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  margin: 0;
+  padding: 12px 20px;
+  background: var(--sage);
+  color: #fff;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 10px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.lt-toast.is-visible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+@media (min-width: 640px) {
+  body {
+    padding: 32px 0;
+    background: #eceae2;
+  }
+
+  .lt {
+    box-shadow: 0 14px 40px rgba(61, 79, 69, 0.12);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lt-link,
+  .lt-social a,
+  .lt-toast {
+    transition: none;
+  }
+
+  .lt-link:hover,
+  .lt-social a:hover {
+    transform: none;
+  }
+}
