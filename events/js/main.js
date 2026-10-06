@@ -490,7 +490,13 @@
               </select>
             </label>
             <label class="field"><span>Name</span><input name="name" required autocomplete="name"></label>
-            <label class="field"><span>Party size</span><input name="pax" type="number" min="1" max="40" value="1" required></label>
+            <div class="field">
+              <span id="pax-label">Party size</span>
+              <button type="button" class="count-trigger" id="pax-trigger" aria-haspopup="dialog" aria-labelledby="pax-label">
+                <strong id="pax-value">1 guest</strong>
+              </button>
+              <input type="hidden" name="pax" id="guest-pax" value="1">
+            </div>
             <div class="field">
               <span>WhatsApp</span>
               <div class="phone-row">
@@ -518,6 +524,19 @@
           <p>Tiny will confirm your place. You can also send a WhatsApp so the team sees you straight away.</p>
           <p><a class="btn" id="wa-go" href="#" target="_blank" rel="noopener noreferrer">WhatsApp Tiny</a></p>
           <p><button class="btn" type="button" data-close-wa style="width:auto;background:transparent;color:var(--sage)">Close</button></p>
+        </div>
+      </div>
+      <div class="count-modal" id="pax-modal" hidden>
+        <button type="button" class="count-modal__backdrop" data-close-pax aria-label="Close"></button>
+        <div class="count-modal__panel" role="dialog" aria-modal="true" aria-labelledby="pax-modal-title">
+          <h3 id="pax-modal-title">How many?</h3>
+          <p class="count-modal__note">People in your party, including you.</p>
+          <div class="count-modal__value" id="pax-modal-value">1</div>
+          <div class="count-modal__unit">Guests</div>
+          <input type="range" id="pax-range" min="1" max="40" value="1">
+          <div class="count-modal__scale"><span>1</span><span>40</span></div>
+          <p class="count-modal__confirm" id="pax-modal-confirm">Got it — 1 guest.</p>
+          <button type="button" class="btn count-modal__done" id="pax-done">Continue</button>
         </div>
       </div>`;
   }
@@ -612,6 +631,49 @@
     return `+${code}${digits}`;
   }
 
+  let partySizeKeyBound = false;
+
+  function initPartySize() {
+    const modal = document.getElementById("pax-modal");
+    const range = document.getElementById("pax-range");
+    const input = document.getElementById("guest-pax");
+    const value = document.getElementById("pax-value");
+    const big = document.getElementById("pax-modal-value");
+    const confirm = document.getElementById("pax-modal-confirm");
+    if (!modal || !range || !input) return;
+    const paint = (n) => {
+      const count = Math.max(1, Math.min(40, Number(n) || 1));
+      range.value = String(count);
+      input.value = String(count);
+      const label = `${count} ${count === 1 ? "guest" : "guests"}`;
+      if (value) value.textContent = label;
+      if (big) big.textContent = String(count);
+      if (confirm) confirm.textContent = `Got it — ${label}.`;
+    };
+    paint(input.value || 1);
+    document.getElementById("pax-trigger")?.addEventListener("click", () => {
+      paint(input.value || 1);
+      modal.hidden = false;
+    });
+    range.addEventListener("input", () => paint(range.value));
+    document.getElementById("pax-done")?.addEventListener("click", () => {
+      paint(range.value);
+      modal.hidden = true;
+    });
+    modal.querySelectorAll("[data-close-pax]").forEach((el) => {
+      el.addEventListener("click", () => {
+        modal.hidden = true;
+      });
+    });
+    if (!partySizeKeyBound) {
+      partySizeKeyBound = true;
+      document.addEventListener("keydown", (event) => {
+        const open = document.getElementById("pax-modal");
+        if (event.key === "Escape" && open && !open.hidden) open.hidden = true;
+      });
+    }
+  }
+
   function bindEvent(code) {
     app.querySelector("[data-back]")?.addEventListener("click", (event) => {
       event.preventDefault();
@@ -652,6 +714,7 @@
         { passive: true }
       );
     }
+    initPartySize();
     document.getElementById("book-spot")?.addEventListener("click", () => {
       const form = document.getElementById("guest-form");
       const trigger = document.getElementById("book-spot");

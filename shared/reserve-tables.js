@@ -78,7 +78,10 @@
     const start = timeToMinutes(time);
     if (start == null) return null;
     const explicitEnd = timeToMinutes(endTime);
-    if (explicitEnd != null) return { start, end: Math.max(start + 30, explicitEnd) };
+    if (explicitEnd != null) {
+      const end = explicitEnd === 0 && start > 0 ? 24 * 60 : explicitEnd;
+      return { start, end: Math.max(start + 30, end) };
+    }
     if (kind === "birthday") return { start: start - BDAY_BEFORE, end: start + BDAY_AFTER };
     return { start: start - RES_BEFORE, end: start + SLOT_MINUTES + RES_AFTER };
   }

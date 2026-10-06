@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/staff.css?v=20260928b">
+  <link rel="stylesheet" href="css/staff.css?v=20261006b">
 </head>
 <body>
   <div class="staff-shell">
@@ -96,6 +96,10 @@
           </label>
         </div>
         <div id="overview-view">
+          <label class="filter list-search list-search--overview">
+            <span>Search</span>
+            <input type="search" id="overview-search" placeholder="Name, phone, email or code" aria-label="Search overview">
+          </label>
           <p class="muted" id="res-policy">Reservations occupy 3 hours (30 minutes before, 2 hours dining, 30 minutes after) and cancel if the guest has not arrived after 15 minutes. Birthday parties occupy 4 hours (1 hour prep + 3 hours from start). Cooking classes are events created in Events.</p>
           <div class="stat-grid" id="stat-grid"></div>
           <div class="booking-list" id="booking-list"></div>
@@ -136,7 +140,7 @@
             <p class="muted" id="tables-count"></p>
             <label class="filter tables-time" id="tables-time-wrap" hidden>
               <span>Time</span>
-              <input type="range" id="tables-slider" min="480" max="1260" step="30">
+              <input type="range" id="tables-slider" min="480" max="1440" step="30">
               <strong id="tables-time-label">14:00</strong>
             </label>
             <button class="btn btn--outline" type="button" id="tables-view-toggle">View layout</button>
@@ -192,6 +196,10 @@
         <div id="payments-view" hidden>
           <div class="tables-toolbar">
             <p class="muted" id="payments-count"></p>
+            <label class="filter list-search">
+              <span>Search</span>
+              <input type="search" id="payments-search" placeholder="Name, phone, email or code" aria-label="Search payments">
+            </label>
             <label class="filter">
               <span>Payment</span>
               <select id="payments-filter" aria-label="Payment status">
@@ -227,6 +235,10 @@
         <div id="events-view" hidden>
           <div class="tables-toolbar">
             <p class="muted" id="events-count"></p>
+            <label class="filter list-search">
+              <span>Search</span>
+              <input type="search" id="events-search" placeholder="Name, phone, email or code" aria-label="Search events">
+            </label>
             <label class="filter">
               <span>Dates</span>
               <select id="events-date-mode" aria-label="Event dates">
@@ -276,15 +288,14 @@
           <span>Date</span>
           <input type="date" id="block-date" required>
         </label>
-        <div class="field-row">
-          <label class="field">
-            <span>Start</span>
-            <input type="time" id="block-start" required>
-          </label>
-          <label class="field">
-            <span>End</span>
-            <input type="time" id="block-end" required>
-          </label>
+        <div class="field">
+          <span>Time</span>
+          <button class="event-time-trigger" type="button" id="block-time-trigger">
+            <strong>14:00</strong>
+            <span>until 17:00</span>
+          </button>
+          <input type="hidden" id="block-start" value="14:00">
+          <input type="hidden" id="block-end" value="17:00">
         </div>
         <fieldset class="field">
           <legend>Tables</legend>
@@ -316,7 +327,14 @@
           <span>Time slots</span>
           <div id="event-slots"></div>
           <button class="btn btn--outline" type="button" id="event-slot-add">Add time slot</button>
-          <span class="muted">Each slot is bookable on this date, and on each repeat.</span>
+          <span class="muted">Each slot is bookable on this date, and on each repeat. Start from 08:00. Latest finish is 00:00.</span>
+        </div>
+        <div class="field">
+          <span id="event-party-size-label">Party size</span>
+          <button type="button" class="count-trigger" id="event-party-size-trigger" aria-haspopup="dialog" aria-labelledby="event-party-size-label">
+            <strong id="event-party-size-value">1 guest</strong>
+          </button>
+          <input type="hidden" id="event-party-size" value="1">
         </div>
         <label class="field">
           <span>Repeats</span>
@@ -405,9 +423,32 @@
       </form>
     </div>
   </div>
+  <div class="modal event-time-modal" id="event-time-modal" hidden>
+    <div class="modal__card event-time-modal__panel" role="dialog" aria-modal="true" aria-labelledby="event-time-modal-title">
+      <div class="event-time-modal__head">
+        <h3 id="event-time-modal-title">Available times</h3>
+        <button type="button" class="event-time-modal__close" data-close-event-time aria-label="Close">&times;</button>
+      </div>
+      <p class="muted" id="event-time-modal-note">Choose a start time. Earliest is 08:00.</p>
+      <button class="btn btn--outline event-time-back" type="button" id="event-time-back" hidden>Change start</button>
+      <div class="time-grid" id="event-time-grid"></div>
+    </div>
+  </div>
+  <div class="count-modal" id="event-count-modal" hidden>
+    <button type="button" class="count-modal__backdrop" data-close-event-count aria-label="Close"></button>
+    <div class="count-modal__panel" role="dialog" aria-modal="true" aria-labelledby="event-count-title">
+      <h3 id="event-count-title">How many?</h3>
+      <p class="count-modal__note">Guests expected at this event.</p>
+      <div class="count-modal__value" id="event-count-value">1</div>
+      <div class="count-modal__unit">Guests</div>
+      <input type="range" id="event-count-range" min="1" max="40" value="1">
+      <div class="count-modal__scale"><span>1</span><span>40</span></div>
+      <p class="count-modal__confirm" id="event-count-confirm">Got it — 1 guest.</p>
+      <button type="button" class="btn count-modal__done" id="event-count-done">Continue</button>
+    </div>
+  </div>
   <script src="../shared/supabase-config.js?v=20260910a"></script>
-  <script src="../shared/reserve-tables.js?v=20260924e"></script>
-  <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.2/dist/html2pdf.bundle.min.js"></script>
-  <script type="module" src="js/app.js?v=20260928b"></script>
+  <script src="../shared/reserve-tables.js?v=20261006b"></script>
+  <script type="module" src="js/app.js?v=20261006b"></script>
 </body>
 </html>

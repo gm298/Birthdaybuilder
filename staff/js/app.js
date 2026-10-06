@@ -26,7 +26,7 @@ let confirmResolver = null;
 
 const VIEWS = ["overview", "calendar", "day", "timeline", "tables", "events", "payments", "customers", "archive"];
 const STAFF_DAY_START = 8 * 60;
-const STAFF_DAY_END = 21 * 60;
+const STAFF_DAY_END = 24 * 60;
 const BANK = {
   bank: "BCA",
   accountName: "Tiny Healthy Cafe",
@@ -59,6 +59,7 @@ const state = {
   customerFilters: { name: "", country: "", phone: "", email: "", type: "all" },
   customersShowArchived: false,
   paymentFilter: "all",
+  listSearch: { overview: "", events: "", payments: "" },
   editingEventId: null,
 };
 
@@ -196,6 +197,8 @@ function displayGuests(row) {
     const pax = eventGuests.reduce((sum, guest) => sum + (Number(guest.pax) || 0), 0);
     return `${eventGuests.length} name${eventGuests.length === 1 ? "" : "s"} · ${pax} pax`;
   }
+  const partySize = Number(row.payload?.event?.partySize);
+  if (eventType(row) === "event" && partySize > 0) return `${partySize} ${partySize === 1 ? "guest" : "guests"}`;
   const kids = row.guest_kids ? `${row.guest_kids} kids` : "";
   const adults = row.guest_adults ? `${row.guest_adults} adults` : "";
   const joined = [kids, adults].filter(Boolean).join(" · ");
@@ -446,6 +449,54 @@ function matchesOverviewStatus(row) {
 
 function matchesFilters(row) {
   return matchesType(row) && matchesStatus(row);
+}
+
+function searchMatches(haystack, query) {
+  const q = String(query || "").trim().toLowerCase();
+  if (!q) return true;
+  const hay = String(haystack || "").toLowerCase();
+  const terms = q.split(/\s+/).filter(Boolean);
+  const digits = q.replace(/\D/g, "");
+  const hayDigits = hay.replace(/\D/g, "");
+  return terms.every((term) => hay.includes(term)) || (digits.length >= 3 && hayDigits.includes(digits));
+}
+
+function rowSearchText(row) {
+  const event = row?.payload?.event || {};
+  const reservation = row?.payload?.reservation || {};
+  const guestBits = (event.guests || []).flatMap((guest) => [guest?.name, guest?.email, guest?.phone, guest?.notes]);
+  return [
+    row?.public_code,
+    row?.contact_name,
+    row?.child_name,
+    row?.email,
+    row?.phone,
+    row?.package_name,
+    row?.staff_notes,
+    event.name,
+    event.about,
+    event.promo,
+    event.notes,
+    event.partySize,
+    reservation.name,
+    reservation.notes,
+    reservation.tableLabel,
+    row?.party_date ? formatShortDate(row.party_date) : "",
+    ...guestBits,
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
+function matchesListSearch(row, query) {
+  return searchMatches(rowSearchText(row), query);
+}
+
+function matchesGuestSearch(item, query) {
+  return searchMatches(
+    [item?.name, item?.email, item?.phone, item?.eventName, item?.public_code, item?.slot, item?.party_date ? formatShortDate(item.party_date) : ""].join(" "),
+    query
+  );
 }
 
 function shiftIso(iso, days) {
@@ -888,12 +939,15 @@ function bookingCard(row, opts = {}) {
 function renderOverview() {
   syncFilterInputs();
   const guestOnly = state.filters.type === "guestlist";
-  const dated = guestOnly ? [] : overviewRows();
+  const q = state.listSearch.overview;
+  const dated = (guestOnly ? [] : overviewRows()).filter((row) => matchesListSearch(row, q));
   const showDate = state.dateMode !== "day";
-  const undated = guestOnly ? [] : undatedRows();
-  const guests = visibleGuestRequests();
+  const undated = (guestOnly ? [] : undatedRows()).filter((row) => matchesListSearch(row, q));
+  const guests = visibleGuestRequests().filter((item) => matchesGuestSearch(item, q));
   const visible = dated.concat(undated, guests);
-  const statPool = overviewDated(matchesType).concat(overviewUndated(matchesType));
+  const statPool = overviewDated(matchesType)
+    .concat(overviewUndated(matchesType))
+    .filter((row) => matchesListSearch(row, q));
   const selectedFilter = state.overviewStatus;
   const stats = [
     ["booked", "booked", "Confirmed", countBy(statPool, (r) => r.status === "booked")],
@@ -915,13 +969,15 @@ function renderOverview() {
     })
     .join("");
   const list = document.getElementById("booking-list");
-  const emptyText = guestOnly
-    ? "No guest list requests for this filter."
-    : state.dateMode === "upcoming"
-      ? "No bookings from today onwards."
-      : state.dateMode === "all"
-        ? "No bookings yet."
-        : "No bookings on this date.";
+  const emptyText = q
+    ? "No bookings match that search."
+    : guestOnly
+      ? "No guest list requests for this filter."
+      : state.dateMode === "upcoming"
+        ? "No bookings from today onwards."
+        : state.dateMode === "all"
+          ? "No bookings yet."
+          : "No bookings on this date.";
   let body = "";
   if (showDate) {
     const groups = [];
@@ -950,7 +1006,7 @@ function renderOverview() {
       .map((row) => bookingCard(row, { allowNoShow: true }))
       .join("");
   }
-  const missed = noshowRows();
+  const missed = noshowRows().filter((row) => matchesListSearch(row, q));
   const guestBody = guests.length
     ? `${guestOnly ? "" : `<p class="date-label undated-label">Guest list requests</p>`}${guests.map(guestRequestCard).join("")}`
     : "";
@@ -1074,7 +1130,7 @@ function hourMarks() {
     const min = minutes % 60;
     slots.push({
       minutes,
-      label: `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`,
+      label: minutes >= 24 * 60 ? "00:00" : `${String(hour).padStart(2, "0")}:${String(min).padStart(2, "0")}`,
     });
   }
   return { dayStart, dayEnd, span: dayEnd - dayStart, slots };
@@ -1178,7 +1234,7 @@ function renderTablesLayout() {
   const slider = document.getElementById("tables-slider");
   state.tableMinutes = snapTableMinutes(slider ? slider.value : state.tableMinutes);
   if (slider) slider.value = String(state.tableMinutes);
-  const timeText = minutesToTime(state.tableMinutes);
+  const timeText = state.tableMinutes >= 24 * 60 ? "00:00" : minutesToTime(state.tableMinutes);
   const label = document.getElementById("tables-time-label");
   if (label) label.textContent = timeText;
   const active = occupiedAtTime(state.selectedDate, state.tableMinutes);
@@ -1370,6 +1426,19 @@ function normalizeCustomerPhone(raw) {
   else if (/^8\d{7,12}$/.test(digits)) digits = `62${digits}`;
   const phone = `+${digits}`;
   return /^\+[1-9][0-9]{7,14}$/.test(phone) ? phone : "";
+}
+
+function guestPhoneForSave(raw) {
+  const trimmed = String(raw || "").trim();
+  return normalizeCustomerPhone(trimmed) || trimmed;
+}
+
+function requestPhoneFromGuests(guests) {
+  for (const guest of guests || []) {
+    const phone = normalizeCustomerPhone(guest.phone);
+    if (phone) return phone;
+  }
+  return null;
 }
 
 function splitPhone(raw) {
@@ -2075,9 +2144,9 @@ function renderPayments() {
   const filter = document.getElementById("payments-filter");
   if (filter) filter.value = state.paymentFilter;
   const rows = birthdayPaymentRows().filter((row) => {
-    if (state.paymentFilter === "paid") return isPaidInFull(row);
-    if (state.paymentFilter === "pending") return !isPaidInFull(row);
-    return true;
+    if (state.paymentFilter === "paid" && !isPaidInFull(row)) return false;
+    if (state.paymentFilter === "pending" && isPaidInFull(row)) return false;
+    return matchesListSearch(row, state.listSearch.payments);
   });
   const count = document.getElementById("payments-count");
   if (count) {
@@ -2106,7 +2175,9 @@ function renderPayments() {
           </tr>`;
         })
         .join("")
-    : `<tr><td colspan="7" class="muted">No matching birthdays.</td></tr>`;
+    : `<tr><td colspan="7" class="muted">${
+        state.listSearch.payments.trim() ? "No birthdays match that search." : "No matching birthdays."
+      }</td></tr>`;
 }
 
 function fillBlockTableList(selected = []) {
@@ -2126,8 +2197,11 @@ function fillBlockTableList(selected = []) {
 function openBlockModal(opts = {}) {
   document.getElementById("block-name").value = opts.name || "Event block";
   document.getElementById("block-date").value = opts.date || state.selectedDate;
-  document.getElementById("block-start").value = opts.start || "14:00";
-  document.getElementById("block-end").value = opts.end || "17:00";
+  const blockStart = opts.start || "14:00";
+  const blockEnd = ensureEventEnd(blockStart, opts.end || "17:00");
+  document.getElementById("block-start").value = blockStart;
+  document.getElementById("block-end").value = blockEnd;
+  paintEventTimeTrigger(document.getElementById("block-time-trigger"), blockStart, blockEnd);
   document.getElementById("block-status").textContent = "";
   fillBlockTableList(opts.tableIds || []);
   blockModal.hidden = false;
@@ -2464,7 +2538,7 @@ function readGuestRows(selector) {
       const guest = {
         name: row.querySelector('[name="guest-name"]')?.value.trim() || "",
         pax: Number(row.querySelector('[name="guest-pax"]')?.value) || 1,
-        phone: row.querySelector('[name="guest-phone"]')?.value.trim() || "",
+        phone: guestPhoneForSave(row.querySelector('[name="guest-phone"]')?.value),
         email: row.querySelector('[name="guest-email"]')?.value.trim() || "",
         notes: row.querySelector('[name="guest-notes"]')?.value.trim() || "",
       };
@@ -2620,12 +2694,169 @@ function fillEventPricing(pricing = {}) {
   refreshEventPricingPreview();
 }
 
+const EVENT_DAY_START = 8 * 60;
+const EVENT_DAY_END = 24 * 60;
+
+function eventMinutes(value, role) {
+  const [hour, minute] = String(value || "").slice(0, 5).split(":").map(Number);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) return null;
+  const mins = hour * 60 + minute;
+  if (role === "end" && mins === 0) return EVENT_DAY_END;
+  return mins;
+}
+
+function formatEventClock(mins) {
+  if (mins === EVENT_DAY_END) return "00:00";
+  const hour = Math.floor(mins / 60);
+  const minute = mins % 60;
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function eventSlotIsValid(slot) {
+  const start = eventMinutes(slot?.start, "start");
+  const end = eventMinutes(slot?.end, "end");
+  if (start == null || end == null) return false;
+  return start >= EVENT_DAY_START && start < EVENT_DAY_END && end > start && end <= EVENT_DAY_END;
+}
+
+function ensureEventEnd(start, end) {
+  const startMin = eventMinutes(start, "start");
+  const endMin = eventMinutes(end, "end");
+  if (startMin == null) return end || "17:00";
+  if (endMin != null && endMin > startMin && endMin <= EVENT_DAY_END) return formatEventClock(endMin);
+  return formatEventClock(Math.min(EVENT_DAY_END, startMin + 180));
+}
+
+function paintEventTimeTrigger(button, start, end) {
+  if (!button) return;
+  const strong = button.querySelector("strong");
+  const span = button.querySelector("span");
+  if (strong) strong.textContent = start || "Select";
+  if (span) span.textContent = end ? `until ${end}` : "Choose a finish";
+}
+
+function eventTimeChoices(role, startValue, currentValue) {
+  const startMin = eventMinutes(startValue, "start");
+  const from = role === "start" ? EVENT_DAY_START : Math.min(EVENT_DAY_END, (startMin == null ? EVENT_DAY_START : startMin) + 30);
+  const to = role === "start" ? EVENT_DAY_END - 30 : EVENT_DAY_END;
+  const choices = [];
+  for (let mins = from; mins <= to; mins += 30) choices.push(mins);
+  const current = eventMinutes(currentValue, role);
+  const allowed =
+    current != null &&
+    (role === "start"
+      ? current >= EVENT_DAY_START && current < EVENT_DAY_END
+      : startMin != null && current > startMin && current <= EVENT_DAY_END);
+  if (allowed && !choices.includes(current)) {
+    choices.push(current);
+    choices.sort((a, b) => a - b);
+  }
+  return choices;
+}
+
+const eventTimePicker = { step: "start", startInput: null, endInput: null, trigger: null };
+
+function renderEventTimeGrid() {
+  const grid = document.getElementById("event-time-grid");
+  const note = document.getElementById("event-time-modal-note");
+  const back = document.getElementById("event-time-back");
+  const { step, startInput, endInput } = eventTimePicker;
+  if (!grid || !startInput || !endInput) return;
+  const start = startInput.value;
+  const selected = step === "start" ? eventMinutes(start, "start") : eventMinutes(endInput.value, "end");
+  if (note) {
+    note.textContent =
+      step === "start"
+        ? "Choose a start time. Earliest is 08:00."
+        : "Choose a finish time. Latest is 00:00.";
+  }
+  if (back) back.hidden = step !== "end";
+  grid.innerHTML = eventTimeChoices(step, start, step === "start" ? start : endInput.value)
+    .map((mins) => {
+      const label = formatEventClock(mins);
+      const active = mins === selected ? " is-active" : "";
+      const hint = step === "end" && mins === EVENT_DAY_END ? "<span>midnight</span>" : step === "start" ? "<span>start</span>" : "<span>finish</span>";
+      return `<button class="time-chip${active}" type="button" data-event-time="${mins}">
+        <strong>${label}</strong>${hint}
+      </button>`;
+    })
+    .join("");
+}
+
+function openEventTimePicker(startInput, endInput, trigger) {
+  if (!startInput || !endInput) return;
+  eventTimePicker.step = "start";
+  eventTimePicker.startInput = startInput;
+  eventTimePicker.endInput = endInput;
+  eventTimePicker.trigger = trigger;
+  const modal = document.getElementById("event-time-modal");
+  if (!modal) return;
+  renderEventTimeGrid();
+  modal.hidden = false;
+}
+
+function closeEventTimePicker() {
+  const modal = document.getElementById("event-time-modal");
+  if (modal) modal.hidden = true;
+}
+
+function chooseEventTime(mins) {
+  const { step, startInput, endInput, trigger } = eventTimePicker;
+  if (!startInput || !endInput) return;
+  if (step === "start") {
+    startInput.value = formatEventClock(mins);
+    endInput.value = ensureEventEnd(startInput.value, endInput.value);
+    paintEventTimeTrigger(trigger, startInput.value, endInput.value);
+    eventTimePicker.step = "end";
+    renderEventTimeGrid();
+    return;
+  }
+  endInput.value = formatEventClock(mins);
+  paintEventTimeTrigger(trigger, startInput.value, endInput.value);
+  closeEventTimePicker();
+}
+
 function slotRowHtml(slot = {}) {
+  const start = slot.start || "14:00";
+  const end = ensureEventEnd(start, slot.end || "17:00");
   return `<div class="guest-row event-slot">
-    <label class="field"><span>Start</span><input type="time" name="slot-start" required value="${escapeHtml(slot.start || "14:00")}"></label>
-    <label class="field"><span>End</span><input type="time" name="slot-end" required value="${escapeHtml(slot.end || "17:00")}"></label>
+    <button class="event-time-trigger" type="button" data-pick-slot>
+      <strong>${escapeHtml(start)}</strong>
+      <span>until ${escapeHtml(end)}</span>
+    </button>
+    <input type="hidden" name="slot-start" value="${escapeHtml(start)}">
+    <input type="hidden" name="slot-end" value="${escapeHtml(end)}">
     <button class="btn btn--outline" type="button" data-remove-slot>Remove</button>
   </div>`;
+}
+
+function paintEventPartySize(value) {
+  const input = document.getElementById("event-party-size");
+  const label = document.getElementById("event-party-size-value");
+  const count = Math.max(1, Math.min(40, Number(value ?? input?.value) || 1));
+  if (input) input.value = String(count);
+  if (label) label.textContent = `${count} ${count === 1 ? "guest" : "guests"}`;
+  const modalValue = document.getElementById("event-count-value");
+  const confirm = document.getElementById("event-count-confirm");
+  if (modalValue) modalValue.textContent = String(count);
+  if (confirm) confirm.textContent = `Got it — ${count} ${count === 1 ? "guest" : "guests"}.`;
+}
+
+function openEventPartySize() {
+  const modal = document.getElementById("event-count-modal");
+  const range = document.getElementById("event-count-range");
+  const input = document.getElementById("event-party-size");
+  if (!modal || !range || !input) return;
+  range.value = String(Math.max(1, Math.min(40, Number(input.value) || 1)));
+  paintEventPartySize(range.value);
+  modal.hidden = false;
+}
+
+function closeEventPartySize(save) {
+  const modal = document.getElementById("event-count-modal");
+  const range = document.getElementById("event-count-range");
+  if (save) paintEventPartySize(range?.value);
+  if (modal) modal.hidden = true;
 }
 
 function readEventSlots() {
@@ -2685,6 +2916,7 @@ function openEventModal(opts = {}) {
   document.getElementById("event-name").value = opts.name || "";
   document.getElementById("event-date").value = opts.date || state.selectedDate;
   fillEventSlots(opts.slots?.length ? opts.slots : [{ start: opts.start || "14:00", end: opts.end || "17:00" }]);
+  paintEventPartySize(opts.partySize || 1);
   document.getElementById("event-location").value = opts.location || "service";
   document.getElementById("event-full-terrace").checked = Boolean(opts.fullTerrace);
   document.getElementById("event-about").value = opts.about || "";
@@ -2743,6 +2975,7 @@ function renderEvents() {
     .filter((row) => row.source === "event")
     .filter(matchesStatus)
     .filter((row) => eventCoversRange(row, from, to))
+    .filter((row) => matchesListSearch(row, state.listSearch.events))
     .sort((a, b) => String(a.party_date).localeCompare(String(b.party_date)) || timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)));
   const rangeLabel =
     mode === "range"
@@ -2752,7 +2985,11 @@ function renderEvents() {
   const list = document.getElementById("events-list");
   list.innerHTML = rows.length
     ? rows.map((row) => bookingCard(row, { showDate: true })).join("")
-    : `<p class="muted">No events ${escapeHtml(rangeLabel)}. Add one to block tables, keep a guest list, and push it to Google Calendar.</p>`;
+    : `<p class="muted">${
+        state.listSearch.events.trim()
+          ? "No events match that search."
+          : `No events ${escapeHtml(rangeLabel)}. Add one to block tables, keep a guest list, and push it to Google Calendar.`
+      }</p>`;
 }
 
 async function uploadEventPhotos(requestId, fileList) {
@@ -2815,6 +3052,12 @@ async function saveStaffEvent() {
     statusEl.className = "status is-error";
     return;
   }
+  if (slots.some((slot) => !eventSlotIsValid(slot))) {
+    statusEl.textContent = "Each time slot needs a start from 08:00 and a finish by 00:00.";
+    statusEl.className = "status is-error";
+    return;
+  }
+  const partySize = Math.max(1, Math.min(40, Number(document.getElementById("event-party-size")?.value) || 1));
   if (location === "service" && !tableIds.length) {
     statusEl.textContent = "Pick tables to block, or choose full terrace.";
     statusEl.className = "status is-error";
@@ -2855,6 +3098,7 @@ async function saveStaffEvent() {
       payment,
       pricing: hasPricing ? pricing : null,
       guests,
+      partySize,
       repeat,
       slots,
       coverUrl: existingEvent.coverUrl || preservedGallery[0] || "",
@@ -2881,9 +3125,9 @@ async function saveStaffEvent() {
         party_date: date,
         party_time: start,
         package_name: tableLabel,
-        guest_adults: pax,
+        guest_adults: pax || partySize,
         email: guests.find((guest) => guest.email)?.email || user?.email || "events@tinyhealthycafe.com",
-        phone: guests.find((guest) => guest.phone)?.phone || null,
+        phone: requestPhoneFromGuests(guests),
         payload,
         quote_subtotal_idr: hasPricing ? pricing.price : null,
         quote_service_idr: hasPricing ? pricing.service : null,
@@ -2906,12 +3150,12 @@ async function saveStaffEvent() {
         status: "booked",
         public_code: code,
         email: guests.find((guest) => guest.email)?.email || user?.email || "events@tinyhealthycafe.com",
-        phone: guests.find((guest) => guest.phone)?.phone || null,
+        phone: requestPhoneFromGuests(guests),
         contact_name: name,
         party_date: date,
         party_time: start,
         package_name: tableLabel,
-        guest_adults: pax,
+        guest_adults: pax || partySize,
         payload,
         quote_subtotal_idr: hasPricing ? pricing.price : null,
         quote_service_idr: hasPricing ? pricing.service : null,
@@ -3268,55 +3512,198 @@ async function inlineImages(root) {
   );
 }
 
-function pdfResultToBlob(result) {
-  if (result instanceof Blob) {
-    if (!result.size) throw new Error("PDF file was empty.");
-    return result.type ? result : new Blob([result], { type: "application/pdf" });
-  }
-  if (result instanceof ArrayBuffer) return new Blob([result], { type: "application/pdf" });
-  if (typeof result === "string") {
-    const payload = result.includes(",") ? result.split(",")[1] : result;
-    const binary = atob(payload);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
-    if (!bytes.length) throw new Error("PDF file was empty.");
-    return new Blob([bytes], { type: "application/pdf" });
-  }
-  throw new Error("PDF library returned an empty file.");
+function ensureGuestListPdfStyles() {
+  if (document.getElementById("guest-list-pdf-styles")) return;
+  const style = document.createElement("style");
+  style.id = "guest-list-pdf-styles";
+  style.textContent = `
+#guest-list-pdf-root, #guest-list-pdf-root * { box-sizing: border-box; }
+#guest-list-pdf-root { width: 794px; margin: 0; padding: 0; background: #ffffff; color: #2c3a32; font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+#guest-list-pdf-root .gl-page { width: 794px; height: 1123px; padding: 48px 48px 56px; background: #ffffff; color: #2c3a32; overflow: hidden; }
+#guest-list-pdf-root .gl-head { padding-bottom: 18px; }
+#guest-list-pdf-root .gl-brand { margin: 0 0 8px; font-size: 11px; letter-spacing: 2.4px; text-transform: uppercase; color: #647c6e; }
+#guest-list-pdf-root h1 { margin: 0 0 8px; font-size: 28px; line-height: 1.15; font-weight: 600; color: #2c3a32; font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
+#guest-list-pdf-root .gl-event { margin: 0 0 4px; font-size: 16px; line-height: 1.35; color: #2c3a32; }
+#guest-list-pdf-root .gl-meta { margin: 0; font-size: 13px; line-height: 1.4; color: #647c6e; }
+#guest-list-pdf-root table.gl-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; line-height: 1.35; color: #2c3a32; }
+#guest-list-pdf-root table.gl-table th { text-align: left; font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; font-weight: 600; color: #647c6e; padding: 0 10px 8px 0; border-bottom: 1.5px solid #2c3a32; }
+#guest-list-pdf-root table.gl-table td { padding: 8px 10px 8px 0; vertical-align: top; border-bottom: 1px solid rgba(44, 58, 50, 0.16); word-wrap: break-word; overflow-wrap: anywhere; color: #2c3a32; }
+#guest-list-pdf-root table.gl-table .gl-empty { color: #647c6e; }
+`;
+  document.head.appendChild(style);
 }
 
-async function htmlToPdfBlob(element, filename) {
-  if (!window.html2pdf) throw new Error("PDF library did not load.");
-  await inlineImages(element);
+function guestListPdfHeader(title, meta, pageNo, pageCount) {
+  const pageBit = pageCount > 1 ? ` · Page ${pageNo} of ${pageCount}` : "";
+  return `<p class="gl-brand">Tiny Healthy Cafe</p>
+    <h1>Guest list</h1>
+    <p class="gl-event">${escapeHtml(title || "Event")}</p>
+    <p class="gl-meta">${escapeHtml(meta || "")}${escapeHtml(pageBit)}</p>`;
+}
+
+function guestListColgroup(showSlot) {
+  if (showSlot) {
+    return `<colgroup><col style="width:92px"><col style="width:20%"><col style="width:42px"><col style="width:84px"><col style="width:26%"><col></colgroup>`;
+  }
+  return `<colgroup><col style="width:24%"><col style="width:48px"><col style="width:92px"><col style="width:30%"><col></colgroup>`;
+}
+
+function guestListRowHtml(guest, showSlot) {
+  if (!guest) {
+    return `<tr><td class="gl-empty" colspan="${showSlot ? 6 : 5}">No guests</td></tr>`;
+  }
+  const contact = [guest.phone, guest.email].filter(Boolean).join(" · ") || "—";
+  return `<tr>
+    ${showSlot ? `<td>${escapeHtml(slotLabel(guest.slot) || "—")}</td>` : ""}
+    <td>${escapeHtml(guest.name || "Guest")}</td>
+    <td>${escapeHtml(guest.pax || 1)}</td>
+    <td>${escapeHtml(guestStatusLabel(guest.status))}</td>
+    <td>${escapeHtml(contact)}</td>
+    <td>${escapeHtml(guest.notes || "—")}</td>
+  </tr>`;
+}
+
+function guestListPageMarkup({ title, meta, guests, showSlot, pageNo, pageCount }) {
+  const rows = (guests.length ? guests : [null]).map((guest) => guestListRowHtml(guest, showSlot)).join("");
+  return `<div class="gl-page">
+    <div class="gl-head">${guestListPdfHeader(title, meta, pageNo, pageCount)}</div>
+    <table class="gl-table">
+      ${guestListColgroup(showSlot)}
+      <thead><tr>
+        ${showSlot ? "<th>Time</th>" : ""}
+        <th>Name</th><th>Pax</th><th>Status</th><th>Contact</th><th>Notes</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>`;
+}
+
+function layoutGuestListPages(host, { title, meta, guests, showSlot }) {
+  const sampleCount = Math.max(guests.length, 1);
+  host.innerHTML = guestListPageMarkup({
+    title,
+    meta,
+    guests: [],
+    showSlot,
+    pageNo: sampleCount,
+    pageCount: sampleCount,
+  });
+  const head = host.querySelector(".gl-head");
+  const thead = host.querySelector("thead");
+  const tbody = host.querySelector("tbody");
+  const available = 1123 - 48 - 56 - head.offsetHeight - thead.offsetHeight;
+  tbody.innerHTML = "";
+  const items = guests.length ? guests : [null];
+  const pages = [];
+  let batch = [];
+  let used = 0;
+  items.forEach((guest) => {
+    tbody.innerHTML = guestListRowHtml(guest, showSlot);
+    const height = tbody.querySelector("tr")?.offsetHeight || 28;
+    if (batch.length && used + height > available) {
+      pages.push(batch);
+      batch = [];
+      used = 0;
+    }
+    batch.push(guest);
+    used += height;
+  });
+  if (batch.length) pages.push(batch);
+  return pages;
+}
+
+function canvasHasInk(canvas) {
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  if (!ctx || !canvas.width || !canvas.height) return false;
+  const { data } = ctx.getImageData(0, 0, canvas.width, Math.min(canvas.height, 280));
+  for (let i = 0; i < data.length; i += 16) {
+    if (data[i] < 245 || data[i + 1] < 245 || data[i + 2] < 245) return true;
+  }
+  return false;
+}
+
+async function createGuestListPdfBlob({ title, meta, guests, showSlot }) {
+  await loadCanvasPdfLibs();
+  ensureGuestListPdfStyles();
+  document.getElementById("guest-list-pdf-root")?.remove();
+  const host = document.createElement("div");
+  host.id = "guest-list-pdf-root";
+  host.setAttribute("aria-hidden", "true");
+  host.style.cssText =
+    "position:absolute;left:0;top:0;width:794px;z-index:2147483000;pointer-events:none;opacity:1;background:#ffffff;";
+  document.body.appendChild(host);
   const sheets = [...document.styleSheets];
   const disabled = sheets.map((sheet) => sheet.disabled);
   sheets.forEach((sheet) => {
-    sheet.disabled = true;
+    let keep = false;
+    try {
+      keep = sheet.ownerNode?.id === "guest-list-pdf-styles";
+    } catch {
+      keep = false;
+    }
+    if (!keep) sheet.disabled = true;
   });
   try {
-    const result = await window
-      .html2pdf()
-      .set({
-        margin: 12,
-        filename,
-        image: { type: "jpeg", quality: 0.95 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-          onclone: (doc) => {
-            doc.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => node.remove());
-          },
+    if (document.fonts?.ready) await document.fonts.ready;
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    const pages = layoutGuestListPages(host, {
+      title,
+      meta,
+      guests: Array.isArray(guests) ? guests : [],
+      showSlot: Boolean(showSlot),
+    });
+    const JsPDF = window.jspdf.jsPDF;
+    const pdf = new JsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    for (let i = 0; i < pages.length; i += 1) {
+      const pageGuests = pages[i].filter(Boolean);
+      host.innerHTML = guestListPageMarkup({
+        title,
+        meta,
+        guests: pageGuests,
+        showSlot: Boolean(showSlot),
+        pageNo: i + 1,
+        pageCount: pages.length,
+      });
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const page = host.querySelector(".gl-page");
+      if (!page) throw new Error("Guest list page was empty.");
+      const canvas = await window.html2canvas(page, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+        scrollX: 0,
+        scrollY: -window.scrollY,
+        windowWidth: 794,
+        logging: false,
+        onclone: (doc) => {
+          doc.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
+            if (node.id !== "guest-list-pdf-styles") node.remove();
+          });
+          const cloned = doc.getElementById("guest-list-pdf-root");
+          if (cloned) {
+            cloned.style.position = "static";
+            cloned.style.left = "0";
+            cloned.style.top = "0";
+            cloned.style.opacity = "1";
+          }
         },
-        jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-      })
-      .from(element)
-      .outputPdf("blob");
-    return pdfResultToBlob(result);
+      });
+      if (!canvasHasInk(canvas)) throw new Error("Guest list PDF was blank.");
+      const img = canvas.toDataURL("image/jpeg", 0.95);
+      if (i > 0) pdf.addPage();
+      pdf.addImage(img, "JPEG", 0, 0, pageW, pageH, undefined, "FAST");
+    }
+    const blob = pdf.output("blob");
+    if (!(blob instanceof Blob) || !blob.size) throw new Error("PDF file was empty.");
+    return blob;
   } finally {
     sheets.forEach((sheet, index) => {
       sheet.disabled = disabled[index];
     });
+    host.remove();
   }
 }
 
@@ -3799,31 +4186,22 @@ async function loadGuestSlot(id, key, focusGuestId = "") {
     }
   });
   document.getElementById("export-slot-guests")?.addEventListener("click", async () => {
-    const guests = activeGuestsInSlot(eventRow.payload?.event?.guests || [], slots, focus).map(({ guest }) => guest);
-    const host = document.createElement("div");
-    host.style.cssText = "padding:24px;font-family:Jost,sans-serif;color:#2c3a32;width:720px;background:#fff";
-    host.innerHTML = `<h2>Guest list · ${escapeHtml(eventName)}</h2>
-      <p>${escapeHtml(formatLongDate(eventRow.party_date))} · ${escapeHtml(heading)}</p>
-      <ul class="kv">${
-        guests.length
-          ? guests
-              .map(
-                (guest) =>
-                  `<li><span>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax · ${escapeHtml(
-                    guestStatusLabel(guest.status)
-                  )}</span><span>${escapeHtml([guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—")}</span></li>`
-              )
-              .join("")
-          : "<li><span>No guests</span><span>—</span></li>"
-      }</ul>`;
-    document.body.appendChild(host);
+    const button = document.getElementById("export-slot-guests");
+    if (button) button.disabled = true;
     try {
-      const blob = await htmlToPdfBlob(host, `${eventRow.public_code}-${key}-guests.pdf`);
+      const guests = activeGuestsInSlot(eventRow.payload?.event?.guests || [], slots, focus).map(({ guest }) => guest);
+      const blob = await createGuestListPdfBlob({
+        title: eventName,
+        meta: `${formatLongDate(eventRow.party_date)} · ${heading}`,
+        guests,
+        showSlot: false,
+      });
       downloadBlob(blob, `${eventRow.public_code}-${key}-guests.pdf`);
     } catch (err) {
-      window.print();
+      window.alert(err.message || "Could not export the guest list.");
+    } finally {
+      if (button) button.disabled = false;
     }
-    host.remove();
   });
   document.getElementById("share-slot-guests")?.addEventListener("click", () => {
     const guests = activeGuestsInSlot(eventRow.payload?.event?.guests || [], slots, focus).map(({ guest }) => guest);
@@ -4041,7 +4419,9 @@ async function loadDetail(id) {
           isEvent
             ? `<section>
           <h3>Guest list</h3>
-          <p class="muted">Each time slot has its own guest list. Open a slot to change a status, add a name, or move someone to another time.</p>
+          <p class="muted">${
+            Number(payload.event?.partySize) ? `Party size ${escapeHtml(payload.event.partySize)}. ` : ""
+          }Each time slot has its own guest list. Open a slot to change a status, add a name, or move someone to another time.</p>
           <div class="contact-actions" style="margin-bottom:12px">
             <button class="btn btn--outline" type="button" id="export-guests">Export guest list PDF</button>
             <button class="btn btn--outline" type="button" id="share-guests">Share guest list</button>
@@ -4222,6 +4602,7 @@ async function loadDetail(id) {
       payment: event.payment || "tiny",
       tableIds: reservation.tableIds || [],
       guests: event.guests || [],
+      partySize: event.partySize || row.guest_adults || 1,
       repeat: event.repeat,
       pricing: event.pricing || eventPricingFromRow(row),
       coverUrl: event.coverUrl || "",
@@ -4255,31 +4636,22 @@ async function loadDetail(id) {
     });
   });
   document.getElementById("export-guests")?.addEventListener("click", async () => {
-    const guests = (payload.event?.guests || []).filter((guest) => !guest?.archived_at);
-    const host = document.createElement("div");
-    host.style.cssText = "padding:24px;font-family:Jost,sans-serif;color:#2c3a32;width:720px;background:#fff";
-    host.innerHTML = `<h2>Guest list · ${escapeHtml(displayName(row))}</h2>
-      <p>${escapeHtml(formatLongDate(row.party_date))} · ${escapeHtml(slotRange(row))}</p>
-      <ul class="kv">${
-        guests.length
-          ? guests
-              .map(
-                (guest) =>
-                  `<li><span>${escapeHtml(slotLabel(guest.slot) || "Time")} · ${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax · ${escapeHtml(guestStatusLabel(guest.status))}</span><span>${escapeHtml(
-                    [guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—"
-                  )}</span></li>`
-              )
-              .join("")
-          : "<li><span>No guests</span><span>—</span></li>"
-      }</ul>`;
-    document.body.appendChild(host);
+    const button = document.getElementById("export-guests");
+    if (button) button.disabled = true;
     try {
-      const blob = await htmlToPdfBlob(host, `${row.public_code}-guests.pdf`);
+      const guests = (payload.event?.guests || []).filter((guest) => !guest?.archived_at);
+      const blob = await createGuestListPdfBlob({
+        title: displayName(row),
+        meta: `${formatLongDate(row.party_date)} · ${slotRange(row)}`,
+        guests,
+        showSlot: true,
+      });
       downloadBlob(blob, `${row.public_code}-guests.pdf`);
     } catch (err) {
-      window.print();
+      window.alert(err.message || "Could not export the guest list.");
+    } finally {
+      if (button) button.disabled = false;
     }
-    host.remove();
   });
   document.getElementById("share-guests")?.addEventListener("click", () => {
     const guests = (payload.event?.guests || []).filter((guest) => !guest?.archived_at);
@@ -4413,7 +4785,7 @@ function readGuestListFrom(selector) {
     .map((row) => ({
       name: row.querySelector('[name="guest-name"]')?.value.trim() || "",
       pax: Number(row.querySelector('[name="guest-pax"]')?.value) || 1,
-      phone: row.querySelector('[name="guest-phone"]')?.value.trim() || "",
+      phone: guestPhoneForSave(row.querySelector('[name="guest-phone"]')?.value),
       email: row.querySelector('[name="guest-email"]')?.value.trim() || "",
       notes: row.querySelector('[name="guest-notes"]')?.value.trim() || "",
     }))
@@ -5178,6 +5550,18 @@ document.getElementById("payments-filter")?.addEventListener("change", (e) => {
   state.paymentFilter = e.target.value || "all";
   if (state.view === "payments") renderPayments();
 });
+document.getElementById("overview-search")?.addEventListener("input", (e) => {
+  state.listSearch.overview = e.target.value || "";
+  if (state.view === "overview") renderOverview();
+});
+document.getElementById("events-search")?.addEventListener("input", (e) => {
+  state.listSearch.events = e.target.value || "";
+  if (state.view === "events") renderEvents();
+});
+document.getElementById("payments-search")?.addEventListener("input", (e) => {
+  state.listSearch.payments = e.target.value || "";
+  if (state.view === "payments") renderPayments();
+});
 
 document.getElementById("tables-slider")?.addEventListener("input", () => {
   const slider = document.getElementById("tables-slider");
@@ -5211,7 +5595,20 @@ confirmModal?.addEventListener("click", (e) => {
   if (e.target === confirmModal) closeConfirmModal(false);
 });
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && confirmModal && !confirmModal.hidden) {
+  if (e.key !== "Escape") return;
+  const timeModal = document.getElementById("event-time-modal");
+  const countModal = document.getElementById("event-count-modal");
+  if (timeModal && !timeModal.hidden) {
+    e.preventDefault();
+    closeEventTimePicker();
+    return;
+  }
+  if (countModal && !countModal.hidden) {
+    e.preventDefault();
+    closeEventPartySize(false);
+    return;
+  }
+  if (confirmModal && !confirmModal.hidden) {
     e.preventDefault();
     closeConfirmModal(false);
   }
@@ -5239,6 +5636,44 @@ document.getElementById("event-slot-add")?.addEventListener("click", () => {
   refreshGuestSlotSelects();
 });
 document.getElementById("event-slots")?.addEventListener("click", (e) => {
+  const trigger = e.target.closest("[data-pick-slot]");
+  if (!trigger) return;
+  const row = trigger.closest(".event-slot");
+  if (!row) return;
+  openEventTimePicker(row.querySelector('[name="slot-start"]'), row.querySelector('[name="slot-end"]'), trigger);
+});
+document.getElementById("event-time-grid")?.addEventListener("click", (e) => {
+  const chip = e.target.closest("[data-event-time]");
+  if (!chip) return;
+  chooseEventTime(Number(chip.dataset.eventTime));
+});
+document.getElementById("event-time-back")?.addEventListener("click", () => {
+  eventTimePicker.step = "start";
+  renderEventTimeGrid();
+});
+document.querySelectorAll("[data-close-event-time]").forEach((el) => {
+  el.addEventListener("click", closeEventTimePicker);
+});
+document.getElementById("event-time-modal")?.addEventListener("click", (e) => {
+  if (e.target.id === "event-time-modal") closeEventTimePicker();
+});
+document.getElementById("block-time-trigger")?.addEventListener("click", () => {
+  openEventTimePicker(
+    document.getElementById("block-start"),
+    document.getElementById("block-end"),
+    document.getElementById("block-time-trigger")
+  );
+});
+document.getElementById("event-party-size-trigger")?.addEventListener("click", openEventPartySize);
+document.getElementById("event-count-range")?.addEventListener("input", (e) => paintEventPartySize(e.target.value));
+document.getElementById("event-count-done")?.addEventListener("click", () => closeEventPartySize(true));
+document.querySelectorAll("[data-close-event-count]").forEach((el) => {
+  el.addEventListener("click", () => closeEventPartySize(false));
+});
+document.getElementById("event-count-modal")?.addEventListener("click", (e) => {
+  if (e.target.id === "event-count-modal") closeEventPartySize(false);
+});
+document.getElementById("event-slots")?.addEventListener("click", (e) => {
   if (!e.target.closest("[data-remove-slot]")) return;
   const row = e.target.closest(".event-slot");
   const host = document.getElementById("event-slots");
@@ -5248,6 +5683,11 @@ document.getElementById("event-slots")?.addEventListener("click", (e) => {
 });
 document.getElementById("event-slots")?.addEventListener("change", () => {
   refreshGuestSlotSelects();
+});
+document.addEventListener("change", (e) => {
+  if (e.target?.name !== "guest-phone") return;
+  const phone = normalizeCustomerPhone(e.target.value);
+  if (phone) e.target.value = phone;
 });
 document.getElementById("event-guests")?.addEventListener("click", (e) => {
   if (!e.target.closest("[data-remove-guest]")) return;
@@ -5275,8 +5715,8 @@ document.getElementById("block-form")?.addEventListener("submit", async (e) => {
   const start = document.getElementById("block-start")?.value;
   const end = document.getElementById("block-end")?.value;
   const tableIds = [...document.querySelectorAll('input[name="block-table"]:checked')].map((input) => input.value);
-  if (!date || !start || !end || !tableIds.length) {
-    statusEl.textContent = "Choose a date, time range, and at least one table.";
+  if (!date || !start || !end || !tableIds.length || !eventSlotIsValid({ start, end })) {
+    statusEl.textContent = "Choose a date, a start from 08:00, a finish by 00:00, and at least one table.";
     statusEl.className = "status is-error";
     return;
   }
