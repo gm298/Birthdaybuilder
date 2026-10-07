@@ -3528,6 +3528,7 @@ function ensureGuestListPdfStyles() {
 #guest-list-pdf-root table.gl-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; line-height: 1.35; color: #2c3a32; }
 #guest-list-pdf-root table.gl-table th { text-align: left; font-size: 10px; letter-spacing: 0.8px; text-transform: uppercase; font-weight: 600; color: #647c6e; padding: 0 10px 8px 0; border-bottom: 1.5px solid #2c3a32; }
 #guest-list-pdf-root table.gl-table td { padding: 8px 10px 8px 0; vertical-align: top; border-bottom: 1px solid rgba(44, 58, 50, 0.16); word-wrap: break-word; overflow-wrap: anywhere; color: #2c3a32; }
+#guest-list-pdf-root table.gl-table .gl-num { font-variant-numeric: tabular-nums; color: #647c6e; }
 #guest-list-pdf-root table.gl-table .gl-empty { color: #647c6e; }
 `;
   document.head.appendChild(style);
@@ -3543,17 +3544,18 @@ function guestListPdfHeader(title, meta, pageNo, pageCount) {
 
 function guestListColgroup(showSlot) {
   if (showSlot) {
-    return `<colgroup><col style="width:92px"><col style="width:20%"><col style="width:42px"><col style="width:84px"><col style="width:26%"><col></colgroup>`;
+    return `<colgroup><col style="width:36px"><col style="width:92px"><col style="width:20%"><col style="width:42px"><col style="width:84px"><col style="width:24%"><col></colgroup>`;
   }
-  return `<colgroup><col style="width:24%"><col style="width:48px"><col style="width:92px"><col style="width:30%"><col></colgroup>`;
+  return `<colgroup><col style="width:36px"><col style="width:24%"><col style="width:48px"><col style="width:92px"><col style="width:30%"><col></colgroup>`;
 }
 
-function guestListRowHtml(guest, showSlot) {
+function guestListRowHtml(guest, showSlot, number) {
   if (!guest) {
-    return `<tr><td class="gl-empty" colspan="${showSlot ? 6 : 5}">No guests</td></tr>`;
+    return `<tr><td class="gl-empty" colspan="${showSlot ? 7 : 6}">No guests</td></tr>`;
   }
   const contact = [guest.phone, guest.email].filter(Boolean).join(" · ") || "—";
   return `<tr>
+    <td class="gl-num">${number || ""}</td>
     ${showSlot ? `<td>${escapeHtml(slotLabel(guest.slot) || "—")}</td>` : ""}
     <td>${escapeHtml(guest.name || "Guest")}</td>
     <td>${escapeHtml(guest.pax || 1)}</td>
@@ -3563,13 +3565,16 @@ function guestListRowHtml(guest, showSlot) {
   </tr>`;
 }
 
-function guestListPageMarkup({ title, meta, guests, showSlot, pageNo, pageCount }) {
-  const rows = (guests.length ? guests : [null]).map((guest) => guestListRowHtml(guest, showSlot)).join("");
+function guestListPageMarkup({ title, meta, guests, showSlot, pageNo, pageCount, startNumber = 1 }) {
+  const rows = (guests.length ? guests : [null])
+    .map((guest, index) => guestListRowHtml(guest, showSlot, guest ? startNumber + index : ""))
+    .join("");
   return `<div class="gl-page">
     <div class="gl-head">${guestListPdfHeader(title, meta, pageNo, pageCount)}</div>
     <table class="gl-table">
       ${guestListColgroup(showSlot)}
       <thead><tr>
+        <th>#</th>
         ${showSlot ? "<th>Time</th>" : ""}
         <th>Name</th><th>Pax</th><th>Status</th><th>Contact</th><th>Notes</th>
       </tr></thead>
@@ -3597,8 +3602,8 @@ function layoutGuestListPages(host, { title, meta, guests, showSlot }) {
   const pages = [];
   let batch = [];
   let used = 0;
-  items.forEach((guest) => {
-    tbody.innerHTML = guestListRowHtml(guest, showSlot);
+  items.forEach((guest, index) => {
+    tbody.innerHTML = guestListRowHtml(guest, showSlot, guest ? index + 1 : "");
     const height = tbody.querySelector("tr")?.offsetHeight || 28;
     if (batch.length && used + height > available) {
       pages.push(batch);
@@ -3656,6 +3661,7 @@ async function createGuestListPdfBlob({ title, meta, guests, showSlot }) {
     const pdf = new JsPDF({ unit: "mm", format: "a4", orientation: "portrait", compress: true });
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
+    let startNumber = 1;
     for (let i = 0; i < pages.length; i += 1) {
       const pageGuests = pages[i].filter(Boolean);
       host.innerHTML = guestListPageMarkup({
@@ -3665,7 +3671,9 @@ async function createGuestListPdfBlob({ title, meta, guests, showSlot }) {
         showSlot: Boolean(showSlot),
         pageNo: i + 1,
         pageCount: pages.length,
+        startNumber,
       });
+      startNumber += pageGuests.length;
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const page = host.querySelector(".gl-page");
       if (!page) throw new Error("Guest list page was empty.");
@@ -4024,7 +4032,7 @@ function slotMoveField(guest, slots, eventId, guestId) {
   )}" data-guest-id="${escapeHtml(guestId)}" data-current="${escapeHtml(chosen)}" aria-label="Move to time slot">${options}</select></label>`;
 }
 
-function slotGuestCardHtml(entry, slots, eventId, focusGuestId) {
+function slotGuestCardHtml(entry, slots, eventId, focusGuestId, number) {
   const guest = entry.guest;
   const status = normalizeGuestStatus(guest.status);
   const guestId = guest.id || String(entry.index);
@@ -4033,24 +4041,27 @@ function slotGuestCardHtml(entry, slots, eventId, focusGuestId) {
   ).join("");
   const focused = focusGuestId && focusGuestId === guestId;
   return `<article class="slot-guest${focused ? " is-focus" : ""}">
-    <div>
-      <h3>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</h3>
-      <p class="muted">${escapeHtml([guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—")}</p>
-    </div>
-    <label class="guest-status">
-      <span>Status</span>
-      <select data-guest-status data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(
-        guestId
-      )}" data-current="${status}" aria-label="Guest list status">${options}</select>
-    </label>
-    ${slotMoveField(guest, slots, eventId, guestId)}
-    <div class="slot-guest-actions">
-      <button class="btn btn--outline btn--tiny" type="button" data-archive-guest data-event-id="${escapeHtml(
-        eventId
-      )}" data-guest-id="${escapeHtml(guestId)}">Archive</button>
-      <button class="btn btn--outline btn--tiny" type="button" data-delete-guest data-event-id="${escapeHtml(
-        eventId
-      )}" data-guest-id="${escapeHtml(guestId)}">Delete</button>
+    <span class="slot-guest-num">${Number(number) || ""}</span>
+    <div class="slot-guest-body">
+      <div>
+        <h3>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</h3>
+        <p class="muted">${escapeHtml([guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—")}</p>
+      </div>
+      <label class="guest-status">
+        <span>Status</span>
+        <select data-guest-status data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(
+          guestId
+        )}" data-current="${status}" aria-label="Guest list status">${options}</select>
+      </label>
+      ${slotMoveField(guest, slots, eventId, guestId)}
+      <div class="slot-guest-actions">
+        <button class="btn btn--outline btn--tiny" type="button" data-archive-guest data-event-id="${escapeHtml(
+          eventId
+        )}" data-guest-id="${escapeHtml(guestId)}">Archive</button>
+        <button class="btn btn--outline btn--tiny" type="button" data-delete-guest data-event-id="${escapeHtml(
+          eventId
+        )}" data-guest-id="${escapeHtml(guestId)}">Delete</button>
+      </div>
     </div>
   </article>`;
 }
@@ -4106,7 +4117,7 @@ async function loadGuestSlot(id, key, focusGuestId = "") {
       <div id="slot-guest-list">
         ${
           items.length
-            ? items.map((entry) => slotGuestCardHtml(entry, slots, eventRow.id, focusGuestId)).join("")
+            ? items.map((entry, index) => slotGuestCardHtml(entry, slots, eventRow.id, focusGuestId, index + 1)).join("")
             : `<p class="muted">No guests for this time.</p>`
         }
       </div>
@@ -4209,8 +4220,8 @@ async function loadGuestSlot(id, key, focusGuestId = "") {
       `Guest list for ${eventName}`,
       `${formatLongDate(eventRow.party_date)} · ${heading}`,
       ...guests.map(
-        (guest) =>
-          `${guest.name || "Guest"} · ${guest.pax || 1} pax · ${guestStatusLabel(guest.status)}${
+        (guest, index) =>
+          `${index + 1}. ${guest.name || "Guest"} · ${guest.pax || 1} pax · ${guestStatusLabel(guest.status)}${
             guest.phone ? ` · ${guest.phone}` : ""
           }${guest.email ? ` · ${guest.email}` : ""}`
       ),
@@ -4659,8 +4670,8 @@ async function loadDetail(id) {
       `Guest list for ${displayName(row)}`,
       `${formatLongDate(row.party_date)} · ${slotRange(row)}`,
       ...guests.map(
-        (guest) =>
-          `${slotLabel(guest.slot) ? `${slotLabel(guest.slot)} · ` : ""}${guest.name || "Guest"} · ${guest.pax || 1} pax · ${guestStatusLabel(guest.status)}${guest.phone ? ` · ${guest.phone}` : ""}${
+        (guest, index) =>
+          `${index + 1}. ${slotLabel(guest.slot) ? `${slotLabel(guest.slot)} · ` : ""}${guest.name || "Guest"} · ${guest.pax || 1} pax · ${guestStatusLabel(guest.status)}${guest.phone ? ` · ${guest.phone}` : ""}${
             guest.email ? ` · ${guest.email}` : ""
           }`
       ),
