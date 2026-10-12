@@ -435,6 +435,7 @@
   let partyData = DEFAULT_PARTY;
   let cakeData = DEFAULT_CAKES;
   let guestLimitShown = false;
+  let appliedPromo = null;
 
   function packageIdForGuests(guests) {
     const pax = Math.max(0, Number(guests) || 0);
@@ -632,6 +633,7 @@
         time &&
         child &&
         age &&
+        childBirthdayValid() &&
         totalGuests() > 0 &&
         partyState.packageChosen &&
         partyState.packageId &&
@@ -654,6 +656,7 @@
       { id: "party-time", test: () => Boolean(partyTimeValue()) },
       { id: "child-name", test: () => Boolean(document.getElementById("child-name")?.value.trim()) },
       { id: "child-age", test: () => parseChildAge() != null },
+      { id: "child-birthday", test: () => childBirthdayValid() },
       { id: "guest-kids", test: () => totalGuests() > 0 },
     ];
     const contactOk = contactIsComplete();
@@ -689,6 +692,22 @@
     if (partyState.masterclassReviewed && partyState.entertainmentReviewed) {
       updateStepProgress();
     }
+  }
+
+  function todayLocalIso() {
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${now.getFullYear()}-${month}-${day}`;
+  }
+
+  function childBirthdayValue() {
+    return document.getElementById("child-birthday")?.value || "";
+  }
+
+  function childBirthdayValid() {
+    const value = childBirthdayValue();
+    return /^\d{4}-\d{2}-\d{2}$/.test(value) && value <= todayLocalIso();
   }
 
   function parseChildAge() {
@@ -1516,6 +1535,100 @@
     }
   }
 
+  function mergeCatalogCakes(data, extra) {
+    const cakes = [...(data?.cakes || []), ...(extra || [])];
+    const filters = [...(data?.filters || ["All"])];
+    (extra || []).forEach((cake) => {
+      const theme = String(cake.theme || "").trim();
+      if (!theme) return;
+      const covered = filters.some(
+        (label) => label !== "All" && theme.toLowerCase().includes(String(label).toLowerCase())
+      );
+      const exists = filters.some((label) => String(label).toLowerCase() === theme.toLowerCase());
+      if (!covered && !exists) filters.push(theme);
+    });
+    return { ...data, cakes, filters };
+  }
+
+  async function loadUploadedCakes() {
+    const cfg = window.TINY_SUPABASE || {};
+    if (!cfg.url || !cfg.anonKey || location.protocol === "file:") return [];
+    try {
+      const res = await fetch(
+        `${cfg.url}/rest/v1/catalog_cakes?active=eq.true&select=id,name,theme,image_path&order=created_at.asc`,
+        {
+          headers: { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` },
+        }
+      );
+      if (!res.ok) return [];
+      const rows = await res.json();
+      return (Array.isArray(rows) ? rows : []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        theme: row.theme || "New",
+        src: `${cfg.url}/storage/v1/object/public/cake-catalog/${row.image_path}`,
+      }));
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function initPromoCode() {
+    const input = document.getElementById("promo-code");
+    const button = document.getElementById("promo-apply");
+    const status = document.getElementById("promo-status");
+    if (!input || !button || button.dataset.bound) return;
+    button.dataset.bound = "1";
+    const paint = (message, kind) => {
+      if (!status) return;
+      status.textContent = message || "";
+      status.className = kind ? `form-status ${kind}` : "form-status";
+    };
+    input.addEventListener("input", () => {
+      const typed = input.value.trim();
+      if (appliedPromo && typed.toUpperCase() !== String(appliedPromo.code || "").toUpperCase()) {
+        appliedPromo = null;
+        paint("");
+        renderQuote();
+      }
+    });
+    button.addEventListener("click", async () => {
+      const code = input.value.trim();
+      if (!code) {
+        appliedPromo = null;
+        paint("");
+        renderQuote();
+        return;
+      }
+      const quote = buildQuotation();
+      if (!quote.subtotal) {
+        paint("Choose a package before applying a code.", "is-error");
+        return;
+      }
+      button.disabled = true;
+      paint("Checking code…");
+      try {
+        const result = await previewPromo(code, "birthday", quote.subtotal);
+        if (!result?.ok) {
+          appliedPromo = null;
+          paint(result?.error || "That promo code is not valid.", "is-error");
+          renderQuote();
+          return;
+        }
+        appliedPromo = result;
+        input.value = result.code || code;
+        paint(`${result.name || result.code} applied.`, "is-success");
+        renderQuote();
+      } catch (err) {
+        appliedPromo = null;
+        paint(err.message || "Could not check that code.", "is-error");
+        renderQuote();
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
+
   function cakeSrc(src) {
     if (!src) return "";
     if (/^https?:\/\//i.test(src) || src.startsWith("../../")) return src;
@@ -1665,6 +1778,36 @@
     return partyState.day === "weekend" ? d.weekend || 0 : d.weekday || 0;
   }
 
+  function promoDiscount(subtotal) {
+    if (!appliedPromo || subtotal <= 0) return 0;
+    const value = Number(appliedPromo.discount_value) || 0;
+    if (appliedPromo.discount_type === "percent") {
+      return Math.min(subtotal, Math.round((subtotal * value) / 100));
+    }
+    return Math.min(subtotal, Math.round(value));
+  }
+
+  async function previewPromo(code, channel, amount) {
+    const cfg = window.TINY_SUPABASE || {};
+    if (!cfg.url || !cfg.anonKey) throw new Error("Promo codes are not available right now.");
+    const res = await fetch(`${cfg.url}/rest/v1/rpc/preview_promotion`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: cfg.anonKey,
+        Authorization: `Bearer ${cfg.anonKey}`,
+      },
+      body: JSON.stringify({
+        p_code: code,
+        p_channel: channel,
+        p_amount: Math.max(0, Math.round(amount)),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || data.error || "Could not check that code.");
+    return data;
+  }
+
   function buildQuotation() {
     const pkg = selectedPackage();
     const lines = [];
@@ -1734,11 +1877,13 @@
       }
     });
 
-    const service = Math.round(subtotal * 0.05);
-    const tax = Math.round((subtotal + service) * 0.1);
-    const total = subtotal + service + tax;
+    const discount = promoDiscount(subtotal);
+    const net = Math.max(0, subtotal - discount);
+    const service = Math.round(net * 0.05);
+    const tax = Math.round((net + service) * 0.1);
+    const total = net + service + tax;
 
-    return { lines, subtotal, service, tax, total };
+    return { lines, subtotal, discount, promo: appliedPromo, service, tax, total };
   }
 
   function renderQuote() {
@@ -1762,6 +1907,11 @@
       <ul>
         ${rows || "<li><span>Select a package to start</span><span>—</span></li>"}
         <li><span>Subtotal</span><span>${escapeHtml(formatIdr(q.subtotal))}</span></li>
+        ${
+          q.discount
+            ? `<li><span>Promo ${escapeHtml(q.promo?.code || "")}</span><span>−${escapeHtml(formatIdr(q.discount))}</span></li>`
+            : ""
+        }
         <li><span>Service 5%</span><span>${escapeHtml(formatIdr(q.service))}</span></li>
         <li><span>Tax 10%</span><span>${escapeHtml(formatIdr(q.tax))}</span></li>
         <li class="is-total"><span>Estimated total</span><span>${escapeHtml(formatIdr(q.total))}</span></li>
@@ -2583,6 +2733,11 @@
   <div class="qp-totals-wrap">
     <div class="qp-totals">
       <div class="qp-totals-row"><span>Total :</span><span>${escapeHtml(formatIdrInvoice(q.subtotal))}</span></div>
+      ${
+        q.discount
+          ? `<div class="qp-totals-row"><span>Promo ${escapeHtml(q.promo?.code || "")} :</span><span>−${escapeHtml(formatIdrInvoice(q.discount))}</span></div>`
+          : ""
+      }
       <div class="qp-totals-row"><span>Service (+5%) :</span><span>${escapeHtml(formatIdrInvoice(q.service))}</span></div>
       <div class="qp-totals-row"><span>Tax (+10%) :</span><span>${escapeHtml(formatIdrInvoice(q.tax))}</span></div>
       <div class="qp-totals-row is-grand"><span>TOTAL:</span><span class="qp-amount">${escapeHtml(formatIdrInvoice(q.total))}</span></div>
@@ -2734,6 +2889,7 @@
         day: partyState.day,
         childName: document.getElementById("child-name")?.value.trim() || "",
         childAge: document.getElementById("child-age")?.value.trim() || "",
+        childBirthday: childBirthdayValue(),
         guestKids: kids,
         guestAdults: adults,
         foodNotes: document.getElementById("food-notes")?.value.trim() || "",
@@ -2813,6 +2969,15 @@
           detail: line.detail || null,
         })),
         subtotal: q.subtotal,
+        discount: q.discount || 0,
+        promo: q.promo
+          ? {
+              code: q.promo.code,
+              name: q.promo.name || "",
+              discount_type: q.promo.discount_type,
+              discount_value: q.promo.discount_value,
+            }
+          : null,
         service: q.service,
         tax: q.tax,
         total: q.total,
@@ -3429,7 +3594,16 @@
           : "—",
       ],
       ["Guests", guests],
-      ["Birthday child", age ? `${child} · turning ${age}` : child],
+      [
+        "Birthday child",
+        [
+          child,
+          age ? `turning ${age}` : "",
+          childBirthdayValue() ? `born ${childBirthdayValue()}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ") || "—",
+      ],
       ["Cake", cakeText],
       ["Masterclass", masterclassLabel()],
       ["Extras", extras],
@@ -3484,7 +3658,11 @@
         ? `Start time: ${partyTimeValue()} (${PARTY_DURATION_HOURS} hours, until ${partyEndTimeLabel() || "—"})`
         : "",
       guests !== "—" ? `Guests: ${guests}` : "",
-      child ? `Birthday child: ${child}${age ? ` (turning ${age})` : ""}` : "",
+      child
+        ? `Birthday child: ${child}${age ? ` (turning ${age})` : ""}${
+            childBirthdayValue() ? `, birthday ${childBirthdayValue()}` : ""
+          }`
+        : "",
       foodNotes ? `Food / allergies: ${foodNotes}` : "",
       notes ? `Notes: ${notes}` : "",
       "",
@@ -3512,6 +3690,7 @@
         line.note ? `${line.label}: TBC` : `${line.label}: ${formatIdr(line.value)}`
       ),
       `Subtotal: ${formatIdr(q.subtotal)}`,
+      q.discount ? `Promo ${q.promo?.code || ""}: −${formatIdr(q.discount)}` : "",
       `Service 5%: ${formatIdr(q.service)}`,
       `Tax 10%: ${formatIdr(q.tax)}`,
       `Estimated total: ${formatIdr(q.total)}`,
@@ -3565,6 +3744,13 @@
         return;
       }
       window.TinyContact?.markContactValidity?.(true);
+
+      const typedPromo = document.getElementById("promo-code")?.value.trim() || "";
+      if (typedPromo && (!appliedPromo || appliedPromo.code.toUpperCase() !== typedPromo.toUpperCase())) {
+        setStatus("Apply the promo code, or clear it, before saving.", "is-error");
+        goToStep("send");
+        return;
+      }
 
       statusPreparing = (msg) => setStatus(msg || "Checking availability…");
       statusPreparing("Checking availability…");
@@ -3728,6 +3914,7 @@
       "guest-adults",
       "child-name",
       "child-age",
+      "child-birthday",
       "contact-email",
       "contact-phone",
       "contact-dial",
@@ -4054,6 +4241,7 @@
           return "Please select date & amount of guests first";
         }
         if (!partyTimeValue()) return "Please choose an available start time.";
+        if (!childBirthdayValid()) return "Please add the child's birthday.";
         if (!partyState.occupancyOk) return "Couldn’t check availability — try again.";
         if (partyTimeIsBooked(partyTimeValue())) {
           return "That start time isn’t free for your guest count. Please pick another.";
@@ -4241,6 +4429,7 @@
       "party-time",
       "child-name",
       "child-age",
+      "child-birthday",
       "guest-kids",
       "guest-adults",
       "contact-email",
@@ -4514,7 +4703,7 @@
         updateStepProgress();
       });
     });
-    ["party-date", "party-time", "child-name", "child-age"].forEach((id) => {
+    ["party-date", "party-time", "child-name", "child-age", "child-birthday"].forEach((id) => {
       const el = document.getElementById(id);
       if (!el || el.dataset.stepBound) return;
       el.dataset.stepBound = "1";
@@ -4855,6 +5044,13 @@
     setPartyTimeValue(String(booking.partyTime || party.time || "").slice(0, 5));
     setVal("child-name", booking.childName || party.childName || "");
     setVal("child-age", booking.childAge || party.childAge || "");
+    setVal("child-birthday", party.childBirthday || "");
+    const savedPromo = booking.quote?.promo;
+    const promoInput = document.getElementById("promo-code");
+    if (savedPromo?.code) {
+      appliedPromo = savedPromo;
+      if (promoInput) promoInput.value = savedPromo.code;
+    }
     setVal("guest-kids", booking.guestKids ?? party.guestKids ?? 0);
     setVal("guest-adults", booking.guestAdults ?? party.guestAdults ?? 0);
     setVal("food-notes", party.foodNotes || "");
@@ -4950,6 +5146,7 @@
     setVal("party-time", String(row.party_time || party.time || "").slice(0, 5));
     setVal("child-name", row.child_name || party.childName || "");
     setVal("child-age", row.child_age || party.childAge || "");
+    setVal("child-birthday", party.childBirthday || "");
     setVal("guest-kids", row.guest_kids ?? party.guestKids ?? 0);
     setVal("guest-adults", row.guest_adults ?? party.guestAdults ?? 0);
     const copy = document.getElementById("staff-decor-copy");
@@ -5097,7 +5294,10 @@
       await loadJson(wpConfig().partyJson || "data/party.json", DEFAULT_PARTY)
     );
     cakeData = normalizeCakes(
-      await loadJson(wpConfig().cakesJson || "../../cakes/data/cakes.json", DEFAULT_CAKES)
+      mergeCatalogCakes(
+        await loadJson(wpConfig().cakesJson || "../../cakes/data/cakes.json", DEFAULT_CAKES),
+        await loadUploadedCakes()
+      )
     );
 
     const params = new URLSearchParams(window.location.search);
@@ -5126,6 +5326,7 @@
     renderFood();
     renderSummary();
     initSend();
+    initPromoCode();
 
     renderFilters();
     renderGallery();

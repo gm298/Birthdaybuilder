@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
+import { birthdayTotals, callPromo, releasePromo } from "../_shared/promotions.ts";
 
 const ALLOWED_ORIGINS = [
   "https://tinyhealthycafe.com",
@@ -189,6 +190,7 @@ function publicRow(row: Record<string, unknown>) {
     party: {
       childName: party.childName || row.child_name || "",
       childAge: party.childAge || row.child_age || "",
+      childBirthday: party.childBirthday || "",
       date: party.date || row.party_date || "",
       time: String(party.time || row.party_time || "").slice(0, 5),
       day: party.day || "",
@@ -556,6 +558,7 @@ Deno.serve(async (req) => {
     const time = asString(partyIn.time || row.party_time).slice(0, 5);
     const childName = asString(partyIn.childName || row.child_name);
     const childAge = asString(partyIn.childAge ?? row.child_age);
+    const childBirthday = asString(partyIn.childBirthday ?? prevParty.childBirthday);
     const notes = asString(partyIn.notes ?? prevParty.notes);
     const foodNotes = asString(partyIn.foodNotes ?? prevParty.foodNotes);
     const guestKids = Number.isFinite(Number(partyIn.guestKids))
@@ -596,6 +599,7 @@ Deno.serve(async (req) => {
       time,
       childName,
       childAge,
+      childBirthday,
       notes,
       foodNotes,
       guestKids,
@@ -624,9 +628,61 @@ Deno.serve(async (req) => {
     if (decorIn) nextPayload.decor = { ...((existingPayload.decor as object) || {}), ...decorIn };
     if (cakeIn) nextPayload.cake = { ...((existingPayload.cake as object) || {}), ...cakeIn };
     if (addonsIn) nextPayload.addons = { ...((existingPayload.addons as object) || {}), ...addonsIn };
-    if (quoteIn) nextPayload.quote = quoteIn;
+    const prevQuote =
+      existingPayload.quote && typeof existingPayload.quote === "object"
+        ? (existingPayload.quote as Record<string, unknown>)
+        : {};
+    const prevPromo =
+      prevQuote.promo && typeof prevQuote.promo === "object"
+        ? (prevQuote.promo as Record<string, unknown>)
+        : {};
+    const nextQuote = quoteIn ? { ...quoteIn } : { ...prevQuote };
+    const nextCode = asString((nextQuote.promo as { code?: unknown } | undefined)?.code);
+    const prevCode = asString(prevPromo.code);
+    let redeemedPromoId = "";
+    if (nextCode) {
+      const subtotal = Number(nextQuote.subtotal || prevQuote.subtotal || 0);
+      const sameCode = nextCode.toUpperCase() === prevCode.toUpperCase();
+      const promo = await callPromo(
+        supabase,
+        sameCode ? "preview_promotion" : "redeem_promotion",
+        nextCode,
+        "birthday",
+        subtotal,
+      );
+      if (!promo.ok) {
+        return json({ ok: false, error: promo.error || "That promo code is not valid." }, 400, origin);
+      }
+      if (!sameCode) redeemedPromoId = String(promo.id || "");
+      const priced = birthdayTotals(subtotal, Number(promo.discount_idr || 0));
+      nextPayload.quote = {
+        ...nextQuote,
+        ...priced,
+        promo: {
+          id: promo.id,
+          code: promo.code,
+          name: promo.name,
+          discount_type: promo.discount_type,
+          discount_value: promo.discount_value,
+        },
+      };
+    } else if (quoteIn) {
+      const subtotal = Number(nextQuote.subtotal || 0);
+      const priced = birthdayTotals(subtotal, 0);
+      nextPayload.quote = { ...nextQuote, ...priced, discount: 0, promo: null };
+    }
     if (payloadIn.builderVersion) nextPayload.builderVersion = payloadIn.builderVersion;
 
+    const quoteSaved = nextPayload.quote as Record<string, unknown> | undefined;
+    const quotePatch = quoteSaved
+      ? {
+          quote_subtotal_idr: Number(quoteSaved.subtotal || 0),
+          quote_service_idr: Number(quoteSaved.service || 0),
+          quote_tax_idr: Number(quoteSaved.tax || 0),
+          quote_total_idr: Number(quoteSaved.total || 0),
+          quote_dp_idr: Number(quoteSaved.dp30 || Math.round(Number(quoteSaved.total || 0) * 0.3)),
+        }
+      : {};
     const oldRecord = { ...row };
     const { data: updated, error: updateError } = await supabase
       .from("requests")
@@ -642,14 +698,19 @@ Deno.serve(async (req) => {
         guest_adults: guestAdults,
         package_name: emptyToNull(asString(nextPackage.name)),
         package_id: emptyToNull(asString(nextPackage.id)),
+        ...quotePatch,
         payload: nextPayload,
       })
       .eq("id", row.id)
       .select(SELECT_COLS)
       .single();
     if (updateError || !updated) {
+      if (redeemedPromoId) await releasePromo(supabase, redeemedPromoId);
       console.error(updateError);
       return json({ ok: false, error: "Could not update the birthday request." }, 500, origin);
+    }
+    if (prevCode && prevCode.toUpperCase() !== nextCode.toUpperCase() && prevPromo.id) {
+      await releasePromo(supabase, String(prevPromo.id));
     }
     await notifyCalendar(updated as Record<string, unknown>, oldRecord as Record<string, unknown>);
     return json({ ok: true, booking: publicRow(updated as Record<string, unknown>) }, 200, origin);

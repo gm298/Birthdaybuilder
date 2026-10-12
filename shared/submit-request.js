@@ -386,6 +386,8 @@
     return matches[0] || null;
   }
 
+  let dialDocBound = false;
+
   function initDialCombobox() {
     const hidden = document.getElementById("contact-dial");
     const input = document.getElementById("contact-dial-search");
@@ -502,9 +504,12 @@
         input.blur();
       }
     });
-    document.addEventListener("click", (e) => {
-      if (!e.target.closest(".dial-combobox")) hideList();
-    });
+    if (!dialDocBound) {
+      dialDocBound = true;
+      document.addEventListener("click", (e) => {
+        if (!e.target.closest(".dial-combobox")) hideList();
+      });
+    }
   }
 
   window.TinyContact = {

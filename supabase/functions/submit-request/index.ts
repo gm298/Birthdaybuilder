@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { sendBookingEmail } from "../_shared/send-booking-email.ts";
+import { birthdayTotals, callPromo, releasePromo } from "../_shared/promotions.ts";
 
 const ALLOWED_ORIGINS = [
   "https://tinyhealthycafe.com",
@@ -281,6 +282,16 @@ Deno.serve(async (req) => {
     if (!asString(pkg.id) || !asString(party.date) || !asString(party.childName)) {
       return json({ ok: false, error: "Please complete the party details." }, 400, origin);
     }
+    const childBirthday = asString(party.childBirthday);
+    const todayBali = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Makassar",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(childBirthday) || childBirthday > todayBali) {
+      return json({ ok: false, error: "Please add the child's birthday." }, 400, origin);
+    }
     if (!asString(party.time) || !tableIds.length) {
       return json({ ok: false, error: "Please choose tables for this party." }, 400, origin);
     }
@@ -354,15 +365,37 @@ Deno.serve(async (req) => {
     }
   }
 
-  const quote = (payload as { quote?: Record<string, number> }).quote || {};
+  const quote = (payload as { quote?: Record<string, unknown> }).quote || {};
   const party = (payload as { party?: Record<string, unknown> }).party || {};
+  let redeemedPromoId = "";
+  if (source === "party_builder") {
+    const promoCode = asString((quote.promo as { code?: unknown } | undefined)?.code);
+    if (promoCode) {
+      const subtotal = Number(quote.subtotal || 0);
+      const promo = await callPromo(supabase, "redeem_promotion", promoCode, "birthday", subtotal);
+      if (!promo.ok) {
+        return json({ ok: false, error: promo.error || "That promo code is not valid." }, 400, origin);
+      }
+      redeemedPromoId = String(promo.id || "");
+      const priced = birthdayTotals(subtotal, Number(promo.discount_idr || 0));
+      Object.assign(quote, priced, {
+        promo: {
+          id: promo.id,
+          code: promo.code,
+          name: promo.name,
+          discount_type: promo.discount_type,
+          discount_value: promo.discount_value,
+        },
+      });
+      (payload as { quote?: Record<string, unknown> }).quote = quote;
+    }
+  }
   const pkg = (payload as { package?: Record<string, unknown> }).package || {};
   const reservation = (payload as { reservation?: Record<string, unknown> }).reservation || {};
   const id = crypto.randomUUID();
   const publicCode = source === "reservation"
     ? `THFC-${id.replace(/-/g, "").slice(0, 4).toUpperCase()}`
     : publicCodeFromId(id);
-  const total = Number(quote.total || 0);
   const row = {
     id,
     source,
@@ -385,8 +418,8 @@ Deno.serve(async (req) => {
     quote_subtotal_idr: Number(quote.subtotal || 0),
     quote_service_idr: Number(quote.service || 0),
     quote_tax_idr: Number(quote.tax || 0),
-    quote_total_idr: total,
-    quote_dp_idr: Number(quote.dp30 || Math.round(total * 0.3)),
+    quote_total_idr: Number(quote.total || 0),
+    quote_dp_idr: Number(quote.dp30 || Math.round(Number(quote.total || 0) * 0.3)),
     payload,
     files: {},
     client: meta.client && typeof meta.client === "object" ? meta.client : {},
@@ -398,6 +431,7 @@ Deno.serve(async (req) => {
     manage_token: manageToken,
   });
   if (insertError) {
+    if (redeemedPromoId) await releasePromo(supabase, redeemedPromoId);
     if (String(insertError.message || "").includes("idempotency") && idempotencyKey) {
       const { data: existing } = await supabase
         .from("requests")

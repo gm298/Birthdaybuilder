@@ -10,7 +10,6 @@
   const MAPS_EMBED = "https://www.google.com/maps?q=Tiny+Healthy+Cafe+Berawa+Bali&output=embed";
   const MAPS_LINK = "https://maps.app.goo.gl/Sftcte5sWdBqkguJ8";
   const CAFE_ADDRESS = "Gg. Anggrek Gg. Jepun No.5, Tibubeneng, Kuta Utara, Badung, Bali";
-  const DIALS = ["62", "61", "65", "44", "1", "31", "33", "49", "81", "86"];
 
   const state = {
     events: [],
@@ -73,6 +72,47 @@
     const amount = Number(value);
     if (!amount) return "";
     return `Rp ${amount.toLocaleString("id-ID")}`;
+  }
+
+  function ticketUnit(event) {
+    const amount = Number(event?.price_idr ?? event?.pricing?.total ?? event?.pricing?.price ?? 0);
+    return amount > 0 ? Math.round(amount) : 0;
+  }
+
+  function ticketPriceLabel(event) {
+    const amount = ticketUnit(event);
+    return amount ? `${formatIdr(amount)} / ticket` : "";
+  }
+
+  let appliedEventPromo = null;
+
+  function eventPromoDiscount(amount) {
+    if (!appliedEventPromo || amount <= 0) return 0;
+    const value = Number(appliedEventPromo.discount_value) || 0;
+    if (appliedEventPromo.discount_type === "percent") {
+      return Math.min(amount, Math.round((amount * value) / 100));
+    }
+    return Math.min(amount, Math.round(value));
+  }
+
+  async function previewEventPromo(code, amount) {
+    const cfg = config();
+    const res = await fetch(`${cfg.url}/rest/v1/rpc/preview_promotion`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: cfg.anonKey,
+        Authorization: `Bearer ${cfg.anonKey}`,
+      },
+      body: JSON.stringify({
+        p_code: code,
+        p_channel: "event",
+        p_amount: Math.max(0, Math.round(amount)),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || data.error || "Could not check that code.");
+    return data;
   }
 
   function timeRange(event) {
@@ -335,6 +375,11 @@
                           <strong>${escapeHtml(event.name)}</strong>
                           <span>${escapeHtml(prettyDate(event.occurs_on))}</span>
                           <span class="event-card__times">${(event.times || []).map((time) => escapeHtml(time)).join("<br>")}</span>
+                          ${
+                            ticketPriceLabel(event)
+                              ? `<span class="event-card__price">${escapeHtml(ticketPriceLabel(event))}</span>`
+                              : ""
+                          }
                         </button>`
                       )
                       .join("")}</div>`
@@ -403,6 +448,8 @@
       `Event: ${details.eventName}`,
       details.slot ? `Time: ${details.slot}` : "",
       `Tickets: ${tickets}`,
+      details.price ? `Price: ${details.price}` : "",
+      "Payment: pay on site at Tiny",
     ].filter(Boolean);
     let phone = "6282266484226";
     try {
@@ -460,7 +507,8 @@
     if (!event) {
       return `<div class="events-wrap"><section class="section"><p>That event is not on the calendar.</p><p><button class="event-back" type="button" data-back>Back to events</button></p></section></div>`;
     }
-    const price = formatIdr(event.price_idr);
+    const unit = ticketUnit(event);
+    const price = formatIdr(unit);
     const slots = eventSlots(event);
     return `
       <div class="event-page">
@@ -472,7 +520,13 @@
           <p class="ticket__when">${escapeHtml(prettyDate(event.party_date))}<br>${slots
             .map((slot) => escapeHtml(timeRange({ start_time: slot.start, end_time: slot.end })))
             .join("<br>")}</p>
-          ${price ? `<p class="ticket__price">${escapeHtml(price)} <span class="muted" style="font-size:16px">per ticket</span></p>` : ""}
+          <p class="ticket__price">${
+            price
+              ? `${escapeHtml(price)} <span class="muted" style="font-size:16px">per ticket</span>`
+              : "Ticket price TBC"
+          }</p>
+          <p class="ticket__pay">Pay on site at Tiny, unless the team has already marked you as paid.</p>
+          <p class="ticket__due" id="ticket-due"${unit ? "" : " hidden"}></p>
           <button class="btn" type="button" id="book-spot">Book your spot</button>
           <form id="guest-form" hidden>
             <label class="honeypot">Website<input name="website" tabindex="-1" autocomplete="off"></label>
@@ -499,12 +553,24 @@
             </div>
             <div class="field">
               <span>WhatsApp</span>
-              <div class="phone-row">
-                <select name="dial" aria-label="Country code">${DIALS.map((dial) => `<option value="${dial}">+${dial}</option>`).join("")}</select>
-                <input name="phone" required inputmode="tel" autocomplete="tel" placeholder="812 3456 7890">
+              <div class="phone-split">
+                <div class="dial-combobox">
+                  <input type="hidden" id="contact-dial" name="contact-dial" value="62">
+                  <input type="text" id="contact-dial-search" class="dial-combobox__input" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="contact-dial-list" aria-label="Country code" autocomplete="off" spellcheck="false" placeholder="+62 ID">
+                  <ul class="dial-combobox__list" id="contact-dial-list" role="listbox" hidden></ul>
+                </div>
+                <input type="tel" name="phone" required inputmode="tel" autocomplete="tel" placeholder="812 3456 7890">
               </div>
             </div>
             <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
+            <div class="field">
+              <span>Promo code</span>
+              <div class="promo-row">
+                <input name="promo" id="promo-code" autocomplete="off" spellcheck="false" placeholder="Optional" maxlength="32">
+                <button class="btn" type="button" id="promo-apply">Apply</button>
+              </div>
+              <p class="status" id="promo-status" role="status"></p>
+            </div>
             <button class="btn" type="submit">Book your spot</button>
             <p class="status" id="guest-status" role="status"></p>
           </form>
@@ -558,7 +624,9 @@
       <h1>${escapeHtml(guest.eventName || "Event")}</h1>
       <p>${escapeHtml(prettyDate(guest.partyDate))}${guest.startTime ? ` · ${escapeHtml(guest.startTime)}` : ""}</p>
       <p>${escapeHtml(guest.name)} · ${escapeHtml(guest.pax)} ${Number(guest.pax) === 1 ? "guest" : "guests"}</p>
+      ${guest.priceLabel ? `<p>${escapeHtml(guest.priceLabel)}</p>` : ""}
       <p><strong>${escapeHtml(status)}</strong></p>
+      <p>${escapeHtml(guest.payment === "paid" ? "Paid" : "Pay on site")}</p>
       <p><a href="${escapeHtml(window.location.pathname)}">See all events</a></p>
     </div>`;
   }
@@ -574,7 +642,9 @@
       ? items
           .map(
             (event) =>
-              `<button type="button" data-open="${escapeHtml(event.public_code)}"><strong>${escapeHtml(event.name)}</strong><br><span class="muted">${escapeHtml(timeRange(event))}</span></button>`
+              `<button type="button" data-open="${escapeHtml(event.public_code)}"><strong>${escapeHtml(event.name)}</strong><br><span class="muted">${escapeHtml(timeRange(event))}${
+                ticketPriceLabel(event) ? ` · ${escapeHtml(ticketPriceLabel(event))}` : ""
+              }</span></button>`
           )
           .join("")
       : `<p class="muted">No events on this day.</p>`;
@@ -625,13 +695,48 @@
   });
 
   function normalizePhone(dial, national) {
+    if (window.TinyContact?.normalizePhone) return window.TinyContact.normalizePhone(dial, national);
     const digits = String(national || "").replace(/\D/g, "").replace(/^0+/, "");
     const code = String(dial || "62").replace(/\D/g, "") || "62";
     if (!digits) return "";
     return `+${code}${digits}`;
   }
 
+  function bindDialCombobox() {
+    window.TinyContact?.initDialCombobox?.();
+  }
+
+  function resetDialCombobox() {
+    const hidden = document.getElementById("contact-dial");
+    const search = document.getElementById("contact-dial-search");
+    if (hidden) hidden.value = "62";
+    if (search) search.value = "+62 ID";
+  }
+
   let partySizeKeyBound = false;
+
+  function updateTicketDue() {
+    const due = document.getElementById("ticket-due");
+    const input = document.getElementById("guest-pax");
+    const code = params().get("e");
+    const event = state.events.find((item) => item.public_code === code);
+    const unit = ticketUnit(event);
+    if (!due) return;
+    if (!unit) {
+      due.hidden = true;
+      return;
+    }
+    const pax = Math.max(1, Number(input?.value) || 1);
+    const gross = unit * pax;
+    const discount = eventPromoDiscount(gross);
+    const net = Math.max(0, gross - discount);
+    const promoNote = discount && appliedEventPromo?.code ? ` · ${appliedEventPromo.code} saves ${formatIdr(discount)}` : "";
+    due.hidden = false;
+    due.textContent =
+      pax === 1
+        ? `${formatIdr(net)} for 1 ticket${promoNote} · pay on site`
+        : `${formatIdr(net)} for ${pax} tickets${promoNote} · pay on site`;
+  }
 
   function initPartySize() {
     const modal = document.getElementById("pax-modal");
@@ -649,6 +754,7 @@
       if (value) value.textContent = label;
       if (big) big.textContent = String(count);
       if (confirm) confirm.textContent = `Got it — ${label}.`;
+      updateTicketDue();
     };
     paint(input.value || 1);
     document.getElementById("pax-trigger")?.addEventListener("click", () => {
@@ -672,6 +778,63 @@
         if (event.key === "Escape" && open && !open.hidden) open.hidden = true;
       });
     }
+  }
+
+  function bindEventPromo(eventCode) {
+    const input = document.getElementById("promo-code");
+    const button = document.getElementById("promo-apply");
+    const status = document.getElementById("promo-status");
+    if (!input || !button) return;
+    const paint = (message, kind) => {
+      if (!status) return;
+      status.textContent = message || "";
+      status.className = kind ? `status ${kind}` : "status";
+    };
+    input.addEventListener("input", () => {
+      const typed = input.value.trim();
+      if (appliedEventPromo && typed.toUpperCase() !== String(appliedEventPromo.code || "").toUpperCase()) {
+        appliedEventPromo = null;
+        paint("");
+        updateTicketDue();
+      }
+    });
+    button.addEventListener("click", async () => {
+      const codeText = input.value.trim();
+      if (!codeText) {
+        appliedEventPromo = null;
+        paint("");
+        updateTicketDue();
+        return;
+      }
+      const eventItem = state.events.find((item) => item.public_code === eventCode);
+      const unit = ticketUnit(eventItem);
+      const pax = Math.max(1, Number(document.getElementById("guest-pax")?.value) || 1);
+      if (!unit) {
+        paint("This event has no ticket price to discount.", "is-error");
+        return;
+      }
+      button.disabled = true;
+      paint("Checking code…");
+      try {
+        const result = await previewEventPromo(codeText, unit * pax);
+        if (!result?.ok) {
+          appliedEventPromo = null;
+          paint(result?.error || "That promo code is not valid.", "is-error");
+          updateTicketDue();
+          return;
+        }
+        appliedEventPromo = result;
+        input.value = result.code || codeText;
+        paint(`${result.name || result.code} applied.`, "is-ok");
+        updateTicketDue();
+      } catch (err) {
+        appliedEventPromo = null;
+        paint(err.message || "Could not check that code.", "is-error");
+        updateTicketDue();
+      } finally {
+        button.disabled = false;
+      }
+    });
   }
 
   function bindEvent(code) {
@@ -714,7 +877,11 @@
         { passive: true }
       );
     }
+    appliedEventPromo = null;
     initPartySize();
+    updateTicketDue();
+    bindDialCombobox();
+    bindEventPromo(code);
     document.getElementById("book-spot")?.addEventListener("click", () => {
       const form = document.getElementById("guest-form");
       const trigger = document.getElementById("book-spot");
@@ -734,9 +901,15 @@
         status.className = "status is-error";
         return;
       }
-      const phone = normalizePhone(data.get("dial"), data.get("phone"));
+      const phone = normalizePhone(data.get("contact-dial") || document.getElementById("contact-dial")?.value, data.get("phone"));
       if (!/^\+[1-9][0-9]{7,14}$/.test(phone)) {
         status.textContent = "Add a WhatsApp number with the country code.";
+        status.className = "status is-error";
+        return;
+      }
+      const typedPromo = String(data.get("promo") || "").trim();
+      if (typedPromo && (!appliedEventPromo || appliedEventPromo.code.toUpperCase() !== typedPromo.toUpperCase())) {
+        status.textContent = "Apply the promo code, or clear it, before booking.";
         status.className = "status is-error";
         return;
       }
@@ -761,6 +934,8 @@
             email: String(data.get("email") || "").trim(),
             phone,
             slot,
+            payment: "onsite",
+            promoCode: appliedEventPromo?.code || "",
             website: "",
           }),
         });
@@ -777,17 +952,26 @@
         const link = document.getElementById("wa-go");
         const eventItem = state.events.find((item) => item.public_code === code);
         const slotText = form.querySelector("[name=slot]")?.selectedOptions?.[0]?.textContent?.trim() || "";
+        const paxCount = Number(data.get("pax")) || 1;
+        const gross = ticketUnit(eventItem) * paxCount;
+        const discount = eventPromoDiscount(gross);
+        const net = Math.max(0, gross - discount);
         if (link) {
           link.href = bookingWhatsappHref(body.whatsappHref, {
             name: String(data.get("name") || "").trim(),
             email: String(data.get("email") || "").trim(),
             eventName: eventItem?.name || "Event",
             slot: slotText,
-            pax: Number(data.get("pax")) || 1,
+            pax: paxCount,
+            price: net
+              ? `${formatIdr(net)}${appliedEventPromo?.code ? ` with ${appliedEventPromo.code}` : ""}`
+              : ticketPriceLabel(eventItem),
           });
         }
         if (modal) modal.hidden = false;
         form.reset();
+        appliedEventPromo = null;
+        resetDialCombobox();
         form.hidden = true;
         const trigger = document.getElementById("book-spot");
         if (trigger) trigger.hidden = false;

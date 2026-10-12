@@ -290,6 +290,12 @@ button, input, select, textarea { font: inherit; }
 
 .event-card__times { display: block; line-height: 1.45; }
 
+.event-card__price {
+  color: var(--deep);
+  font-weight: 600;
+  font-size: 15px;
+}
+
 .calendar {
   background: var(--white);
   border: 1px solid var(--line);
@@ -537,12 +543,31 @@ button, input, select, textarea { font: inherit; }
 .ticket__price {
   font-family: var(--font-display);
   font-size: 28px;
-  margin: 0 0 16px;
+  margin: 0 0 8px;
+}
+
+.ticket__pay,
+.ticket__due {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 15px;
 }
 
 .field { display: grid; gap: 6px; margin-bottom: 12px; }
 
 .field span { font-family: var(--font-display); font-size: 13px; color: var(--deep); }
+
+.promo-row {
+  display: flex;
+  gap: 8px;
+}
+
+.promo-row input { flex: 1; min-width: 0; }
+
+.promo-row .btn {
+  width: auto;
+  padding: 12px 16px;
+}
 
 .field input,
 .field select {
@@ -553,7 +578,55 @@ button, input, select, textarea { font: inherit; }
   color: var(--ink);
 }
 
-.phone-row { display: grid; grid-template-columns: 96px 1fr; gap: 8px; }
+.phone-split {
+  display: grid;
+  grid-template-columns: 128px minmax(0, 1fr);
+  gap: 8px;
+  align-items: stretch;
+}
+
+.phone-split .dial-combobox__input,
+.phone-split input[name="phone"] {
+  width: 100%;
+}
+
+.dial-combobox {
+  position: relative;
+  z-index: 5;
+}
+
+.dial-combobox__input {
+  width: 100%;
+}
+
+.dial-combobox__list {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 50;
+  width: min(300px, 80vw);
+  max-height: 240px;
+  overflow: auto;
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+  background: #fff;
+  color: var(--deep);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+}
+
+.dial-combobox__list li {
+  padding: 8px 12px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.dial-combobox__list li.is-active,
+.dial-combobox__list li:hover {
+  background: rgba(61, 79, 69, 0.1);
+}
 
 .btn {
   display: inline-flex;

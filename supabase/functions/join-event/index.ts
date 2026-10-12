@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 import { sendBookingEmail } from "../_shared/send-booking-email.ts";
+import { callPromo, releasePromo } from "../_shared/promotions.ts";
 
 const ALLOWED_ORIGINS = [
   "https://tinyhealthycafe.com",
@@ -65,7 +66,19 @@ function guestLink(token: string) {
   return `${siteOrigin()}/events/?g=${encodeURIComponent(token)}`;
 }
 
-function whatsappHref(details: { name: string; email: string; eventName: string; slot: string; pax: number }) {
+function formatIdr(value: number) {
+  const amount = Math.round(Number(value) || 0);
+  if (!amount) return "";
+  return `Rp ${amount.toLocaleString("id-ID")}`;
+}
+
+function ticketUnit(row: { quote_total_idr?: number | null; payload?: { event?: { pricing?: { total?: unknown; price?: unknown } } } }) {
+  const pricing = row.payload?.event?.pricing;
+  const amount = Number(pricing?.total) || Number(pricing?.price) || Number(row.quote_total_idr) || 0;
+  return amount > 0 ? Math.round(amount) : 0;
+}
+
+function whatsappHref(details: { name: string; email: string; eventName: string; slot: string; pax: number; price?: string }) {
   const count = Number(details.pax) || 1;
   const tickets = count === 1 ? "1 person / 1 ticket" : `${count} people / ${count} tickets`;
   const text = [
@@ -75,6 +88,8 @@ function whatsappHref(details: { name: string; email: string; eventName: string;
     `Event: ${details.eventName}`,
     details.slot ? `Time: ${details.slot}` : "",
     `Tickets: ${tickets}`,
+    details.price ? `Price: ${details.price}` : "",
+    "Payment: pay on site at Tiny",
   ]
     .filter(Boolean)
     .join("\n");
@@ -93,6 +108,8 @@ type Guest = {
   source?: string;
   created_at?: string;
   slot?: { start?: string; end?: string };
+  payment?: { status?: string; amount?: number };
+  promo?: { code?: string; name?: string; discount_idr?: number };
 };
 
 function slotFrom(value: unknown) {
@@ -154,7 +171,7 @@ Deno.serve(async (req) => {
     if (!token || token.length < 16) return json({ ok: false, error: "That link is not valid." }, 400, origin);
     const { data: rows, error } = await supabase
       .from("requests")
-      .select("public_code, contact_name, party_date, party_time, status, payload")
+      .select("public_code, contact_name, party_date, party_time, status, payload, quote_total_idr")
       .eq("source", "event");
     if (error) return json({ ok: false, error: "Could not load the guest list." }, 500, origin);
     for (const row of rows || []) {
@@ -163,18 +180,25 @@ Deno.serve(async (req) => {
       if (!guest) continue;
       const eventName = row.payload?.event?.name || row.contact_name || "Event";
       const start = slotLabel(guest.slot) || String(row.party_time || "").slice(0, 5);
+      const unit = ticketUnit(row);
+      const pax = Number(guest.pax) || 1;
+      const due = guest.promo?.code && Number.isFinite(Number(guest.payment?.amount))
+        ? Number(guest.payment?.amount)
+        : unit * pax;
       return json(
         {
           ok: true,
           guest: {
             name: guest.name || "Guest",
-            pax: Number(guest.pax) || 1,
+            pax,
             status: guest.status === "confirmed" || guest.status === "contacted" ? guest.status : "pending",
             eventName,
             partyDate: row.party_date,
             startTime: start,
             publicCode: row.public_code,
             eventOpen: !INACTIVE.has(row.status),
+            payment: guest.payment?.status === "paid" ? "paid" : "onsite",
+            priceLabel: due ? `${formatIdr(due)} for ${pax} ${pax === 1 ? "ticket" : "tickets"}` : "",
           },
         },
         200,
@@ -216,7 +240,7 @@ Deno.serve(async (req) => {
 
   const { data: row, error } = await supabase
     .from("requests")
-    .select("id, public_code, contact_name, party_date, party_time, status, source, payload")
+    .select("id, public_code, contact_name, party_date, party_time, status, source, payload, quote_total_idr")
     .eq("public_code", code)
     .eq("source", "event")
     .maybeSingle();
@@ -247,22 +271,41 @@ Deno.serve(async (req) => {
   }
 
   const token = crypto.randomUUID();
+  const unit = ticketUnit(row);
+  const promoCode = asString(body.promoCode);
+  let due = unit * pax;
+  let promo: Guest["promo"];
+  let redeemedPromoId = "";
+  if (promoCode) {
+    if (!unit) return json({ ok: false, error: "This event has no ticket price to discount." }, 400, origin);
+    const result = await callPromo(supabase, "redeem_promotion", promoCode, "event", due);
+    if (!result.ok) return json({ ok: false, error: result.error || "That promo code is not valid." }, 400, origin);
+    redeemedPromoId = String(result.id || "");
+    const discount = Math.max(0, Math.round(Number(result.discount_idr || 0)));
+    due = Math.max(0, due - discount);
+    promo = { code: result.code || promoCode, name: result.name || "", discount_idr: discount };
+  }
   guests.push({
     id: crypto.randomUUID(),
     name,
     pax,
     phone,
     email,
-    notes: "Website guest list",
+    notes: promo ? `Website guest list · ${promo.code}` : "Website guest list",
     status: "pending",
     token,
     source: "website",
     slot: matched,
     created_at: new Date().toISOString(),
+    payment: { status: "onsite", amount: due },
+    ...(promo ? { promo } : {}),
   });
   const nextPayload = { ...payload, event: { ...event, guests } };
   const { error: updateError } = await supabase.from("requests").update({ payload: nextPayload }).eq("id", row.id);
-  if (updateError) return json({ ok: false, error: "Could not save the guest list." }, 500, origin);
+  if (updateError) {
+    if (redeemedPromoId) await releasePromo(supabase, redeemedPromoId);
+    return json({ ok: false, error: "Could not save the guest list." }, 500, origin);
+  }
 
   try {
     await sendBookingEmail({
@@ -273,7 +316,7 @@ Deno.serve(async (req) => {
       guestName: name,
       partyDate: date,
       partyTime: slotLabel(matched),
-      guestsLabel: `${pax}`,
+      guestsLabel: `${pax}${due ? ` · ${formatIdr(due)}${promo?.code ? ` · ${promo.code}` : ""} · pay on site` : ""}`,
       eventName,
       link: guestLink(token),
     });
@@ -292,6 +335,9 @@ Deno.serve(async (req) => {
         eventName,
         slot: slotLabel(matched),
         pax,
+        price: due
+          ? `${formatIdr(due)}${promo?.code ? ` with ${promo.code}` : ""}${pax > 1 ? ` for ${pax} tickets` : ""}`
+          : "",
       }),
       status: "pending",
     },

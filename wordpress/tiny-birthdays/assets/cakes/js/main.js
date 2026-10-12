@@ -793,16 +793,56 @@
     if (match) state.filter = match;
   }
 
-  async function loadData() {
-    if (location.protocol === "file:") return normalizeData(DEFAULT_DATA);
+  function mergeCatalogCakes(data, extra) {
+    const cakes = [...(data?.cakes || []), ...(extra || [])];
+    const filters = [...(data?.filters || ["All"])];
+    (extra || []).forEach((cake) => {
+      const theme = String(cake.theme || "").trim();
+      if (!theme) return;
+      const covered = filters.some(
+        (label) => label !== "All" && theme.toLowerCase().includes(String(label).toLowerCase())
+      );
+      const exists = filters.some((label) => String(label).toLowerCase() === theme.toLowerCase());
+      if (!covered && !exists) filters.push(theme);
+    });
+    return { ...data, cakes, filters };
+  }
+
+  async function loadUploadedCakes() {
+    const cfg = window.TINY_SUPABASE || {};
+    if (!cfg.url || !cfg.anonKey || location.protocol === "file:") return [];
     try {
-      const url = (window.TINY_WP && window.TINY_WP.cakesJson) || "data/cakes.json";
-      const res = await fetch(url);
-      if (res.ok) return normalizeData(await res.json());
+      const res = await fetch(
+        `${cfg.url}/rest/v1/catalog_cakes?active=eq.true&select=id,name,theme,image_path&order=created_at.asc`,
+        {
+          headers: { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` },
+        }
+      );
+      if (!res.ok) return [];
+      const rows = await res.json();
+      return (Array.isArray(rows) ? rows : []).map((row) => ({
+        id: row.id,
+        name: row.name,
+        theme: row.theme || "New",
+        src: `${cfg.url}/storage/v1/object/public/cake-catalog/${row.image_path}`,
+      }));
     } catch (_) {
-      /* fallback */
+      return [];
     }
-    return normalizeData(DEFAULT_DATA);
+  }
+
+  async function loadData() {
+    let raw = DEFAULT_DATA;
+    if (location.protocol !== "file:") {
+      try {
+        const url = (window.TINY_WP && window.TINY_WP.cakesJson) || "data/cakes.json";
+        const res = await fetch(url);
+        if (res.ok) raw = await res.json();
+      } catch (_) {
+        /* fallback */
+      }
+    }
+    return normalizeData(mergeCatalogCakes(raw, await loadUploadedCakes()));
   }
 
   document.addEventListener("DOMContentLoaded", async () => {

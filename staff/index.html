@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/staff.css?v=20261007a">
+  <link rel="stylesheet" href="css/staff.css?v=20261012a">
 </head>
 <body>
   <div class="staff-shell">
@@ -49,6 +49,7 @@
         <a href="#/events" data-view="events">Events</a>
         <a href="#/payments" data-view="payments">Payments</a>
         <a href="#/customers" data-view="customers">Customer details</a>
+        <a href="#/master" data-view="master">Master data</a>
         <a href="#/archive" data-view="archive">Archive</a>
       </nav>
 
@@ -160,6 +161,7 @@
                 <tr>
                   <th>No.</th>
                   <th>Customer Name</th>
+                  <th>Kids</th>
                   <th>Country Code</th>
                   <th>Phone Number</th>
                   <th>Email</th>
@@ -170,6 +172,7 @@
                 <tr class="member-table__filters">
                   <th></th>
                   <th><input type="search" id="customers-filter-name" placeholder="Search…" aria-label="Search customer name"></th>
+                  <th></th>
                   <th>
                     <select id="customers-filter-country" aria-label="Country code">
                       <option value="">All codes</option>
@@ -203,8 +206,9 @@
             <label class="filter">
               <span>Payment</span>
               <select id="payments-filter" aria-label="Payment status">
-                <option value="all">All birthdays</option>
-                <option value="pending">Payment pending</option>
+                <option value="all">All payments</option>
+                <option value="pending">Unpaid / pay onsite</option>
+                <option value="onsite">Pay onsite</option>
                 <option value="paid">Paid</option>
               </select>
             </label>
@@ -216,6 +220,7 @@
                   <th>No.</th>
                   <th>Child / guest</th>
                   <th>Date</th>
+                  <th>Type</th>
                   <th>Total</th>
                   <th>Status</th>
                   <th>Payment</th>
@@ -224,6 +229,93 @@
               </thead>
               <tbody id="payments-list"></tbody>
             </table>
+          </div>
+        </div>
+        <div id="master-view" hidden>
+          <div class="master-stack">
+            <section class="master-panel">
+              <h2>Cake catalog</h2>
+              <p class="muted">Upload a picture to add a cake to the public catalogue, next to the cakes already on the site.</p>
+              <form id="cake-upload-form" class="master-form">
+                <div class="field-row">
+                  <label class="field"><span>Cake name</span><input id="cake-name" required maxlength="80" placeholder="e.g. Ocean whales"></label>
+                  <label class="field"><span>Theme</span>
+                    <input id="cake-theme" required maxlength="80" list="cake-themes" placeholder="e.g. Ocean">
+                    <datalist id="cake-themes">
+                      <option value="Animals"></option>
+                      <option value="Dinosaurs"></option>
+                      <option value="Vehicles"></option>
+                      <option value="Ocean"></option>
+                      <option value="Characters"></option>
+                      <option value="Flowers"></option>
+                      <option value="First birthday"></option>
+                      <option value="Forest"></option>
+                      <option value="Classic"></option>
+                    </datalist>
+                  </label>
+                </div>
+                <label class="field"><span>Picture</span><input id="cake-photo" type="file" accept="image/jpeg,image/png,image/webp" required></label>
+                <button class="btn" type="submit">Add cake</button>
+                <p class="status" id="cake-upload-status" role="status"></p>
+              </form>
+              <div class="cake-catalog" id="cake-catalog-list"></div>
+            </section>
+            <section class="master-panel">
+              <h2>Promotions</h2>
+              <p class="muted">Create a discount and a code guests can use when booking a birthday or an event. A percent comes off the subtotal before service and tax. A fixed amount comes off the subtotal, or off the event ticket total.</p>
+              <form id="promo-form" class="master-form">
+                <input type="hidden" id="promo-id" value="">
+                <div class="field-row">
+                  <label class="field"><span>Name</span><input id="promo-name" required maxlength="80" placeholder="e.g. October birthday"></label>
+                  <label class="field"><span>Code</span><input id="promo-code" required maxlength="32" placeholder="e.g. TINY10" autocapitalize="characters" spellcheck="false"></label>
+                </div>
+                <div class="field-row">
+                  <label class="field"><span>Discount</span>
+                    <select id="promo-type">
+                      <option value="percent">Percent off</option>
+                      <option value="fixed">Fixed amount (IDR)</option>
+                    </select>
+                  </label>
+                  <label class="field"><span>Value</span><input id="promo-value" type="number" min="1" step="1" required placeholder="10 or 100000"></label>
+                  <label class="field"><span>Applies to</span>
+                    <select id="promo-applies">
+                      <option value="both">Birthdays and events</option>
+                      <option value="birthday">Birthdays</option>
+                      <option value="event">Events</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="field-row">
+                  <label class="field"><span>Starts</span><input id="promo-start" type="date"></label>
+                  <label class="field"><span>Ends</span><input id="promo-end" type="date"></label>
+                  <label class="field"><span>Max uses</span><input id="promo-max" type="number" min="1" step="1" placeholder="Unlimited"></label>
+                </div>
+                <label class="field check-field"><input id="promo-active" type="checkbox" checked> Active</label>
+                <label class="field"><span>Notes</span><textarea id="promo-notes" rows="2" maxlength="400" placeholder="Staff note, not shown to guests"></textarea></label>
+                <div class="contact-actions">
+                  <button class="btn" type="submit" id="promo-save">Create promotion</button>
+                  <button class="btn btn--outline" type="button" id="promo-cancel" hidden>Cancel edit</button>
+                </div>
+                <p class="status" id="promo-form-status" role="status"></p>
+              </form>
+              <div class="member-table-wrap table-wrap">
+                <table class="member-table">
+                  <thead>
+                    <tr>
+                      <th>Code</th>
+                      <th>Name</th>
+                      <th>Discount</th>
+                      <th>For</th>
+                      <th>Uses</th>
+                      <th>Dates</th>
+                      <th>Status</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody id="promo-list"></tbody>
+                </table>
+              </div>
+            </section>
           </div>
         </div>
         <div id="archive-view" hidden>
@@ -449,6 +541,6 @@
   </div>
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/reserve-tables.js?v=20261006b"></script>
-  <script type="module" src="js/app.js?v=20261007a"></script>
+  <script type="module" src="js/app.js?v=20261012a"></script>
 </body>
 </html>

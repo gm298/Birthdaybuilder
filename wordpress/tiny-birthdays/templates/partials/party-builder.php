@@ -96,6 +96,11 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
       </button>
       <input type="hidden" id="child-age" name="child-age" value="">
     </div>
+    <div class="field">
+      <label class="field__label" for="child-birthday">Child’s birthday <span class="field__req">*</span></label>
+      <input type="date" id="child-birthday" name="child-birthday" required>
+      <span class="field__hint">The day they were born. We save this with their name and age on your customer details.</span>
+    </div>
     <div class="details-row details-row--contact field--full" id="contact-fields">
       <div class="field">
         <label class="field__label" for="contact-email">Email</label>
@@ -313,6 +318,14 @@ $food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
   </div>
   <div class="summary-panel">
     <ul class="summary-list" id="summary-list"></ul>
+    <div class="promo-box">
+      <label class="field__label" for="promo-code">Promo code</label>
+      <div class="promo-box__row">
+        <input type="text" id="promo-code" name="promo-code" autocomplete="off" spellcheck="false" placeholder="Enter a code" maxlength="32">
+        <button class="btn btn--outline-light" type="button" id="promo-apply">Apply</button>
+      </div>
+      <p class="form-status" id="promo-status" role="status"></p>
+    </div>
     <div class="quote-panel" id="quote-panel" aria-label="Price quotation"></div>
     <div class="summary-actions">
       <p>We’ll save the full plan, custom design and cake photo for Tiny, then open WhatsApp. You can also download a PDF quotation (no bank details).</p>

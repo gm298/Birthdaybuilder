@@ -24,7 +24,8 @@ const eventModal = document.getElementById("event-modal");
 const confirmModal = document.getElementById("confirm-modal");
 let confirmResolver = null;
 
-const VIEWS = ["overview", "calendar", "day", "timeline", "tables", "events", "payments", "customers", "archive"];
+const VIEWS = ["overview", "calendar", "day", "timeline", "tables", "events", "payments", "customers", "master", "archive"];
+const CAKE_THEMES = ["Animals", "Dinosaurs", "Vehicles", "Ocean", "Characters", "Flowers", "First birthday", "Forest", "Classic"];
 const STAFF_DAY_START = 8 * 60;
 const STAFF_DAY_END = 24 * 60;
 const BANK = {
@@ -850,7 +851,9 @@ function renderNav(view) {
             ? "Payments"
             : view === "archive"
               ? "Archive"
-              : "Inbox";
+              : view === "master"
+                ? "Master data"
+                : "Inbox";
   }
 }
 
@@ -867,11 +870,12 @@ function syncFilterInputs() {
   const onCustomers = state.view === "customers";
   const onPayments = state.view === "payments";
   const onArchive = state.view === "archive";
+  const onMaster = state.view === "master";
   const toolbar = document.querySelector(".toolbar--inbox");
-  if (toolbar) toolbar.hidden = onCustomers || onPayments || onArchive;
+  if (toolbar) toolbar.hidden = onCustomers || onPayments || onArchive || onMaster;
   if (modeWrap) modeWrap.hidden = !onOverview;
   if (modeInput) modeInput.value = state.dateMode;
-  if (dateWrap) dateWrap.hidden = onCalendar || onCustomers || onPayments || onArchive || (onOverview && state.dateMode !== "day");
+  if (dateWrap) dateWrap.hidden = onCalendar || onCustomers || onPayments || onArchive || onMaster || (onOverview && state.dateMode !== "day");
   if (dateInput) dateInput.value = state.selectedDate;
   if (typeInput) typeInput.value = state.filters.type;
   if (statusInput) statusInput.value = onOverview ? state.overviewStatus : state.filters.status;
@@ -1498,6 +1502,44 @@ function isPaidInFull(row) {
   return payment.deposit?.status === "paid" && payment.balance?.status === "paid";
 }
 
+function guestTicketAmount(row, guest) {
+  if (guest?.promo?.code && Number.isFinite(Number(guest.payment?.amount))) {
+    return Math.max(0, Math.round(Number(guest.payment.amount)));
+  }
+  const unit = eventPricingFromRow(row)?.total || Number(row.quote_total_idr) || 0;
+  return Math.max(0, Math.round(unit * (Number(guest?.pax) || 1)));
+}
+
+function childBirthdayOf(row) {
+  return String(row?.payload?.party?.childBirthday || "").slice(0, 10);
+}
+
+function formatBirthday(iso) {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return "";
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function kidSummary(kid) {
+  return [kid.name, kid.age ? `age ${kid.age}` : "", kid.birthday ? formatBirthday(kid.birthday) : ""]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function normalizeGuestPayment(guest) {
+  const status = guest?.payment?.status || guest?.paymentStatus;
+  return status === "paid" ? "paid" : "onsite";
+}
+
+function guestPaymentLabel(guest) {
+  return normalizeGuestPayment(guest) === "paid" ? "Paid" : "Pay onsite";
+}
+
 function customerRecords(opts = {}) {
   const includeArchived = Boolean(opts.archived);
   const source = includeArchived ? archivedRows() : activeRows();
@@ -1516,6 +1558,7 @@ function customerRecords(opts = {}) {
         nationalPhone: phoneParts.national,
         types: new Set(),
         birthdayDate: "",
+        kids: [],
         visits: [],
       });
     }
@@ -1532,6 +1575,7 @@ function customerRecords(opts = {}) {
     if (eventType(row) === "birthday" && row.party_date && row.party_date > (guest.birthdayDate || "")) {
       guest.birthdayDate = row.party_date;
     }
+    rememberKid(guest, row);
     guest.visits.push(row);
   }
 
@@ -1556,6 +1600,31 @@ function customerRecords(opts = {}) {
   });
 
   return [...groups.values()];
+}
+
+function rememberKid(guest, row) {
+  if (eventType(row) !== "birthday") return;
+  const name = String(row.child_name || row.payload?.party?.childName || "").trim();
+  if (!name) return;
+  const age = String(row.child_age || row.payload?.party?.childAge || "").trim();
+  const birthday = childBirthdayOf(row);
+  const key = name.toLowerCase();
+  const visitAt = row.party_date || row.created_at || "";
+  let kid = guest.kids.find((item) => item.key === key);
+  if (!kid) {
+    kid = { key, name, age, birthday, requestIds: [], updated: "" };
+    guest.kids.push(kid);
+  }
+  if (row.id && !kid.requestIds.includes(row.id)) kid.requestIds.push(row.id);
+  if (visitAt >= (kid.updated || "")) {
+    kid.name = name;
+    if (age) kid.age = age;
+    if (birthday) kid.birthday = birthday;
+    kid.updated = visitAt;
+  } else {
+    if (!kid.age && age) kid.age = age;
+    if (!kid.birthday && birthday) kid.birthday = birthday;
+  }
 }
 
 function usageTypesLabel(guest) {
@@ -1620,6 +1689,7 @@ function renderCustomers() {
           return `<tr class="member-row" data-customer="${escapeHtml(guest.key)}">
             <td>${index + 1}</td>
             <td>${escapeHtml(guest.name || "Guest")}</td>
+            <td>${escapeHtml(guest.kids.length ? guest.kids.map(kidSummary).join(", ") : "—")}</td>
             <td>${escapeHtml(guest.countryCode || "—")}</td>
             <td>${escapeHtml(guest.nationalPhone || guest.phone || "—")}</td>
             <td>${escapeHtml(guest.email || "—")}</td>
@@ -1629,7 +1699,7 @@ function renderCustomers() {
           </tr>`;
         })
         .join("")
-    : `<tr><td colspan="8" class="muted">${showArchived ? "No archived guests." : "No matching guests."}</td></tr>`;
+    : `<tr><td colspan="9" class="muted">${showArchived ? "No archived guests." : "No matching guests."}</td></tr>`;
 }
 
 function visitGroupLabel(type) {
@@ -1690,6 +1760,25 @@ function loadCustomer(key) {
             <label class="field"><span>WhatsApp / phone</span><input id="customer-edit-phone" type="tel" value="${escapeHtml(
               guest.phone || ""
             )}" placeholder="+62…"></label>
+          </div>
+          <h3>Kids</h3>
+          <p class="muted">Saved from birthday bookings: name, age and the child’s birthday.</p>
+          <div id="customer-kids">
+            ${
+              guest.kids.length
+                ? guest.kids
+                    .map(
+                      (kid) => `<div class="field-row kid-row" data-request-ids="${escapeHtml(kid.requestIds.join(","))}">
+                        <label class="field"><span>Name</span><input data-kid-name required value="${escapeHtml(kid.name)}"></label>
+                        <label class="field"><span>Age</span><input data-kid-age value="${escapeHtml(kid.age || "")}"></label>
+                        <label class="field"><span>Birthday</span><input data-kid-birthday type="date" value="${escapeHtml(
+                          kid.birthday || ""
+                        )}"></label>
+                      </div>`
+                    )
+                    .join("")
+                : `<p class="muted">No kids yet. They appear here when this guest books a birthday.</p>`
+            }
           </div>
           <div class="contact-actions">
             <button class="btn" type="submit">Save details</button>
@@ -1767,6 +1856,24 @@ async function saveCustomerDetails(key) {
   if (phoneRaw && !phone) throw new Error("Enter a valid phone with country code (e.g. +62…).");
   if (!email && !phone) throw new Error("Email or phone is required.");
   if (!guest.visits.length) throw new Error("No bookings to update.");
+  const kidEdits = [...document.querySelectorAll("#customer-kids .kid-row")].map((row) => ({
+    requestIds: String(row.dataset.requestIds || "")
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean),
+    name: row.querySelector("[data-kid-name]")?.value.trim() || "",
+    age: row.querySelector("[data-kid-age]")?.value.trim() || "",
+    birthday: row.querySelector("[data-kid-birthday]")?.value || "",
+  }));
+  if (kidEdits.some((kid) => !kid.name)) throw new Error("Each child needs a name.");
+  const today = todayIso();
+  if (kidEdits.some((kid) => kid.birthday && kid.birthday > today)) {
+    throw new Error("A child’s birthday cannot be in the future.");
+  }
+  const kidsByRequest = new Map();
+  kidEdits.forEach((kid) => {
+    kid.requestIds.forEach((id) => kidsByRequest.set(id, kid));
+  });
   if (statusEl) {
     statusEl.textContent = "Saving…";
     statusEl.className = "status";
@@ -1788,15 +1895,24 @@ async function saveCustomerDetails(key) {
     if (payload.reservation && typeof payload.reservation === "object") {
       payload.reservation = { ...payload.reservation, name };
     }
-    const { error } = await supabase
-      .from("requests")
-      .update({
-        contact_name: name,
-        email: email || null,
-        phone: phone || null,
-        payload,
-      })
-      .eq("id", row.id);
+    const kid = kidsByRequest.get(row.id);
+    const patch = {
+      contact_name: name,
+      email: email || null,
+      phone: phone || null,
+      payload,
+    };
+    if (kid) {
+      payload.party = {
+        ...(payload.party || {}),
+        childName: kid.name,
+        childAge: kid.age,
+        childBirthday: kid.birthday,
+      };
+      patch.child_name = kid.name;
+      patch.child_age = kid.age || null;
+    }
+    const { error } = await supabase.from("requests").update(patch).eq("id", row.id);
     if (error) throw error;
   }
   await loadRows();
@@ -2139,44 +2255,107 @@ function birthdayPaymentRows() {
     .sort((a, b) => String(b.party_date || b.created_at || "").localeCompare(String(a.party_date || a.created_at || "")));
 }
 
+function eventTicketPaymentItems() {
+  const items = [];
+  activeRows()
+    .filter((row) => eventType(row) === "event")
+    .forEach((row) => {
+      (row.payload?.event?.guests || []).forEach((guest, index) => {
+        if (guest?.archived_at) return;
+        if (!guest?.name && !guest?.email && !guest?.phone) return;
+        const guestId = guest.id || String(index);
+        items.push({
+          kind: "event",
+          id: `${row.id}:${guestId}`,
+          row,
+          guest,
+          guestId,
+          name: guest.name || "Guest",
+          eventName: row.payload?.event?.name || row.contact_name || "Event",
+          date: row.party_date || "",
+          total: guestTicketAmount(row, guest),
+          paid: normalizeGuestPayment(guest) === "paid",
+          paymentLabel: guestPaymentLabel(guest),
+          statusLabel: guestStatusLabel(guest.status),
+          href: `#/${guestListPath(row.id, guest.slot, guestId)}`,
+          search: [guest.name, guest.email, guest.phone, row.public_code, row.payload?.event?.name, row.contact_name]
+            .filter(Boolean)
+            .join(" "),
+        });
+      });
+    });
+  return items;
+}
+
+function paymentTrackerItems() {
+  const birthdays = birthdayPaymentRows().map((row) => {
+    const amounts = paymentAmounts(row);
+    const paid = isPaidInFull(row);
+    return {
+      kind: "birthday",
+      id: row.id,
+      name: displayName(row),
+      eventName: "Birthday",
+      date: row.party_date || "",
+      total: amounts.total,
+      paid,
+      paymentLabel: paid ? "Paid" : "Payment pending",
+      statusLabel: statusLabel(row.status),
+      href: `#/payment/${row.id}`,
+      extraHref: `#/invoice/${row.id}`,
+      search: [displayName(row), row.public_code, row.email, row.phone, row.contact_name, row.child_name]
+        .filter(Boolean)
+        .join(" "),
+      row,
+    };
+  });
+  return birthdays.concat(eventTicketPaymentItems()).sort((a, b) =>
+    String(b.date || "").localeCompare(String(a.date || ""))
+  );
+}
+
 function renderPayments() {
   syncFilterInputs();
   const filter = document.getElementById("payments-filter");
   if (filter) filter.value = state.paymentFilter;
-  const rows = birthdayPaymentRows().filter((row) => {
-    if (state.paymentFilter === "paid" && !isPaidInFull(row)) return false;
-    if (state.paymentFilter === "pending" && isPaidInFull(row)) return false;
-    return matchesListSearch(row, state.listSearch.payments);
+  const query = String(state.listSearch.payments || "").trim().toLowerCase();
+  const rows = paymentTrackerItems().filter((item) => {
+    if (state.paymentFilter === "paid" && !item.paid) return false;
+    if (state.paymentFilter === "pending" && item.paid) return false;
+    if (state.paymentFilter === "onsite" && (item.kind !== "event" || item.paid)) return false;
+    if (query && !item.search.toLowerCase().includes(query)) return false;
+    return true;
   });
   const count = document.getElementById("payments-count");
   if (count) {
-    count.textContent = `${rows.length} birthday${rows.length === 1 ? "" : "s"}`;
+    count.textContent = `${rows.length} payment${rows.length === 1 ? "" : "s"}`;
   }
   const list = document.getElementById("payments-list");
   if (!list) return;
   list.innerHTML = rows.length
     ? rows
-        .map((row, index) => {
-          const amounts = paymentAmounts(row);
-          const paid = isPaidInFull(row);
+        .map((item, index) => {
           return `<tr>
             <td>${index + 1}</td>
-            <td>${escapeHtml(displayName(row))}</td>
-            <td>${escapeHtml(row.party_date ? formatShortDate(row.party_date) : "—")}</td>
-            <td>${escapeHtml(formatIdr(amounts.total))}</td>
-            <td>${escapeHtml(statusLabel(row.status))}</td>
-            <td><span class="usage-pill${paid ? " usage-pill--paid" : " usage-pill--pending"}">${
-              paid ? "Paid" : "Payment pending"
-            }</span></td>
+            <td>${escapeHtml(item.name)}${
+              item.kind === "event" ? `<div class="muted">${escapeHtml(item.eventName)}</div>` : ""
+            }</td>
+            <td>${escapeHtml(item.date ? formatShortDate(item.date) : "—")}</td>
+            <td>${escapeHtml(item.kind === "event" ? "Event ticket" : "Birthday")}</td>
+            <td>${escapeHtml(formatIdr(item.total))}</td>
+            <td>${escapeHtml(item.statusLabel)}</td>
+            <td><span class="usage-pill${item.paid ? " usage-pill--paid" : " usage-pill--pending"}">${escapeHtml(
+              item.paymentLabel
+            )}</span></td>
             <td class="member-actions">
-              <a class="btn btn--outline" href="#/payment/${escapeHtml(row.id)}">Track</a>
-              <a class="btn" href="#/invoice/${escapeHtml(row.id)}">Invoice</a>
+              <a class="btn btn--outline" href="${escapeHtml(item.href)}">Track</a>
+              ${item.extraHref ? `<a class="btn" href="${escapeHtml(item.extraHref)}">Invoice</a>` : ""}
             </td>
           </tr>`;
         })
         .join("")
-    : `<tr><td colspan="7" class="muted">${
-        state.listSearch.payments.trim() ? "No birthdays match that search." : "No matching birthdays."
+    : `<tr><td colspan="8" class="muted">${
+        query ? "No payments match that search." : "No matching payments."
       }</td></tr>`;
 }
 
@@ -2277,6 +2456,7 @@ function guestRequests(opts = {}) {
         status: normalizeGuestStatus(guest.status),
         archived,
         archived_at: guest.archived_at || "",
+        payment: normalizeGuestPayment(guest),
         slot: slotLabel(guest.slot),
         slotKey: slotKey(guest.slot),
         party_date: row.party_date || "",
@@ -2337,7 +2517,7 @@ function guestRequestCard(item) {
     <div class="time">${escapeHtml(item.slot || timeLabel(item.party_time) || "Time TBC")}
       <div class="muted">${escapeHtml(item.party_date ? formatShortDate(item.party_date) : "No date")}${
         item.pax ? ` · ${escapeHtml(item.pax)} pax` : ""
-      }</div>
+      } · ${escapeHtml(item.payment === "paid" ? "Paid" : "Pay onsite")}</div>
     </div>
   </button>`;
   const actions = item.archived
@@ -2380,6 +2560,23 @@ async function setGuestRequestStatus(eventId, guestId, status) {
   if (!found) throw new Error("Could not find that guest.");
   const nextStatus = normalizeGuestStatus(status);
   found.guests[found.index] = { ...found.guests[found.index], status: nextStatus };
+  await saveEventGuests(found.row, found.guests);
+}
+
+async function setGuestRequestPayment(eventId, guestId, status) {
+  const found = findGuestOnEvent(eventId, guestId);
+  if (!found) throw new Error("Could not find that guest.");
+  const guest = found.guests[found.index];
+  const nextStatus = normalizeGuestPayment({ payment: { status } });
+  found.guests[found.index] = {
+    ...guest,
+    payment: {
+      ...(guest.payment && typeof guest.payment === "object" ? guest.payment : {}),
+      status: nextStatus,
+      amount: guestTicketAmount(found.row, guest),
+      paidOn: nextStatus === "paid" ? guest.payment?.paidOn || todayIso() : "",
+    },
+  };
   await saveEventGuests(found.row, found.guests);
 }
 
@@ -2502,6 +2699,7 @@ function mergeSlotGuests(allGuests, slots, focusSlot, edited) {
     id: guest.id || globalThis.crypto?.randomUUID?.() || `g-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     slot: guest.slot || { start: focusSlot.start, end: focusSlot.end },
     status: guest.status || "confirmed",
+    payment: guest.payment || { status: "onsite" },
   }));
   return kept.concat(next);
 }
@@ -2522,6 +2720,8 @@ function guestRowHtml(guest = {}, slots = []) {
     <input type="hidden" name="guest-status" value="${escapeHtml(guest.status || "")}">
     <input type="hidden" name="guest-source" value="${escapeHtml(guest.source || "")}">
     <input type="hidden" name="guest-created" value="${escapeHtml(guest.created_at || "")}">
+    <input type="hidden" name="guest-payment" value="${escapeHtml(normalizeGuestPayment(guest))}">
+    <input type="hidden" name="guest-paid-on" value="${escapeHtml(guest.payment?.paidOn || "")}">
     ${slotControl}
     <input type="text" name="guest-name" placeholder="Name" value="${escapeHtml(guest.name || "")}">
     <input type="number" name="guest-pax" min="1" placeholder="PAX" value="${escapeHtml(guest.pax || 1)}">
@@ -2547,12 +2747,18 @@ function readGuestRows(selector) {
       const status = row.querySelector('[name="guest-status"]')?.value.trim() || "";
       const source = row.querySelector('[name="guest-source"]')?.value.trim() || "";
       const createdAt = row.querySelector('[name="guest-created"]')?.value.trim() || "";
+      const paymentStatus = row.querySelector('[name="guest-payment"]')?.value.trim() || "";
+      const paidOn = row.querySelector('[name="guest-paid-on"]')?.value.trim() || "";
       const slot = slotFromValue(row.querySelector('[name="guest-slot"]')?.value || "");
       if (id) guest.id = id;
       if (token) guest.token = token;
       if (status) guest.status = status;
       if (source) guest.source = source;
       if (createdAt) guest.created_at = createdAt;
+      guest.payment = {
+        status: normalizeGuestPayment({ payment: { status: paymentStatus || "onsite" } }),
+        paidOn,
+      };
       if (slot) guest.slot = slot;
       return guest;
     })
@@ -4032,26 +4238,40 @@ function slotMoveField(guest, slots, eventId, guestId) {
   )}" data-guest-id="${escapeHtml(guestId)}" data-current="${escapeHtml(chosen)}" aria-label="Move to time slot">${options}</select></label>`;
 }
 
-function slotGuestCardHtml(entry, slots, eventId, focusGuestId, number) {
+function slotGuestCardHtml(entry, slots, eventRow, focusGuestId, number) {
   const guest = entry.guest;
   const status = normalizeGuestStatus(guest.status);
+  const payment = normalizeGuestPayment(guest);
   const guestId = guest.id || String(entry.index);
+  const eventId = eventRow.id;
   const options = GUEST_STATUSES.map(
     (value) => `<option value="${value}"${status === value ? " selected" : ""}>${guestStatusLabel(value)}</option>`
   ).join("");
   const focused = focusGuestId && focusGuestId === guestId;
+  const due = guestTicketAmount(eventRow, guest);
   return `<article class="slot-guest${focused ? " is-focus" : ""}">
     <span class="slot-guest-num">${Number(number) || ""}</span>
     <div class="slot-guest-body">
       <div>
         <h3>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</h3>
-        <p class="muted">${escapeHtml([guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—")}</p>
+        <p class="muted">${escapeHtml([guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—")}${
+          due ? ` · ${escapeHtml(formatIdr(due))}` : ""
+        }</p>
       </div>
       <label class="guest-status">
         <span>Status</span>
         <select data-guest-status data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(
           guestId
         )}" data-current="${status}" aria-label="Guest list status">${options}</select>
+      </label>
+      <label class="guest-status">
+        <span>Payment</span>
+        <select data-guest-payment data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(
+          guestId
+        )}" data-current="${payment}" aria-label="Ticket payment">
+          <option value="onsite"${payment !== "paid" ? " selected" : ""}>Pay onsite</option>
+          <option value="paid"${payment === "paid" ? " selected" : ""}>Paid</option>
+        </select>
       </label>
       ${slotMoveField(guest, slots, eventId, guestId)}
       <div class="slot-guest-actions">
@@ -4104,7 +4324,11 @@ async function loadGuestSlot(id, key, focusGuestId = "") {
         <div>
           <p class="staff-brand">Guest list</p>
           <h2>${escapeHtml(eventName)}</h2>
-          <p class="muted">${escapeHtml(eventRow.public_code || "")} · ${escapeHtml(formatLongDate(eventRow.party_date))}</p>
+          <p class="muted">${escapeHtml(eventRow.public_code || "")} · ${escapeHtml(formatLongDate(eventRow.party_date))}${
+            eventPricingFromRow(eventRow)?.total
+              ? ` · ${escapeHtml(formatIdr(eventPricingFromRow(eventRow).total))} / ticket`
+              : ""
+          }</p>
         </div>
       </header>
       <h3>${escapeHtml(heading)}</h3>
@@ -4117,7 +4341,7 @@ async function loadGuestSlot(id, key, focusGuestId = "") {
       <div id="slot-guest-list">
         ${
           items.length
-            ? items.map((entry, index) => slotGuestCardHtml(entry, slots, eventRow.id, focusGuestId, index + 1)).join("")
+            ? items.map((entry, index) => slotGuestCardHtml(entry, slots, eventRow, focusGuestId, index + 1)).join("")
             : `<p class="muted">No guests for this time.</p>`
         }
       </div>
@@ -4221,7 +4445,7 @@ async function loadGuestSlot(id, key, focusGuestId = "") {
       `${formatLongDate(eventRow.party_date)} · ${heading}`,
       ...guests.map(
         (guest, index) =>
-          `${index + 1}. ${guest.name || "Guest"} · ${guest.pax || 1} pax · ${guestStatusLabel(guest.status)}${
+          `${index + 1}. ${guest.name || "Guest"} · ${guest.pax || 1} pax · ${guestStatusLabel(guest.status)} · ${guestPaymentLabel(guest)}${
             guest.phone ? ` · ${guest.phone}` : ""
           }${guest.email ? ` · ${guest.email}` : ""}`
       ),
@@ -4370,6 +4594,18 @@ async function loadDetail(id) {
             <li><span>${isEvent ? "Guest / name" : "Child"}</span><span>${escapeHtml(displayName(row))}${
                 !isEvent && row.child_age ? ` · turning ${escapeHtml(row.child_age)}` : ""
               }</span></li>
+            ${
+              !isEvent && childBirthdayOf(row)
+                ? `<li><span>Child’s birthday</span><span>${escapeHtml(formatBirthday(childBirthdayOf(row)))}</span></li>`
+                : ""
+            }
+            ${
+              row.payload?.quote?.promo?.code
+                ? `<li><span>Promo</span><span>${escapeHtml(row.payload.quote.promo.code)}${
+                    row.payload.quote.discount ? ` · −${escapeHtml(formatIdr(row.payload.quote.discount))}` : ""
+                  }</span></li>`
+                : ""
+            }
             <li><span>Date</span><span>${escapeHtml(row.party_date || "—")}</span></li>
             <li><span>Time</span><span>${escapeHtml(slotRange(row))}</span></li>
             ${
@@ -4440,10 +4676,21 @@ async function loadDetail(id) {
           ${guestSlotNavHtml(payload.event?.guests || [], eventTimeSlots(row), row.id)}
         </section>
         ${
-          isEvent && eventPricingFromRow(row)
+          isEvent
             ? `<section>
-          <h3>Pricing</h3>
-          ${eventPricingHtml(eventPricingFromRow(row))}
+          <h3>Ticket price</h3>
+          ${
+            eventPricingFromRow(row)
+              ? eventPricingHtml(eventPricingFromRow(row))
+              : `<p class="muted">No ticket price saved. Edit the event to add one so it shows on the events page.</p>`
+          }
+          ${(() => {
+            const guests = (payload.event?.guests || []).filter((guest) => !guest?.archived_at);
+            const paid = guests.filter((guest) => normalizeGuestPayment(guest) === "paid").length;
+            const onsite = guests.length - paid;
+            const due = guests.reduce((sum, guest) => sum + guestTicketAmount(row, guest), 0);
+            return `<p class="muted">${paid} paid · ${onsite} pay onsite${due ? ` · ${escapeHtml(formatIdr(due))} tickets` : ""}</p>`;
+          })()}
         </section>`
             : ""
         }
@@ -4671,7 +4918,7 @@ async function loadDetail(id) {
       `${formatLongDate(row.party_date)} · ${slotRange(row)}`,
       ...guests.map(
         (guest, index) =>
-          `${index + 1}. ${slotLabel(guest.slot) ? `${slotLabel(guest.slot)} · ` : ""}${guest.name || "Guest"} · ${guest.pax || 1} pax · ${guestStatusLabel(guest.status)}${guest.phone ? ` · ${guest.phone}` : ""}${
+          `${index + 1}. ${slotLabel(guest.slot) ? `${slotLabel(guest.slot)} · ` : ""}${guest.name || "Guest"} · ${guest.pax || 1} pax · ${guestStatusLabel(guest.status)} · ${guestPaymentLabel(guest)}${guest.phone ? ` · ${guest.phone}` : ""}${
             guest.email ? ` · ${guest.email}` : ""
           }`
       ),
@@ -5133,6 +5380,217 @@ async function loadPayment(id) {
   });
 }
 
+function cakePublicUrl(path) {
+  return `${cfg.url}/storage/v1/object/public/cake-catalog/${path}`;
+}
+
+function setMasterStatus(id, message, kind) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = message || "";
+  el.className = kind ? `status ${kind}` : "status";
+}
+
+function normalizePromoCode(raw) {
+  return String(raw || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9-]/g, "");
+}
+
+function promoAppliesLabel(value) {
+  if (value === "birthday") return "Birthdays";
+  if (value === "event") return "Events";
+  return "Birthdays and events";
+}
+
+function promoValueLabel(row) {
+  if (row.discount_type === "percent") return `${Number(row.discount_value)}% off`;
+  return `${formatIdr(Number(row.discount_value))} off`;
+}
+
+function resetPromoForm() {
+  const form = document.getElementById("promo-form");
+  form?.reset();
+  const id = document.getElementById("promo-id");
+  if (id) id.value = "";
+  const active = document.getElementById("promo-active");
+  if (active) active.checked = true;
+  const save = document.getElementById("promo-save");
+  if (save) save.textContent = "Create promotion";
+  const cancel = document.getElementById("promo-cancel");
+  if (cancel) cancel.hidden = true;
+}
+
+async function renderCakeCatalog() {
+  const list = document.getElementById("cake-catalog-list");
+  if (!list) return;
+  const { data, error } = await supabase
+    .from("catalog_cakes")
+    .select("id, name, theme, image_path, created_at")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  const themes = new Set(CAKE_THEMES);
+  (data || []).forEach((row) => {
+    if (row.theme) themes.add(row.theme);
+  });
+  const datalist = document.getElementById("cake-themes");
+  if (datalist) {
+    datalist.innerHTML = [...themes].map((theme) => `<option value="${escapeHtml(theme)}"></option>`).join("");
+  }
+  list.innerHTML = (data || []).length
+    ? data
+        .map(
+          (row) => `<article>
+            <img src="${escapeHtml(cakePublicUrl(row.image_path))}" alt="${escapeHtml(row.name)}">
+            <div class="cake-catalog__body">
+              <label class="field"><span>Name</span><input data-cake-name value="${escapeHtml(row.name)}"></label>
+              <label class="field"><span>Theme</span><input data-cake-theme value="${escapeHtml(row.theme || "")}" list="cake-themes"></label>
+              <button class="btn btn--outline" type="button" data-save-cake="${escapeHtml(row.id)}">Save</button>
+              <button class="btn btn--outline" type="button" data-delete-cake="${escapeHtml(row.id)}" data-cake-path="${escapeHtml(
+                row.image_path
+              )}">Remove</button>
+            </div>
+          </article>`
+        )
+        .join("")
+    : `<p class="muted">No uploaded cakes yet. The built-in catalogue stays on the site.</p>`;
+}
+
+async function renderPromotions() {
+  const list = document.getElementById("promo-list");
+  if (!list) return;
+  const { data, error } = await supabase.from("promotions").select("*").order("created_at", { ascending: false });
+  if (error) throw error;
+  list.innerHTML = (data || []).length
+    ? data
+        .map((row) => {
+          const dates = [row.starts_on, row.ends_on].filter(Boolean).join(" – ") || "Always";
+          const uses = row.max_uses ? `${row.used_count} / ${row.max_uses}` : String(row.used_count || 0);
+          return `<tr>
+            <td><strong>${escapeHtml(row.code)}</strong></td>
+            <td>${escapeHtml(row.name)}</td>
+            <td>${escapeHtml(promoValueLabel(row))}</td>
+            <td>${escapeHtml(promoAppliesLabel(row.applies_to))}</td>
+            <td>${escapeHtml(uses)}</td>
+            <td>${escapeHtml(dates)}</td>
+            <td>${row.active ? "Active" : "Paused"}</td>
+            <td class="member-actions">
+              <button class="btn btn--outline" type="button" data-edit-promo="${escapeHtml(row.id)}">Edit</button>
+              <button class="btn btn--outline" type="button" data-delete-promo="${escapeHtml(row.id)}">Delete</button>
+            </td>
+          </tr>`;
+        })
+        .join("")
+    : `<tr><td colspan="8" class="muted">No promotions yet.</td></tr>`;
+  list.dataset.promos = JSON.stringify(data || []);
+}
+
+async function renderMaster() {
+  await Promise.all([renderCakeCatalog(), renderPromotions()]);
+}
+
+async function saveCakeDetails(id, button) {
+  const card = button.closest("article");
+  const name = card?.querySelector("[data-cake-name]")?.value.trim() || "";
+  const theme = card?.querySelector("[data-cake-theme]")?.value.trim() || "";
+  if (!name || !theme) throw new Error("Cake name and theme are required.");
+  const { error } = await supabase.from("catalog_cakes").update({ name, theme }).eq("id", id);
+  if (error) throw error;
+  setMasterStatus("cake-upload-status", "Cake updated.", "is-success");
+  await renderCakeCatalog();
+}
+
+async function deleteCatalogCake(id, path) {
+  const ok = await confirmAction({
+    title: "Remove this cake?",
+    message: "It will disappear from the public cake catalogue.",
+    confirmLabel: "Remove",
+  });
+  if (!ok) return;
+  if (path) await supabase.storage.from("cake-catalog").remove([path]);
+  const { error } = await supabase.from("catalog_cakes").delete().eq("id", id);
+  if (error) throw error;
+  await renderCakeCatalog();
+}
+
+function fillPromoForm(row) {
+  document.getElementById("promo-id").value = row.id;
+  document.getElementById("promo-name").value = row.name || "";
+  document.getElementById("promo-code").value = row.code || "";
+  document.getElementById("promo-type").value = row.discount_type || "percent";
+  document.getElementById("promo-value").value = row.discount_value ?? "";
+  document.getElementById("promo-applies").value = row.applies_to || "both";
+  document.getElementById("promo-start").value = row.starts_on || "";
+  document.getElementById("promo-end").value = row.ends_on || "";
+  document.getElementById("promo-max").value = row.max_uses || "";
+  document.getElementById("promo-active").checked = Boolean(row.active);
+  document.getElementById("promo-notes").value = row.notes || "";
+  document.getElementById("promo-save").textContent = "Save promotion";
+  document.getElementById("promo-cancel").hidden = false;
+  document.getElementById("promo-name")?.focus();
+}
+
+async function savePromotion(event) {
+  event.preventDefault();
+  const id = document.getElementById("promo-id")?.value || "";
+  const name = document.getElementById("promo-name")?.value.trim() || "";
+  const code = normalizePromoCode(document.getElementById("promo-code")?.value);
+  const discountType = document.getElementById("promo-type")?.value || "percent";
+  const discountValue = Number(document.getElementById("promo-value")?.value);
+  const appliesTo = document.getElementById("promo-applies")?.value || "both";
+  const startsOn = document.getElementById("promo-start")?.value || null;
+  const endsOn = document.getElementById("promo-end")?.value || null;
+  const maxRaw = document.getElementById("promo-max")?.value.trim() || "";
+  const notes = document.getElementById("promo-notes")?.value.trim() || null;
+  if (!name) throw new Error("Name is required.");
+  if (!/^[A-Z0-9][A-Z0-9-]{3,31}$/.test(code)) {
+    throw new Error("Use a code of at least 4 letters or numbers, like TINY10.");
+  }
+  if (!Number.isFinite(discountValue) || discountValue <= 0) throw new Error("Enter a discount value.");
+  if (discountType === "percent" && discountValue > 100) throw new Error("Percent discount cannot be more than 100.");
+  if (startsOn && endsOn && endsOn < startsOn) throw new Error("The end date is before the start date.");
+  const row = {
+    name,
+    code,
+    discount_type: discountType,
+    discount_value: discountValue,
+    applies_to: appliesTo,
+    active: Boolean(document.getElementById("promo-active")?.checked),
+    starts_on: startsOn,
+    ends_on: endsOn,
+    max_uses: maxRaw ? Number(maxRaw) : null,
+    notes,
+  };
+  setMasterStatus("promo-form-status", "Saving…");
+  const query = id
+    ? supabase.from("promotions").update(row).eq("id", id)
+    : supabase.from("promotions").insert(row);
+  const { error } = await query;
+  if (error) {
+    if (String(error.message || "").toLowerCase().includes("duplicate") || error.code === "23505") {
+      throw new Error("That promo code is already in use.");
+    }
+    throw error;
+  }
+  resetPromoForm();
+  setMasterStatus("promo-form-status", "Saved.", "is-success");
+  await renderPromotions();
+}
+
+async function deletePromotion(id) {
+  const ok = await confirmAction({
+    title: "Delete this promotion?",
+    message: "Guests will no longer be able to use this code.",
+    confirmLabel: "Delete",
+  });
+  if (!ok) return;
+  const { error } = await supabase.from("promotions").delete().eq("id", id);
+  if (error) throw error;
+  if (document.getElementById("promo-id")?.value === id) resetPromoForm();
+  await renderPromotions();
+}
+
 function showInbox(view) {
   state.view = view;
   if (view !== "day") state.lastView = view;
@@ -5152,7 +5610,9 @@ function showInbox(view) {
   const archiveView = document.getElementById("archive-view");
   if (archiveView) archiveView.hidden = view !== "archive";
   const note = document.getElementById("calendar-sync-note");
-  if (note) note.hidden = view === "customers" || view === "payments" || view === "archive";
+  if (note) note.hidden = view === "customers" || view === "payments" || view === "archive" || view === "master";
+  const masterView = document.getElementById("master-view");
+  if (masterView) masterView.hidden = view !== "master";
   renderNav(view);
   if (view === "overview") renderOverview();
   if (view === "calendar") renderCalendar();
@@ -5163,6 +5623,7 @@ function showInbox(view) {
   if (view === "customers") renderCustomers();
   if (view === "payments") renderPayments();
   if (view === "archive") renderArchive();
+  if (view === "master") renderMaster().catch((err) => window.alert(err.message || "Could not load master data."));
 }
 
 function renderArchive() {
@@ -5296,6 +5757,20 @@ document.getElementById("app")?.addEventListener("change", (e) => {
       .catch((err) => {
         move.value = previous;
         window.alert(err.message || "Could not move that guest.");
+      });
+    return;
+  }
+  const pay = e.target.closest("[data-guest-payment]");
+  if (pay) {
+    const previous = pay.dataset.current || "onsite";
+    setGuestRequestPayment(pay.dataset.eventId, pay.dataset.guestId, pay.value)
+      .then(() => {
+        pay.dataset.current = pay.value;
+        return refreshGuestContext(pay.dataset.eventId);
+      })
+      .catch((err) => {
+        pay.value = previous;
+        window.alert(err.message || "Could not update ticket payment.");
       });
     return;
   }
@@ -5553,6 +6028,81 @@ document.getElementById("customers-filter-type")?.addEventListener("change", (e)
   state.customerFilters.type = e.target.value || "all";
   if (state.view === "customers") renderCustomers();
 });
+document.getElementById("cake-upload-form")?.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const statusId = "cake-upload-status";
+  const name = document.getElementById("cake-name")?.value.trim() || "";
+  const theme = document.getElementById("cake-theme")?.value.trim() || "";
+  const file = document.getElementById("cake-photo")?.files?.[0];
+  try {
+    if (!name || !theme) throw new Error("Cake name and theme are required.");
+    if (!file) throw new Error("Choose a cake picture.");
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      throw new Error("Use a JPG, PNG or WebP picture.");
+    }
+    if (file.size > 8 * 1024 * 1024) throw new Error("Picture must be 8 MB or smaller.");
+    setMasterStatus(statusId, "Uploading…");
+    const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error: uploadError } = await supabase.storage.from("cake-catalog").upload(path, file, {
+      contentType: file.type,
+      upsert: false,
+    });
+    if (uploadError) throw uploadError;
+    const { error } = await supabase.from("catalog_cakes").insert({ name, theme, image_path: path });
+    if (error) {
+      await supabase.storage.from("cake-catalog").remove([path]);
+      throw error;
+    }
+    event.target.reset();
+    setMasterStatus(statusId, "Cake added to the catalogue.", "is-success");
+    await renderCakeCatalog();
+  } catch (err) {
+    setMasterStatus(statusId, err.message || "Could not upload the cake.", "is-error");
+  }
+});
+
+document.getElementById("cake-catalog-list")?.addEventListener("click", (event) => {
+  const save = event.target.closest("[data-save-cake]");
+  const remove = event.target.closest("[data-delete-cake]");
+  if (save) {
+    saveCakeDetails(save.dataset.saveCake, save).catch((err) => {
+      setMasterStatus("cake-upload-status", err.message || "Could not save the cake.", "is-error");
+    });
+  }
+  if (remove) {
+    deleteCatalogCake(remove.dataset.deleteCake, remove.dataset.cakePath).catch((err) => {
+      setMasterStatus("cake-upload-status", err.message || "Could not remove the cake.", "is-error");
+    });
+  }
+});
+
+document.getElementById("promo-form")?.addEventListener("submit", (event) => {
+  savePromotion(event).catch((err) => {
+    setMasterStatus("promo-form-status", err.message || "Could not save the promotion.", "is-error");
+  });
+});
+
+document.getElementById("promo-cancel")?.addEventListener("click", () => {
+  resetPromoForm();
+  setMasterStatus("promo-form-status", "");
+});
+
+document.getElementById("promo-list")?.addEventListener("click", (event) => {
+  const edit = event.target.closest("[data-edit-promo]");
+  const remove = event.target.closest("[data-delete-promo]");
+  if (edit) {
+    const rows = JSON.parse(document.getElementById("promo-list")?.dataset.promos || "[]");
+    const row = rows.find((item) => item.id === edit.dataset.editPromo);
+    if (row) fillPromoForm(row);
+  }
+  if (remove) {
+    deletePromotion(remove.dataset.deletePromo).catch((err) => {
+      setMasterStatus("promo-form-status", err.message || "Could not delete the promotion.", "is-error");
+    });
+  }
+});
+
 document.getElementById("customers-archive-toggle")?.addEventListener("click", () => {
   state.customersShowArchived = !state.customersShowArchived;
   if (state.view === "customers") renderCustomers();

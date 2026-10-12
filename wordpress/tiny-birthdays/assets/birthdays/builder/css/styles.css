@@ -1687,6 +1687,35 @@ body.time-modal-open {
   box-sizing: border-box;
 }
 
+.promo-box {
+  margin: 0 0 16px;
+}
+
+.promo-box .field__label {
+  color: var(--white);
+}
+
+.promo-box__row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.promo-box input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.94);
+  border-radius: 8px;
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--ink);
+}
+
+.promo-box .form-status {
+  margin: 8px 0 0;
+}
+
 .quote-panel {
   background: rgba(255, 255, 255, 0.12);
   border: 1px solid rgba(255, 255, 255, 0.22);
