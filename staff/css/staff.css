@@ -726,6 +726,42 @@ textarea {
 
 .kid-row { margin-top: 10px; }
 
+.master-home {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 320px));
+  gap: 16px;
+}
+
+.master-choice {
+  display: grid;
+  gap: 8px;
+  text-align: left;
+  background: var(--white);
+  border: 1px solid rgba(100, 124, 110, 0.16);
+  border-radius: 12px;
+  padding: 28px 24px;
+  cursor: pointer;
+  color: var(--deep);
+}
+
+.master-choice strong {
+  font-family: "Tenor Sans", serif;
+  font-size: 26px;
+  font-weight: 400;
+}
+
+.master-choice span {
+  color: var(--sage);
+  font-size: 14px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.master-choice:hover,
+.master-choice:focus-visible {
+  border-color: var(--deep);
+}
+
 .master-stack { display: grid; gap: 20px; }
 
 .master-panel {

@@ -59,6 +59,7 @@ const state = {
   customerQuery: "",
   customerFilters: { name: "", country: "", phone: "", email: "", type: "all" },
   customersShowArchived: false,
+  masterSection: "",
   paymentFilter: "all",
   listSearch: { overview: "", events: "", payments: "" },
   editingEventId: null,
@@ -670,6 +671,10 @@ function parseHash() {
   const day = hash.match(/^day\/(\d{4}-\d{2}-\d{2})/);
   if (day) return { view: "day", date: day[1] };
   const parts = hash.split("/").filter(Boolean);
+  if (parts[0] === "master") {
+    const section = parts[1] === "cakes" || parts[1] === "promos" ? parts[1] : "";
+    return { view: "master", section };
+  }
   if (parts[0] === "reservations" || parts[0] === "birthdays") {
     const view = VIEWS.includes(parts[1]) ? parts[1] : "overview";
     return { view };
@@ -5486,8 +5491,27 @@ async function renderPromotions() {
   list.dataset.promos = JSON.stringify(data || []);
 }
 
+function showMasterSection(section) {
+  const home = document.getElementById("master-home");
+  const cakes = document.getElementById("master-cakes");
+  const promos = document.getElementById("master-promos");
+  const stack = document.querySelector("#master-view .master-stack");
+  if (home) home.hidden = Boolean(section);
+  if (stack) stack.hidden = !section;
+  if (cakes) cakes.hidden = section !== "cakes";
+  if (promos) promos.hidden = section !== "promos";
+  if (pageTitle && state.view === "master") {
+    pageTitle.textContent =
+      section === "cakes" ? "Cake catalog" : section === "promos" ? "Promotions" : "Master data";
+  }
+}
+
 async function renderMaster() {
-  await Promise.all([renderCakeCatalog(), renderPromotions()]);
+  syncFilterInputs();
+  const section = state.masterSection || "";
+  showMasterSection(section);
+  if (section === "cakes") await renderCakeCatalog();
+  if (section === "promos") await renderPromotions();
 }
 
 async function saveCakeDetails(id, button) {
@@ -5694,6 +5718,7 @@ async function route() {
     loadCustomer(parsed.id);
     return;
   }
+  state.masterSection = parsed.section || "";
   try {
     await loadRows();
     showInbox(parsed.view || "overview");
@@ -6028,6 +6053,12 @@ document.getElementById("customers-filter-type")?.addEventListener("change", (e)
   state.customerFilters.type = e.target.value || "all";
   if (state.view === "customers") renderCustomers();
 });
+document.getElementById("open-cake-catalog")?.addEventListener("click", () => go("master/cakes"));
+document.getElementById("open-promotions")?.addEventListener("click", () => go("master/promos"));
+document.getElementById("master-view")?.addEventListener("click", (event) => {
+  if (event.target.closest("[data-master-back]")) go("master");
+});
+
 document.getElementById("cake-upload-form")?.addEventListener("submit", async (event) => {
   event.preventDefault();
   const statusId = "cake-upload-status";

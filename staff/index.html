@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/staff.css?v=20261012a">
+  <link rel="stylesheet" href="css/staff.css?v=20261013a">
 </head>
 <body>
   <div class="staff-shell">
@@ -232,8 +232,19 @@
           </div>
         </div>
         <div id="master-view" hidden>
-          <div class="master-stack">
-            <section class="master-panel">
+          <div class="master-home" id="master-home">
+            <button class="master-choice" type="button" id="open-cake-catalog">
+              <strong>Cake catalog</strong>
+              <span>Upload new cake pictures</span>
+            </button>
+            <button class="master-choice" type="button" id="open-promotions">
+              <strong>Promotions</strong>
+              <span>Create discounts and promo codes</span>
+            </button>
+          </div>
+          <div class="master-stack" hidden>
+            <section class="master-panel" id="master-cakes" hidden>
+              <button class="btn btn--outline back" type="button" data-master-back>Back</button>
               <h2>Cake catalog</h2>
               <p class="muted">Upload a picture to add a cake to the public catalogue, next to the cakes already on the site.</p>
               <form id="cake-upload-form" class="master-form">
@@ -260,7 +271,8 @@
               </form>
               <div class="cake-catalog" id="cake-catalog-list"></div>
             </section>
-            <section class="master-panel">
+            <section class="master-panel" id="master-promos" hidden>
+              <button class="btn btn--outline back" type="button" data-master-back>Back</button>
               <h2>Promotions</h2>
               <p class="muted">Create a discount and a code guests can use when booking a birthday or an event. A percent comes off the subtotal before service and tax. A fixed amount comes off the subtotal, or off the event ticket total.</p>
               <form id="promo-form" class="master-form">
@@ -541,6 +553,6 @@
   </div>
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/reserve-tables.js?v=20261006b"></script>
-  <script type="module" src="js/app.js?v=20261012a"></script>
+  <script type="module" src="js/app.js?v=20261013a"></script>
 </body>
 </html>
