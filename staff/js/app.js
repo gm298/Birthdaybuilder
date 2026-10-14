@@ -18,13 +18,16 @@ const detailView = document.getElementById("detail-view");
 const inboxViews = document.getElementById("inbox-views");
 const loginStatus = document.getElementById("login-status");
 const viewNav = document.getElementById("view-nav");
+const staffLayout = document.getElementById("staff-layout");
+const staffSide = document.getElementById("staff-side");
 const pageTitle = document.getElementById("page-title");
 const blockModal = document.getElementById("block-modal");
 const eventModal = document.getElementById("event-modal");
 const confirmModal = document.getElementById("confirm-modal");
+const detailScrim = document.getElementById("detail-scrim");
 let confirmResolver = null;
 
-const VIEWS = ["overview", "calendar", "day", "timeline", "tables", "events", "payments", "customers", "master", "archive"];
+const VIEWS = ["overview", "calendar", "day", "tables", "events", "payments", "customers", "master", "archive"];
 const CAKE_THEMES = ["Animals", "Dinosaurs", "Vehicles", "Ocean", "Characters", "Flowers", "First birthday", "Forest", "Classic"];
 const STAFF_DAY_START = 8 * 60;
 const STAFF_DAY_END = 24 * 60;
@@ -45,10 +48,11 @@ const state = {
   view: "overview",
   lastView: "overview",
   selectedDate: todayIso(),
-  dateMode: "all",
-  eventsDateMode: "upcoming",
-  eventsFrom: "",
-  eventsTo: "",
+  dateMode: "upcoming",
+  listDates: {
+    events: { mode: "upcoming", day: "", from: "", to: "" },
+    payments: { mode: "upcoming", day: "", from: "", to: "" },
+  },
   calendarMonth: todayIso().slice(0, 7),
   filters: { type: "all", status: "all" },
   overviewStatus: "all",
@@ -679,6 +683,7 @@ function parseHash() {
     const view = VIEWS.includes(parts[1]) ? parts[1] : "overview";
     return { view };
   }
+  if (parts[0] === "timeline") return { view: "calendar" };
   const view = VIEWS.includes(parts[0]) ? parts[0] : "overview";
   return { view };
 }
@@ -709,7 +714,53 @@ function showApp(show) {
   loginCard.hidden = show;
   app.hidden = !show;
   signOutBtn.hidden = !show;
+  if (staffSide) staffSide.hidden = !show;
+  const burger = document.getElementById("side-toggle");
+  if (burger) burger.hidden = !show;
+  staffLayout?.classList.toggle("has-side", show);
+  syncSideScrim();
   if (show) renderCalendarNote();
+}
+
+const SIDE_KEY = "tinyStaff.sideCollapsed";
+const narrowSide = window.matchMedia("(max-width: 900px)");
+
+function setSideCollapsed(collapsed, { remember = true } = {}) {
+  staffLayout?.classList.toggle("is-collapsed", collapsed);
+  const toggle = document.getElementById("side-toggle");
+  if (toggle) {
+    const label = collapsed ? "Expand menu" : "Collapse menu";
+    toggle.setAttribute("aria-expanded", String(!collapsed));
+    toggle.setAttribute("aria-label", label);
+    toggle.title = label;
+  }
+  if (remember && !narrowSide.matches) {
+    try {
+      localStorage.setItem(SIDE_KEY, collapsed ? "1" : "0");
+    } catch {
+      /* storage unavailable */
+    }
+  }
+  syncSideScrim();
+}
+
+function syncSideScrim() {
+  const scrim = document.getElementById("side-scrim");
+  if (!scrim) return;
+  scrim.hidden = !(
+    narrowSide.matches &&
+    staffLayout?.classList.contains("has-side") &&
+    !staffLayout.classList.contains("is-collapsed")
+  );
+}
+
+function initialSideCollapsed() {
+  if (narrowSide.matches) return true;
+  try {
+    return localStorage.getItem(SIDE_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 function renderCalendarNote() {
@@ -832,18 +883,22 @@ async function deleteRequest(id) {
   return true;
 }
 
+function navHome(view) {
+  if (view === "customer") return "customers";
+  if (VIEWS.includes(view)) return view === "day" ? "calendar" : view;
+  const last = state.lastView || "overview";
+  return last === "day" ? "calendar" : last;
+}
+
 function renderNav(view) {
   if (viewNav) {
-    viewNav.hidden =
-      view === "detail" ||
-      view === "cooking" ||
-      view === "invoice" ||
-      view === "payment" ||
-      view === "customer";
+    const home = navHome(view);
     viewNav.querySelectorAll("a").forEach((link) => {
-      const target = link.dataset.view === "calendar" ? "calendar" : link.dataset.view;
-      link.href = `#/${target}`;
-      link.classList.toggle("is-active", link.dataset.view === (view === "day" ? "calendar" : view));
+      link.href = `#/${link.dataset.view}`;
+      const active = link.dataset.view === home;
+      link.classList.toggle("is-active", active);
+      if (active) link.setAttribute("aria-current", "page");
+      else link.removeAttribute("aria-current");
     });
   }
   if (pageTitle && !["detail", "cooking", "invoice", "payment", "customer"].includes(view)) {
@@ -876,26 +931,38 @@ function syncFilterInputs() {
   const onPayments = state.view === "payments";
   const onArchive = state.view === "archive";
   const onMaster = state.view === "master";
+  const onEvents = state.view === "events";
+  const eventsDates = listDateFilter("events");
+  const mode = onEvents ? eventsDates.mode : state.dateMode;
   const toolbar = document.querySelector(".toolbar--inbox");
   if (toolbar) toolbar.hidden = onCustomers || onPayments || onArchive || onMaster;
-  if (modeWrap) modeWrap.hidden = !onOverview;
-  if (modeInput) modeInput.value = state.dateMode;
-  if (dateWrap) dateWrap.hidden = onCalendar || onCustomers || onPayments || onArchive || onMaster || (onOverview && state.dateMode !== "day");
-  if (dateInput) dateInput.value = state.selectedDate;
+  if (modeWrap) modeWrap.hidden = !onOverview && !onEvents;
+  if (modeInput) modeInput.value = mode;
+  if (dateWrap) {
+    dateWrap.hidden =
+      onCalendar || onCustomers || onPayments || onArchive || onMaster || ((onOverview || onEvents) && mode !== "day");
+  }
+  if (dateInput) dateInput.value = onEvents ? eventsDates.day : state.selectedDate;
+  const typeWrap = document.getElementById("filter-type-wrap");
+  if (typeWrap) typeWrap.hidden = onEvents;
+  const allOption = modeInput?.querySelector('option[value="all"]');
+  if (allOption) allOption.textContent = onEvents ? "All events" : "All requests";
   if (typeInput) typeInput.value = state.filters.type;
   if (statusInput) statusInput.value = onOverview ? state.overviewStatus : state.filters.status;
   if (label) {
     if (onCalendar) label.textContent = "Calendar";
     else if (onArchive) label.textContent = "Archived requests";
-    else if (onOverview && state.dateMode === "all") label.textContent = "All requests";
-    else if (onOverview && state.dateMode === "upcoming") label.textContent = `From ${formatLongDate(todayIso())}`;
+    else if ((onOverview || onEvents) && mode === "all") label.textContent = onEvents ? "All events" : "All requests";
+    else if ((onOverview || onEvents) && mode === "upcoming") label.textContent = `From ${formatLongDate(todayIso())}`;
+    else if (onEvents) label.textContent = formatLongDate(eventsDates.day);
     else label.textContent = formatLongDate(state.selectedDate);
   }
 }
 
 function bookingCard(row, opts = {}) {
+  const shownDate = opts.displayDate || row.party_date;
   const dateLine = opts.showDate
-    ? `<div class="muted">${escapeHtml(row.party_date ? formatShortDate(row.party_date) : "No date")}</div>`
+    ? `<div class="muted">${escapeHtml(shownDate ? formatShortDate(shownDate) : "No date")}</div>`
     : "";
   const showNoShow = opts.allowNoShow && canMarkNoShow(row);
   const archived = isArchived(row);
@@ -1199,15 +1266,6 @@ function renderDay() {
   );
 }
 
-function renderTimeline() {
-  syncFilterInputs();
-  fillDayBoard(
-    document.getElementById("timeline"),
-    document.getElementById("timeline-count"),
-    document.getElementById("timeline-title")
-  );
-}
-
 function tableRowsOnDate(iso) {
   return rowsOnDate(iso).filter((row) => row.synthetic || !INACTIVE_STATUSES.includes(row.status));
 }
@@ -1296,6 +1354,14 @@ function renderTablesLayout() {
         <div><dt>Slot</dt><dd>${escapeHtml(slotRange(focused))}</dd></div>
         <div><dt>Status</dt><dd>${escapeHtml(statusLabel(focused.status))}</dd></div>
       </dl>
+      ${(() => {
+        const special = eventLayoutsFrom(focused.payload?.event)[area];
+        return special
+          ? `<a class="btn btn--outline" href="${escapeHtml(special)}" target="_blank" rel="noopener">Special ${
+              area === "indoor" ? "indoor" : "terrace"
+            } layout</a>`
+          : "";
+      })()}
       <button class="btn" type="button" data-open="${escapeHtml(openTarget(focused).slice(2))}">Open details</button>`
     : `<div class="picked">
         <h3>No booking selected</h3>
@@ -1515,6 +1581,10 @@ function guestTicketAmount(row, guest) {
   return Math.max(0, Math.round(unit * (Number(guest?.pax) || 1)));
 }
 
+function isFreeEvent(row) {
+  return !(eventPricingFromRow(row)?.total || Number(row?.quote_total_idr) || 0);
+}
+
 function childBirthdayOf(row) {
   return String(row?.payload?.party?.childBirthday || "").slice(0, 10);
 }
@@ -1612,7 +1682,7 @@ function rememberKid(guest, row) {
   const name = String(row.child_name || row.payload?.party?.childName || "").trim();
   if (!name) return;
   const age = String(row.child_age || row.payload?.party?.childAge || "").trim();
-  const birthday = childBirthdayOf(row);
+  const birthday = String(row.party_date || "").slice(0, 10) || childBirthdayOf(row);
   const key = name.toLowerCase();
   const visitAt = row.party_date || row.created_at || "";
   let kid = guest.kids.find((item) => item.key === key);
@@ -1714,9 +1784,7 @@ function visitGroupLabel(type) {
 }
 
 function loadCustomer(key) {
-  inboxViews.hidden = true;
-  if (viewNav) viewNav.hidden = true;
-  detailView.hidden = false;
+  showDetailPage();
   const showArchived = state.customersShowArchived;
   const guest =
     customerRecords({ archived: showArchived }).find((item) => item.key === key) ||
@@ -1767,7 +1835,7 @@ function loadCustomer(key) {
             )}" placeholder="+62…"></label>
           </div>
           <h3>Kids</h3>
-          <p class="muted">Saved from birthday bookings: name, age and the child’s birthday.</p>
+          <p class="muted">Saved from birthday bookings. The birthday is the date of the child’s latest birthday booking.</p>
           <div id="customer-kids">
             ${
               guest.kids.length
@@ -1776,9 +1844,9 @@ function loadCustomer(key) {
                       (kid) => `<div class="field-row kid-row" data-request-ids="${escapeHtml(kid.requestIds.join(","))}">
                         <label class="field"><span>Name</span><input data-kid-name required value="${escapeHtml(kid.name)}"></label>
                         <label class="field"><span>Age</span><input data-kid-age value="${escapeHtml(kid.age || "")}"></label>
-                        <label class="field"><span>Birthday</span><input data-kid-birthday type="date" value="${escapeHtml(
-                          kid.birthday || ""
-                        )}"></label>
+                        <div class="field"><span>Birthday</span><input type="text" readonly aria-readonly="true" value="${escapeHtml(
+                          kid.birthday ? formatBirthday(kid.birthday) : "—"
+                        )}"></div>
                       </div>`
                     )
                     .join("")
@@ -1868,13 +1936,8 @@ async function saveCustomerDetails(key) {
       .filter(Boolean),
     name: row.querySelector("[data-kid-name]")?.value.trim() || "",
     age: row.querySelector("[data-kid-age]")?.value.trim() || "",
-    birthday: row.querySelector("[data-kid-birthday]")?.value || "",
   }));
   if (kidEdits.some((kid) => !kid.name)) throw new Error("Each child needs a name.");
-  const today = todayIso();
-  if (kidEdits.some((kid) => kid.birthday && kid.birthday > today)) {
-    throw new Error("A child’s birthday cannot be in the future.");
-  }
   const kidsByRequest = new Map();
   kidEdits.forEach((kid) => {
     kid.requestIds.forEach((id) => kidsByRequest.set(id, kid));
@@ -1912,7 +1975,6 @@ async function saveCustomerDetails(key) {
         ...(payload.party || {}),
         childName: kid.name,
         childAge: kid.age,
-        childBirthday: kid.birthday,
       };
       patch.child_name = kid.name;
       patch.child_age = kid.age || null;
@@ -2263,7 +2325,7 @@ function birthdayPaymentRows() {
 function eventTicketPaymentItems() {
   const items = [];
   activeRows()
-    .filter((row) => eventType(row) === "event")
+    .filter((row) => eventType(row) === "event" && !isFreeEvent(row))
     .forEach((row) => {
       (row.payload?.event?.guests || []).forEach((guest, index) => {
         if (guest?.archived_at) return;
@@ -2324,16 +2386,19 @@ function renderPayments() {
   const filter = document.getElementById("payments-filter");
   if (filter) filter.value = state.paymentFilter;
   const query = String(state.listSearch.payments || "").trim().toLowerCase();
+  const dateFilter = syncListDateInputs("payments");
   const rows = paymentTrackerItems().filter((item) => {
+    if (!dateInListFilter(item.date, dateFilter)) return false;
     if (state.paymentFilter === "paid" && !item.paid) return false;
     if (state.paymentFilter === "pending" && item.paid) return false;
     if (state.paymentFilter === "onsite" && (item.kind !== "event" || item.paid)) return false;
     if (query && !item.search.toLowerCase().includes(query)) return false;
     return true;
   });
+  if (dateFilter.mode !== "all") rows.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
   const count = document.getElementById("payments-count");
   if (count) {
-    count.textContent = `${rows.length} payment${rows.length === 1 ? "" : "s"}`;
+    count.textContent = `${rows.length} payment${rows.length === 1 ? "" : "s"} ${listDateLabel(dateFilter)}`;
   }
   const list = document.getElementById("payments-list");
   if (!list) return;
@@ -3135,6 +3200,10 @@ function openEventModal(opts = {}) {
   document.getElementById("event-notes").value = opts.notes || "";
   document.getElementById("event-photos").value = "";
   fillEventPhotosExisting(eventGalleryFrom({ coverUrl: opts.coverUrl, gallery: opts.gallery }));
+  state.eventLayouts = eventLayoutsFrom({ layouts: opts.layouts });
+  document.getElementById("event-layout-terrace").value = "";
+  document.getElementById("event-layout-indoor").value = "";
+  paintEventLayoutUploads();
   document.getElementById("event-repeat").value = opts.repeat?.freq || "none";
   document.getElementById("event-until").value = opts.repeat?.until || "";
   const payment = opts.payment === "vendor" ? "vendor" : "tiny";
@@ -3166,36 +3235,88 @@ function eventCoversRange(row, from, to) {
   return true;
 }
 
+const LIST_DATE_MODES = ["all", "upcoming", "day", "range"];
+
+function listDateFilter(key) {
+  const filter = state.listDates[key];
+  const today = todayIso();
+  const mode = LIST_DATE_MODES.includes(filter.mode) ? filter.mode : "upcoming";
+  return {
+    mode,
+    day: filter.day || today,
+    from: filter.from || today,
+    to: filter.to || "",
+  };
+}
+
+function syncListDateInputs(key) {
+  const filter = listDateFilter(key);
+  const modeInput = document.getElementById(`${key}-date-mode`);
+  if (modeInput) modeInput.value = filter.mode;
+  [
+    ["day", filter.mode === "day", filter.day],
+    ["from", filter.mode === "range", filter.from],
+    ["to", filter.mode === "range", filter.to],
+  ].forEach(([part, show, value]) => {
+    const wrap = document.getElementById(`${key}-${part}-wrap`);
+    const input = document.getElementById(`${key}-${part}`);
+    if (wrap) wrap.hidden = !show;
+    if (input && document.activeElement !== input) input.value = value;
+  });
+  return filter;
+}
+
+function listDateLabel(filter) {
+  if (filter.mode === "all") return "on all dates";
+  if (filter.mode === "day") return `on ${formatShortDate(filter.day)}`;
+  if (filter.mode === "range") {
+    return `${formatShortDate(filter.from)}${filter.to ? ` – ${formatShortDate(filter.to)}` : " onward"}`;
+  }
+  return "from today";
+}
+
+function dateInListFilter(date, filter) {
+  if (filter.mode === "all") return true;
+  if (!date) return false;
+  if (filter.mode === "day") return date === filter.day;
+  if (filter.mode === "range") return date >= filter.from && (!filter.to || date <= filter.to);
+  return date >= todayIso();
+}
+
+function nextOccurrenceFrom(row, from, to = "") {
+  if (!row?.party_date) return "";
+  if (row.party_date >= from) return !to || row.party_date <= to ? row.party_date : "";
+  const repeat = eventRepeat(row);
+  if (!repeat.freq || repeat.freq === "none") return "";
+  const last = [to, repeat.until, shiftIso(from, 400)].filter(Boolean).sort()[0];
+  for (let iso = from; iso <= last; iso = shiftIso(iso, 1)) {
+    if (occursOn(row, iso)) return iso;
+  }
+  return "";
+}
+
+function eventListDate(row, filter) {
+  if (filter.mode === "all") return row.party_date || "";
+  if (filter.mode === "day") return occursOn(row, filter.day) ? filter.day : "";
+  if (filter.mode === "range") return nextOccurrenceFrom(row, filter.from, filter.to);
+  return nextOccurrenceFrom(row, todayIso());
+}
+
 function renderEvents() {
   syncFilterInputs();
-  const today = todayIso();
-  const mode = state.eventsDateMode === "range" ? "range" : "upcoming";
-  const from = mode === "range" ? state.eventsFrom || today : today;
-  const to = mode === "range" ? state.eventsTo || "" : "";
-  const modeInput = document.getElementById("events-date-mode");
-  const fromWrap = document.getElementById("events-from-wrap");
-  const toWrap = document.getElementById("events-to-wrap");
-  const fromInput = document.getElementById("events-from");
-  const toInput = document.getElementById("events-to");
-  if (modeInput) modeInput.value = mode;
-  if (fromWrap) fromWrap.hidden = mode !== "range";
-  if (toWrap) toWrap.hidden = mode !== "range";
-  if (fromInput && document.activeElement !== fromInput) fromInput.value = state.eventsFrom || today;
-  if (toInput && document.activeElement !== toInput) toInput.value = state.eventsTo || "";
+  const filter = syncListDateInputs("events");
   const rows = activeRows()
     .filter((row) => row.source === "event")
     .filter(matchesStatus)
-    .filter((row) => eventCoversRange(row, from, to))
     .filter((row) => matchesListSearch(row, state.listSearch.events))
-    .sort((a, b) => String(a.party_date).localeCompare(String(b.party_date)) || timeLabel(a.party_time).localeCompare(timeLabel(b.party_time)));
-  const rangeLabel =
-    mode === "range"
-      ? `${formatShortDate(from)}${to ? ` – ${formatShortDate(to)}` : " onward"}`
-      : "from today";
+    .map((row) => ({ row, date: eventListDate(row, filter) }))
+    .filter((item) => filter.mode === "all" || item.date)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || timeLabel(a.row.party_time).localeCompare(timeLabel(b.row.party_time)));
+  const rangeLabel = listDateLabel(filter);
   document.getElementById("events-count").textContent = `${rows.length} event${rows.length === 1 ? "" : "s"} ${rangeLabel}`;
   const list = document.getElementById("events-list");
   list.innerHTML = rows.length
-    ? rows.map((row) => bookingCard(row, { showDate: true })).join("")
+    ? rows.map(({ row, date }) => bookingCard(row, { showDate: true, displayDate: date })).join("")
     : `<p class="muted">${
         state.listSearch.events.trim()
           ? "No events match that search."
@@ -3236,6 +3357,58 @@ async function uploadEventGalleryImages(requestId, fileList) {
   return urls;
 }
 
+async function uploadEventLayouts(requestId, layoutFiles) {
+  const urls = {};
+  for (const area of ["terrace", "indoor"]) {
+    const file = layoutFiles[area];
+    if (!file) continue;
+    const ext = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+    const path = `${requestId}/layouts/${area}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("event-images").upload(path, file, {
+      contentType: file.type || "image/png",
+      upsert: false,
+    });
+    if (error) throw error;
+    const { data } = supabase.storage.from("event-images").getPublicUrl(path);
+    if (data?.publicUrl) urls[area] = data.publicUrl;
+  }
+  return urls;
+}
+
+function isPdfUrl(url) {
+  return /\.pdf($|\?)/i.test(String(url || ""));
+}
+
+function eventLayoutsFrom(event = {}) {
+  const layouts = event?.layouts || {};
+  const out = {};
+  ["terrace", "indoor"].forEach((area) => {
+    const url = String(layouts[area] || "").trim();
+    if (url) out[area] = url;
+  });
+  return out;
+}
+
+function layoutPreviewHtml(url, area) {
+  const name = area === "indoor" ? "Indoor" : "Terrace";
+  if (!url) return "";
+  return isPdfUrl(url)
+    ? `<a class="layout-file" href="${escapeHtml(url)}" target="_blank" rel="noopener">${name} layout (PDF)</a>`
+    : `<a href="${escapeHtml(url)}" target="_blank" rel="noopener"><img src="${escapeHtml(url)}" alt="${name} special table layout"></a>`;
+}
+
+function paintEventLayoutUploads() {
+  ["terrace", "indoor"].forEach((area) => {
+    const preview = document.getElementById(`event-layout-${area}-preview`);
+    const url = state.eventLayouts?.[area] || "";
+    if (preview) {
+      preview.innerHTML = url ? layoutPreviewHtml(url, area) : `<span class="muted">Standard layout</span>`;
+    }
+    const remove = document.querySelector(`[data-layout-remove="${area}"]`);
+    if (remove) remove.hidden = !url;
+  });
+}
+
 async function saveStaffEvent() {
   const statusEl = document.getElementById("event-status");
   const name = document.getElementById("event-name")?.value.trim() || "";
@@ -3269,14 +3442,19 @@ async function saveStaffEvent() {
     return;
   }
   const partySize = Math.max(1, Math.min(40, Number(document.getElementById("event-party-size")?.value) || 1));
-  if (location === "service" && !tableIds.length) {
-    statusEl.textContent = "Pick tables to block, or choose full terrace.";
-    statusEl.className = "status is-error";
-    return;
-  }
   const tables = tableIds.map((id) => Map.findTable(id)).filter(Boolean);
   const tableLabel =
-    location === "masterclass" ? "Masterclass" : fullTerrace ? "Full terrace" : Map.tableLabel(tables);
+    location === "masterclass"
+      ? "Masterclass"
+      : fullTerrace
+        ? "Full terrace"
+        : tables.length
+          ? Map.tableLabel(tables)
+          : "Service area";
+  const layoutFiles = {
+    terrace: document.getElementById("event-layout-terrace")?.files?.[0] || null,
+    indoor: document.getElementById("event-layout-indoor")?.files?.[0] || null,
+  };
   const { data: sessionData } = await supabase.auth.getSession();
   const user = sessionData.session?.user;
   const repeat = freq === "none" ? { freq: "none" } : { freq, until: until || shiftIso(date, 365) };
@@ -3314,6 +3492,7 @@ async function saveStaffEvent() {
       slots,
       coverUrl: existingEvent.coverUrl || preservedGallery[0] || "",
       gallery: preservedGallery,
+      layouts: location === "service" ? { ...state.eventLayouts } : {},
     },
     reservation: {
       ...existingReservation,
@@ -3384,24 +3563,23 @@ async function saveStaffEvent() {
   }
   try {
     const hasNewFiles = photos && photos.length;
-    if (hasNewFiles) {
-      const uploaded = await uploadEventPhotos(requestId, photos);
-      const galleryUrls = await uploadEventGalleryImages(requestId, photos);
+    const hasNewLayouts = location === "service" && (layoutFiles.terrace || layoutFiles.indoor);
+    if (hasNewFiles || hasNewLayouts) {
       const files = { ...existingFiles };
-      if (uploaded.length) files.eventPhotos = [...(files.eventPhotos || []), ...uploaded];
-      const gallery = [...preservedGallery, ...galleryUrls.filter((url) => !preservedGallery.includes(url))];
-      const coverUrl = existingEvent.coverUrl || gallery[0] || "";
-      const nextPayload = {
-        ...payload,
-        event: {
-          ...(payload.event || {}),
-          coverUrl,
-          gallery,
-        },
-      };
+      const nextEvent = { ...(payload.event || {}) };
+      if (hasNewFiles) {
+        const uploaded = await uploadEventPhotos(requestId, photos);
+        const galleryUrls = await uploadEventGalleryImages(requestId, photos);
+        if (uploaded.length) files.eventPhotos = [...(files.eventPhotos || []), ...uploaded];
+        nextEvent.gallery = [...preservedGallery, ...galleryUrls.filter((url) => !preservedGallery.includes(url))];
+        nextEvent.coverUrl = existingEvent.coverUrl || nextEvent.gallery[0] || "";
+      }
+      if (hasNewLayouts) {
+        nextEvent.layouts = { ...(nextEvent.layouts || {}), ...(await uploadEventLayouts(requestId, layoutFiles)) };
+      }
       const { error: fileError } = await supabase
         .from("requests")
-        .update({ files, payload: nextPayload })
+        .update({ files, payload: { ...payload, event: nextEvent } })
         .eq("id", requestId);
       if (fileError) throw fileError;
     }
@@ -4197,10 +4375,76 @@ function backHash() {
   return `#/${state.lastView || "overview"}`;
 }
 
-function renderCookingDetail(iso) {
+function showDetailPage() {
   inboxViews.hidden = true;
-  if (viewNav) viewNav.hidden = true;
+  detailView.classList.remove("detail-view--drawer");
+  if (detailScrim) detailScrim.hidden = true;
   detailView.hidden = false;
+}
+
+function showDetailDrawer() {
+  inboxViews.hidden = false;
+  detailView.classList.add("detail-view--drawer");
+  if (detailScrim) detailScrim.hidden = false;
+  detailView.hidden = false;
+}
+
+function hideDetailDrawer() {
+  detailView.classList.remove("detail-view--drawer");
+  if (detailScrim) detailScrim.hidden = true;
+  detailView.hidden = true;
+}
+
+function detailDrawerOpen() {
+  return !detailView.hidden && detailView.classList.contains("detail-view--drawer");
+}
+
+const PANEL_FULL_KEY = "tinyStaff.panelFull";
+
+function panelExpandLabel() {
+  return document.body.classList.contains("panels-full") ? "Collapse to side panel" : "Expand to full screen";
+}
+
+function expandButtonHtml() {
+  const label = panelExpandLabel();
+  return `<button class="drawer__expand" type="button" data-expand-drawer aria-label="${label}" title="${label}"><svg class="drawer__icon-grow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg><svg class="drawer__icon-shrink" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7"/></svg></button>`;
+}
+
+function setPanelsFull(full, { remember = true } = {}) {
+  document.body.classList.toggle("panels-full", full);
+  const label = panelExpandLabel();
+  document.querySelectorAll("[data-expand-drawer]").forEach((button) => {
+    button.setAttribute("aria-label", label);
+    button.title = label;
+  });
+  if (!remember) return;
+  try {
+    localStorage.setItem(PANEL_FULL_KEY, full ? "1" : "0");
+  } catch {
+    /* storage unavailable */
+  }
+}
+
+function initialPanelsFull() {
+  try {
+    return localStorage.getItem(PANEL_FULL_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function drawerHeadHtml(title) {
+  return `<div class="drawer__head">
+    <h2 class="drawer__title">${escapeHtml(title)}</h2>
+    <div class="drawer__tools">
+      ${expandButtonHtml()}
+      <button class="drawer__close" type="button" id="back-list" aria-label="Close">&#x2715;</button>
+    </div>
+  </div>`;
+}
+
+function renderCookingDetail(iso) {
+  showDetailPage();
   const row = cookingRow(iso);
   pageTitle.textContent = "Cooking class";
   detailView.innerHTML = `
@@ -4230,18 +4474,25 @@ function renderCookingDetail(iso) {
 }
 
 function slotMoveField(guest, slots, eventId, guestId) {
-  if (!slots || slots.length < 2) return "";
-  const chosen = slotValue(guest.slot) || slotValue(slots[0]);
+  const chosen = slotValue(guest.slot) || slotValue(slots?.[0] || {});
+  if (!slots || slots.length < 2) {
+    const only = slots?.[0] || guest.slot;
+    return `<span class="slot-guest__text">${escapeHtml(only ? slotLabel(only) : "—")}</span>`;
+  }
   const options = slots
     .map((slot) => {
       const value = slotValue(slot);
       return `<option value="${escapeHtml(value)}"${value === chosen ? " selected" : ""}>${escapeHtml(slotLabel(slot))}</option>`;
     })
     .join("");
-  return `<label class="guest-status"><span>Time slot</span><select data-guest-move data-event-id="${escapeHtml(
-    eventId
-  )}" data-guest-id="${escapeHtml(guestId)}" data-current="${escapeHtml(chosen)}" aria-label="Move to time slot">${options}</select></label>`;
+  return `<select data-guest-move data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(
+    guestId
+  )}" data-current="${escapeHtml(chosen)}" aria-label="Move to time slot">${options}</select>`;
 }
+
+const SLOT_GUEST_HEAD = `<div class="slot-guest slot-guest--head" aria-hidden="true">
+  <span>#</span><span>Guest</span><span>Status</span><span>Payment</span><span>Time slot</span><span></span>
+</div>`;
 
 function slotGuestCardHtml(entry, slots, eventRow, focusGuestId, number) {
   const guest = entry.guest;
@@ -4254,47 +4505,51 @@ function slotGuestCardHtml(entry, slots, eventRow, focusGuestId, number) {
   ).join("");
   const focused = focusGuestId && focusGuestId === guestId;
   const due = guestTicketAmount(eventRow, guest);
+  const contact = [guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ");
   return `<article class="slot-guest${focused ? " is-focus" : ""}">
-    <span class="slot-guest-num">${Number(number) || ""}</span>
-    <div class="slot-guest-body">
-      <div>
-        <h3>${escapeHtml(guest.name || "Guest")} · ${escapeHtml(guest.pax || 1)} pax</h3>
-        <p class="muted">${escapeHtml([guest.phone, guest.email, guest.notes].filter(Boolean).join(" · ") || "—")}${
-          due ? ` · ${escapeHtml(formatIdr(due))}` : ""
-        }</p>
-      </div>
-      <label class="guest-status">
-        <span>Status</span>
-        <select data-guest-status data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(
-          guestId
-        )}" data-current="${status}" aria-label="Guest list status">${options}</select>
-      </label>
-      <label class="guest-status">
-        <span>Payment</span>
-        <select data-guest-payment data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(
-          guestId
-        )}" data-current="${payment}" aria-label="Ticket payment">
-          <option value="onsite"${payment !== "paid" ? " selected" : ""}>Pay onsite</option>
-          <option value="paid"${payment === "paid" ? " selected" : ""}>Paid</option>
-        </select>
-      </label>
+    <span class="slot-guest__num">${Number(number) || ""}</span>
+    <div class="slot-guest__who">
+      <strong>${escapeHtml(guest.name || "Guest")}</strong>
+      <span>${escapeHtml(guest.pax || 1)} pax${due ? ` · ${escapeHtml(formatIdr(due))}` : ""}${
+        contact ? ` · ${escapeHtml(contact)}` : ""
+      }</span>
+    </div>
+    <label class="slot-guest__cell">
+      <span class="slot-guest__label">Status</span>
+      <select data-guest-status data-event-id="${escapeHtml(eventId)}" data-guest-id="${escapeHtml(
+        guestId
+      )}" data-current="${status}" aria-label="Guest list status">${options}</select>
+    </label>
+    ${
+      isFreeEvent(eventRow)
+        ? `<div class="slot-guest__cell"><span class="slot-guest__label">Payment</span><span class="slot-guest__text">Free</span></div>`
+        : `<label class="slot-guest__cell">
+      <span class="slot-guest__label">Payment</span>
+      <select class="slot-guest__pay is-${payment === "paid" ? "paid" : "onsite"}" data-guest-payment data-event-id="${escapeHtml(
+        eventId
+      )}" data-guest-id="${escapeHtml(guestId)}" data-current="${payment}" aria-label="Ticket payment">
+        <option value="onsite"${payment !== "paid" ? " selected" : ""}>Pay onsite</option>
+        <option value="paid"${payment === "paid" ? " selected" : ""}>Paid</option>
+      </select>
+    </label>`
+    }
+    <div class="slot-guest__cell">
+      <span class="slot-guest__label">Time slot</span>
       ${slotMoveField(guest, slots, eventId, guestId)}
-      <div class="slot-guest-actions">
-        <button class="btn btn--outline btn--tiny" type="button" data-archive-guest data-event-id="${escapeHtml(
-          eventId
-        )}" data-guest-id="${escapeHtml(guestId)}">Archive</button>
-        <button class="btn btn--outline btn--tiny" type="button" data-delete-guest data-event-id="${escapeHtml(
-          eventId
-        )}" data-guest-id="${escapeHtml(guestId)}">Delete</button>
-      </div>
+    </div>
+    <div class="slot-guest__actions">
+      <button class="slot-guest__link" type="button" data-archive-guest data-event-id="${escapeHtml(
+        eventId
+      )}" data-guest-id="${escapeHtml(guestId)}">Archive</button>
+      <button class="slot-guest__link slot-guest__link--danger" type="button" data-delete-guest data-event-id="${escapeHtml(
+        eventId
+      )}" data-guest-id="${escapeHtml(guestId)}">Delete</button>
     </div>
   </article>`;
 }
 
 async function loadGuestSlot(id, key, focusGuestId = "") {
-  inboxViews.hidden = true;
-  if (viewNav) viewNav.hidden = true;
-  detailView.hidden = false;
+  showDetailPage();
   detailView.innerHTML = `<p class="status">Loading guest list…</p>`;
   const { data: row, error } = await supabase.from("requests").select("*").eq("id", id).maybeSingle();
   if (error || !row || row.source !== "event") {
@@ -4346,7 +4601,9 @@ async function loadGuestSlot(id, key, focusGuestId = "") {
       <div id="slot-guest-list">
         ${
           items.length
-            ? items.map((entry, index) => slotGuestCardHtml(entry, slots, eventRow, focusGuestId, index + 1)).join("")
+            ? `<div class="slot-guest-table">${SLOT_GUEST_HEAD}${items
+                .map((entry, index) => slotGuestCardHtml(entry, slots, eventRow, focusGuestId, index + 1))
+                .join("")}</div>`
             : `<p class="muted">No guests for this time.</p>`
         }
       </div>
@@ -4450,7 +4707,9 @@ async function loadGuestSlot(id, key, focusGuestId = "") {
       `${formatLongDate(eventRow.party_date)} · ${heading}`,
       ...guests.map(
         (guest, index) =>
-          `${index + 1}. ${guest.name || "Guest"} · ${guest.pax || 1} pax · ${guestStatusLabel(guest.status)} · ${guestPaymentLabel(guest)}${
+          `${index + 1}. ${guest.name || "Guest"} · ${guest.pax || 1} pax · ${guestStatusLabel(guest.status)}${
+            isFreeEvent(eventRow) ? "" : ` · ${guestPaymentLabel(guest)}`
+          }${
             guest.phone ? ` · ${guest.phone}` : ""
           }${guest.email ? ` · ${guest.email}` : ""}`
       ),
@@ -4468,15 +4727,14 @@ async function loadGuestSlot(id, key, focusGuestId = "") {
 }
 
 async function loadDetail(id) {
-  inboxViews.hidden = true;
-  if (viewNav) viewNav.hidden = true;
-  detailView.hidden = false;
-  detailView.innerHTML = `<p class="status">Loading request…</p>`;
+  const reopening = detailDrawerOpen();
+  showDetailDrawer();
+  if (!reopening) detailView.innerHTML = `${drawerHeadHtml("Booking")}<p class="status">Loading request…</p>`;
   const { data: row, error } = await supabase.from("requests").select("*").eq("id", id).maybeSingle();
   if (error || !row) {
-    detailView.innerHTML = `<p class="status is-error">${escapeHtml(
+    detailView.innerHTML = `${drawerHeadHtml("Booking")}<p class="status is-error">${escapeHtml(
       error?.message || "Request not found."
-    )}</p><button class="btn btn--outline back" type="button" id="back-list">Back</button>`;
+    )}</p>`;
     document.getElementById("back-list")?.addEventListener("click", () => {
       location.hash = backHash();
     });
@@ -4531,9 +4789,8 @@ async function loadDetail(id) {
   const showLayout = tableIds.length > 0;
   const layoutArea = reservation.area || (String(tableIds[0] || "").startsWith("tr-") ? "terrace" : "indoor");
 
-  pageTitle.textContent = displayName(row);
   detailView.innerHTML = `
-    <button class="btn btn--outline back" type="button" id="back-list">Back</button>
+    ${drawerHeadHtml(displayName(row))}
     <article class="detail">
       <header class="staff-top">
         <div>
@@ -4690,6 +4947,7 @@ async function loadDetail(id) {
               : `<p class="muted">No ticket price saved. Edit the event to add one so it shows on the events page.</p>`
           }
           ${(() => {
+            if (isFreeEvent(row)) return `<p class="muted">Free event. No ticket payments to track.</p>`;
             const guests = (payload.event?.guests || []).filter((guest) => !guest?.archived_at);
             const paid = guests.filter((guest) => normalizeGuestPayment(guest) === "paid").length;
             const onsite = guests.length - paid;
@@ -4712,7 +4970,28 @@ async function loadDetail(id) {
                 : `<p class="muted">No pictures uploaded.</p>`
             }
           </div>
+        </section>
+        ${
+          isEvent && payload.event?.location !== "masterclass"
+            ? `<section>
+          <h3>Special table layouts</h3>
+          ${(() => {
+            const layouts = eventLayoutsFrom(payload.event);
+            const areas = Object.keys(layouts);
+            return areas.length
+              ? `<div class="layout-gallery">${areas
+                  .map(
+                    (area) =>
+                      `<figure>${layoutPreviewHtml(layouts[area], area)}<figcaption>${
+                        area === "indoor" ? "Indoor" : "Terrace"
+                      }</figcaption></figure>`
+                  )
+                  .join("")}</div>`
+              : `<p class="muted">Standard layouts. Edit the event to upload a special Terrace or Indoor layout.</p>`;
+          })()}
         </section>`
+            : ""
+        }`
             : ""
         }
         ${
@@ -4870,6 +5149,7 @@ async function loadDetail(id) {
       pricing: event.pricing || eventPricingFromRow(row),
       coverUrl: event.coverUrl || "",
       gallery: eventGalleryFrom(event),
+      layouts: eventLayoutsFrom(event),
     });
   });
   document.querySelectorAll("[data-confirm-guest]").forEach((button) => {
@@ -5056,9 +5336,7 @@ function readGuestListFrom(selector) {
 }
 
 async function loadInvoice(id) {
-  inboxViews.hidden = true;
-  if (viewNav) viewNav.hidden = true;
-  detailView.hidden = false;
+  showDetailPage();
   detailView.innerHTML = `<p class="status">Loading invoice…</p>`;
   const { data: row, error } = await supabase.from("requests").select("*").eq("id", id).maybeSingle();
   if (error || !row) {
@@ -5336,9 +5614,7 @@ async function loadInvoice(id) {
 }
 
 async function loadPayment(id) {
-  inboxViews.hidden = true;
-  if (viewNav) viewNav.hidden = true;
-  detailView.hidden = false;
+  showDetailPage();
   detailView.innerHTML = `<p class="status">Loading payment…</p>`;
   const { data: row, error } = await supabase.from("requests").select("*").eq("id", id).maybeSingle();
   if (error || !row) {
@@ -5423,8 +5699,36 @@ function resetPromoForm() {
   if (active) active.checked = true;
   const save = document.getElementById("promo-save");
   if (save) save.textContent = "Create promotion";
-  const cancel = document.getElementById("promo-cancel");
-  if (cancel) cancel.hidden = true;
+  const title = document.getElementById("promo-drawer-title");
+  if (title) title.textContent = "New promotion";
+  setMasterStatus("promo-form-status", "");
+}
+
+function openPromoDrawer() {
+  const drawer = document.getElementById("promo-drawer");
+  if (!drawer) return;
+  drawer.hidden = false;
+  document.getElementById("promo-name")?.focus();
+}
+
+function closePromoDrawer() {
+  const drawer = document.getElementById("promo-drawer");
+  if (drawer) drawer.hidden = true;
+  resetPromoForm();
+}
+
+function openCakeDrawer() {
+  const drawer = document.getElementById("cake-drawer");
+  if (!drawer) return;
+  document.getElementById("cake-upload-form")?.reset();
+  setMasterStatus("cake-upload-status", "");
+  drawer.hidden = false;
+  document.getElementById("cake-name")?.focus();
+}
+
+function closeCakeDrawer() {
+  const drawer = document.getElementById("cake-drawer");
+  if (drawer) drawer.hidden = true;
 }
 
 async function renderCakeCatalog() {
@@ -5521,7 +5825,7 @@ async function saveCakeDetails(id, button) {
   if (!name || !theme) throw new Error("Cake name and theme are required.");
   const { error } = await supabase.from("catalog_cakes").update({ name, theme }).eq("id", id);
   if (error) throw error;
-  setMasterStatus("cake-upload-status", "Cake updated.", "is-success");
+  setMasterStatus("cake-catalog-status", "Cake updated.", "is-success");
   await renderCakeCatalog();
 }
 
@@ -5551,8 +5855,9 @@ function fillPromoForm(row) {
   document.getElementById("promo-active").checked = Boolean(row.active);
   document.getElementById("promo-notes").value = row.notes || "";
   document.getElementById("promo-save").textContent = "Save promotion";
-  document.getElementById("promo-cancel").hidden = false;
-  document.getElementById("promo-name")?.focus();
+  document.getElementById("promo-drawer-title").textContent = "Edit promotion";
+  setMasterStatus("promo-form-status", "");
+  openPromoDrawer();
 }
 
 async function savePromotion(event) {
@@ -5597,8 +5902,8 @@ async function savePromotion(event) {
     }
     throw error;
   }
-  resetPromoForm();
-  setMasterStatus("promo-form-status", "Saved.", "is-success");
+  closePromoDrawer();
+  setMasterStatus("promo-list-status", id ? "Promotion saved." : "Promotion created.", "is-success");
   await renderPromotions();
 }
 
@@ -5611,7 +5916,8 @@ async function deletePromotion(id) {
   if (!ok) return;
   const { error } = await supabase.from("promotions").delete().eq("id", id);
   if (error) throw error;
-  if (document.getElementById("promo-id")?.value === id) resetPromoForm();
+  if (document.getElementById("promo-id")?.value === id) closePromoDrawer();
+  setMasterStatus("promo-list-status", "Promotion deleted.", "is-success");
   await renderPromotions();
 }
 
@@ -5619,12 +5925,12 @@ function showInbox(view) {
   state.view = view;
   if (view !== "day") state.lastView = view;
   else state.lastView = "day";
-  detailView.hidden = true;
+  hideDetailDrawer();
   inboxViews.hidden = false;
+  state.inboxPainted = true;
   document.getElementById("overview-view").hidden = view !== "overview";
   document.getElementById("calendar-view").hidden = view !== "calendar";
   document.getElementById("day-view").hidden = view !== "day";
-  document.getElementById("timeline-view").hidden = view !== "timeline";
   document.getElementById("tables-view").hidden = view !== "tables";
   document.getElementById("events-view").hidden = view !== "events";
   const customersView = document.getElementById("customers-view");
@@ -5641,7 +5947,6 @@ function showInbox(view) {
   if (view === "overview") renderOverview();
   if (view === "calendar") renderCalendar();
   if (view === "day") renderDay();
-  if (view === "timeline") renderTimeline();
   if (view === "tables") renderTables();
   if (view === "events") renderEvents();
   if (view === "customers") renderCustomers();
@@ -5689,6 +5994,14 @@ async function route() {
     return;
   }
   if (parsed.view === "detail") {
+    if (inboxViews.hidden || !state.inboxPainted) {
+      try {
+        if (!state.rows.length) await loadRows();
+        showInbox(state.lastView || "overview");
+      } catch {
+        /* the drawer still opens over whatever is shown */
+      }
+    }
     renderNav(parsed.view);
     await loadDetail(parsed.id);
     return;
@@ -5761,7 +6074,7 @@ function refreshGuestContext(eventId) {
   const parsed = parseHash();
   if (parsed.view === "guestslot") return loadGuestSlot(parsed.id, parsed.slot, parsed.guestId);
   if (parsed.view === "detail") return loadDetail(parsed.id || eventId);
-  const inbox = ["overview", "calendar", "timeline", "tables", "events", "customers", "payments", "archive", "day"].includes(
+  const inbox = ["overview", "calendar", "tables", "events", "customers", "payments", "archive", "day"].includes(
     parsed.view
   )
     ? parsed.view
@@ -5979,6 +6292,12 @@ document.getElementById("inbox-views")?.addEventListener("click", (e) => {
 });
 
 document.getElementById("inbox-date")?.addEventListener("change", (e) => {
+  if (state.view === "events") {
+    state.listDates.events.day = e.target.value || todayIso();
+    state.listDates.events.mode = "day";
+    renderEvents();
+    return;
+  }
   state.selectedDate = e.target.value || todayIso();
   state.calendarMonth = state.selectedDate.slice(0, 7);
   if (state.view === "overview") state.dateMode = "day";
@@ -5987,6 +6306,11 @@ document.getElementById("inbox-date")?.addEventListener("change", (e) => {
 });
 
 document.getElementById("filter-date-mode")?.addEventListener("change", (e) => {
+  if (state.view === "events") {
+    state.listDates.events.mode = LIST_DATE_MODES.includes(e.target.value) ? e.target.value : "upcoming";
+    renderEvents();
+    return;
+  }
   state.dateMode = e.target.value || "all";
   if (state.dateMode === "day" && !state.selectedDate) state.selectedDate = todayIso();
   showInbox(state.view);
@@ -6015,15 +6339,6 @@ document.getElementById("cal-next")?.addEventListener("click", () => {
 
 document.getElementById("day-back")?.addEventListener("click", () => {
   go("calendar");
-});
-
-document.getElementById("timeline-prev")?.addEventListener("click", () => {
-  state.selectedDate = shiftIso(state.selectedDate, -1);
-  showInbox("timeline");
-});
-document.getElementById("timeline-next")?.addEventListener("click", () => {
-  state.selectedDate = shiftIso(state.selectedDate, 1);
-  showInbox("timeline");
 });
 
 document.getElementById("tables-view-toggle")?.addEventListener("click", (e) => {
@@ -6086,7 +6401,9 @@ document.getElementById("cake-upload-form")?.addEventListener("submit", async (e
       throw error;
     }
     event.target.reset();
-    setMasterStatus(statusId, "Cake added to the catalogue.", "is-success");
+    setMasterStatus(statusId, "");
+    closeCakeDrawer();
+    setMasterStatus("cake-catalog-status", "Cake added to the catalogue.", "is-success");
     await renderCakeCatalog();
   } catch (err) {
     setMasterStatus(statusId, err.message || "Could not upload the cake.", "is-error");
@@ -6098,14 +6415,21 @@ document.getElementById("cake-catalog-list")?.addEventListener("click", (event) 
   const remove = event.target.closest("[data-delete-cake]");
   if (save) {
     saveCakeDetails(save.dataset.saveCake, save).catch((err) => {
-      setMasterStatus("cake-upload-status", err.message || "Could not save the cake.", "is-error");
+      setMasterStatus("cake-catalog-status", err.message || "Could not save the cake.", "is-error");
     });
   }
   if (remove) {
     deleteCatalogCake(remove.dataset.deleteCake, remove.dataset.cakePath).catch((err) => {
-      setMasterStatus("cake-upload-status", err.message || "Could not remove the cake.", "is-error");
+      setMasterStatus("cake-catalog-status", err.message || "Could not remove the cake.", "is-error");
     });
   }
+});
+
+document.getElementById("cake-new")?.addEventListener("click", openCakeDrawer);
+document.getElementById("cake-cancel")?.addEventListener("click", closeCakeDrawer);
+document.getElementById("promo-new")?.addEventListener("click", () => {
+  resetPromoForm();
+  openPromoDrawer();
 });
 
 document.getElementById("promo-form")?.addEventListener("submit", (event) => {
@@ -6114,10 +6438,7 @@ document.getElementById("promo-form")?.addEventListener("submit", (event) => {
   });
 });
 
-document.getElementById("promo-cancel")?.addEventListener("click", () => {
-  resetPromoForm();
-  setMasterStatus("promo-form-status", "");
-});
+document.getElementById("promo-cancel")?.addEventListener("click", closePromoDrawer);
 
 document.getElementById("promo-list")?.addEventListener("click", (event) => {
   const edit = event.target.closest("[data-edit-promo]");
@@ -6129,7 +6450,7 @@ document.getElementById("promo-list")?.addEventListener("click", (event) => {
   }
   if (remove) {
     deletePromotion(remove.dataset.deletePromo).catch((err) => {
-      setMasterStatus("promo-form-status", err.message || "Could not delete the promotion.", "is-error");
+      setMasterStatus("promo-list-status", err.message || "Could not delete the promotion.", "is-error");
     });
   }
 });
@@ -6186,6 +6507,32 @@ document.getElementById("confirm-cancel")?.addEventListener("click", () => close
 confirmModal?.addEventListener("click", (e) => {
   if (e.target === confirmModal) closeConfirmModal(false);
 });
+
+const DRAWER_CLOSERS = {
+  "event-modal": closeEventModal,
+  "block-modal": closeBlockModal,
+  "promo-drawer": closePromoDrawer,
+  "cake-drawer": closeCakeDrawer,
+};
+
+function closeDrawer(drawer) {
+  DRAWER_CLOSERS[drawer?.id]?.();
+}
+
+document.addEventListener("click", (e) => {
+  const close = e.target.closest("[data-close-drawer]");
+  if (close) closeDrawer(close.closest(".drawer"));
+});
+["promo-drawer", "cake-drawer"].forEach((id) => {
+  const drawer = document.getElementById(id);
+  drawer?.addEventListener("click", (e) => {
+    if (e.target === drawer) closeDrawer(drawer);
+  });
+});
+detailScrim?.addEventListener("click", () => {
+  location.hash = backHash();
+});
+
 document.addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
   const timeModal = document.getElementById("event-time-modal");
@@ -6203,22 +6550,66 @@ document.addEventListener("keydown", (e) => {
   if (confirmModal && !confirmModal.hidden) {
     e.preventDefault();
     closeConfirmModal(false);
+    return;
+  }
+  const openDrawer = ["event-modal", "block-modal", "promo-drawer", "cake-drawer"]
+    .map((id) => document.getElementById(id))
+    .find((drawer) => drawer && !drawer.hidden);
+  if (openDrawer) {
+    e.preventDefault();
+    closeDrawer(openDrawer);
+    return;
+  }
+  if (detailDrawerOpen()) {
+    e.preventDefault();
+    location.hash = backHash();
+    return;
+  }
+  if (narrowSide.matches && !staffLayout?.classList.contains("is-collapsed")) {
+    setSideCollapsed(true, { remember: false });
   }
 });
 document.getElementById("event-location")?.addEventListener("change", syncEventLocationFields);
 document.getElementById("event-full-terrace")?.addEventListener("change", applyFullTerrace);
-document.getElementById("events-date-mode")?.addEventListener("change", (e) => {
-  state.eventsDateMode = e.target.value === "range" ? "range" : "upcoming";
-  if (state.eventsDateMode === "range" && !state.eventsFrom) state.eventsFrom = todayIso();
-  if (state.view === "events") renderEvents();
+document.querySelectorAll("[data-layout-remove]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const area = button.dataset.layoutRemove;
+    if (!state.eventLayouts) state.eventLayouts = {};
+    delete state.eventLayouts[area];
+    const input = document.getElementById(`event-layout-${area}`);
+    if (input) input.value = "";
+    paintEventLayoutUploads();
+  });
 });
-document.getElementById("events-from")?.addEventListener("change", (e) => {
-  state.eventsFrom = e.target.value || todayIso();
-  if (state.view === "events") renderEvents();
+["terrace", "indoor"].forEach((area) => {
+  document.getElementById(`event-layout-${area}`)?.addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    const preview = document.getElementById(`event-layout-${area}-preview`);
+    if (!file || !preview) return;
+    preview.innerHTML = file.type.startsWith("image/")
+      ? `<img src="${URL.createObjectURL(file)}" alt="New ${area} layout">`
+      : `<span class="layout-file">${escapeHtml(file.name)}</span>`;
+    const remove = document.querySelector(`[data-layout-remove="${area}"]`);
+    if (remove) remove.hidden = false;
+  });
 });
-document.getElementById("events-to")?.addEventListener("change", (e) => {
-  state.eventsTo = e.target.value || "";
-  if (state.view === "events") renderEvents();
+[
+  ["events", () => renderEvents()],
+  ["payments", () => renderPayments()],
+].forEach(([key, render]) => {
+  const rerender = () => {
+    if (state.view === key) render();
+  };
+  document.getElementById(`${key}-date-mode`)?.addEventListener("change", (e) => {
+    state.listDates[key].mode = LIST_DATE_MODES.includes(e.target.value) ? e.target.value : "upcoming";
+    rerender();
+  });
+  ["day", "from", "to"].forEach((part) => {
+    document.getElementById(`${key}-${part}`)?.addEventListener("change", (e) => {
+      state.listDates[key][part] = e.target.value || "";
+      rerender();
+    });
+  });
 });
 document.getElementById("event-guest-add")?.addEventListener("click", () => {
   document.getElementById("event-guests")?.insertAdjacentHTML("beforeend", guestRowHtml({}, readEventSlots()));
@@ -6369,6 +6760,32 @@ function tickClock() {
 
 tickClock();
 setInterval(tickClock, 1000);
+
+setPanelsFull(initialPanelsFull(), { remember: false });
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("[data-expand-drawer]")) return;
+  setPanelsFull(!document.body.classList.contains("panels-full"));
+});
+setSideCollapsed(initialSideCollapsed(), { remember: false });
+document.getElementById("side-toggle")?.addEventListener("click", () => {
+  setSideCollapsed(!staffLayout?.classList.contains("is-collapsed"));
+});
+document.getElementById("side-scrim")?.addEventListener("click", () => setSideCollapsed(true, { remember: false }));
+document.getElementById("home-link")?.addEventListener("click", (e) => {
+  if (app.hidden) {
+    e.preventDefault();
+    return;
+  }
+  if (narrowSide.matches) setSideCollapsed(true, { remember: false });
+  if (location.hash === "#/overview") {
+    e.preventDefault();
+    route();
+  }
+});
+viewNav?.addEventListener("click", (e) => {
+  if (e.target.closest("a") && narrowSide.matches) setSideCollapsed(true, { remember: false });
+});
+narrowSide.addEventListener("change", () => setSideCollapsed(initialSideCollapsed(), { remember: false }));
 
 (async () => {
   const user = await requireStaff();
