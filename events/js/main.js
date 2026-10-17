@@ -74,14 +74,28 @@
     return `Rp ${amount.toLocaleString("id-ID")}`;
   }
 
+  function track(eventName, params) {
+    try {
+      if (typeof window.gtag === "function") {
+        window.gtag("event", eventName, params || {});
+      } else if (Array.isArray(window.dataLayer)) {
+        window.dataLayer.push({ event: eventName, ...(params || {}) });
+      }
+    } catch (_) {
+      /* analytics optional */
+    }
+  }
+
   function ticketUnit(event) {
     const amount = Number(event?.price_idr ?? event?.pricing?.total ?? event?.pricing?.price ?? 0);
     return amount > 0 ? Math.round(amount) : 0;
   }
 
   function ticketPriceLabel(event) {
+    const raw = event?.price_idr ?? event?.pricing?.total ?? event?.pricing?.price;
+    if (raw === 0 || raw === "0") return "Free";
     const amount = ticketUnit(event);
-    return amount ? `${formatIdr(amount)} / ticket` : "";
+    return amount ? `${formatIdr(amount)} / ticket` : "Price not confirmed";
   }
 
   let appliedEventPromo = null;
@@ -332,11 +346,11 @@
     return `
       <section class="hero" aria-label="Events">
         <div class="hero__copy">
-          <div class="eyebrow">Tiny · Exclusive Events &amp; Activities in Bali</div>
-          <h1>Where precious<br>moments<br>become<br>memories</h1>
-          <p class="hero__sub">Exclusive events for all ages from toddler to adults. Check our upcoming events &amp; event calendar to pick one perfect for you!</p>
+          <div class="eyebrow">Tiny · Berawa</div>
+          <h1>Upcoming classes<br>and family<br>events<br>at Tiny</h1>
+          <p class="hero__sub">Find your next activity in Berawa.</p>
           <div class="hero__actions">
-            <a class="btn btn--lg btn--dark" href="#upcoming-events">See our Events</a>
+            <a class="btn btn--lg btn--dark" href="#upcoming-events">See upcoming events</a>
           </div>
         </div>
         <div class="hero__media">
@@ -376,10 +390,11 @@
                           <span>${escapeHtml(prettyDate(event.occurs_on))}</span>
                           <span class="event-card__times">${(event.times || []).map((time) => escapeHtml(time)).join("<br>")}</span>
                           ${
-                            ticketPriceLabel(event)
-                              ? `<span class="event-card__price">${escapeHtml(ticketPriceLabel(event))}</span>`
+                            event.audience
+                              ? `<span class="event-card__meta">${escapeHtml(event.audience)}</span>`
                               : ""
                           }
+                          <span class="event-card__price">${escapeHtml(ticketPriceLabel(event))}</span>
                         </button>`
                       )
                       .join("")}</div>`
@@ -442,7 +457,7 @@
     const count = Number(details.pax) || 1;
     const tickets = count === 1 ? "1 person / 1 ticket" : `${count} people / ${count} tickets`;
     const lines = [
-      "Hi Tiny! I'd like to book a spot.",
+      "Hi Tiny! I'd like to request tickets.",
       `Guest: ${details.name}`,
       `Email: ${details.email}`,
       `Event: ${details.eventName}`,
@@ -509,25 +524,40 @@
     }
     const unit = ticketUnit(event);
     const price = formatIdr(unit);
+    const priceLabel = ticketPriceLabel(event);
+    const bookable = priceLabel !== "Price not confirmed";
+    const actionLabel = bookable ? "Request tickets" : "Register your interest";
+    const payLine =
+      priceLabel === "Free"
+        ? "The team confirms your place."
+        : unit
+          ? "The team confirms your place. Pay at Tiny when you attend."
+          : "The price is not confirmed, so this is not a paid reservation.";
     const slots = eventSlots(event);
+    const aboutText = String(event.about || "").trim();
     return `
       <div class="event-page">
         <button class="event-back" type="button" data-back>← Upcoming events</button>
         ${flyerHtml(event)}
         <h1 class="event-title">${escapeHtml(event.name)}</h1>
+        <p class="event-facts">${escapeHtml(prettyDate(event.party_date))}<br>${slots
+          .map((slot) => escapeHtml(timeRange({ start_time: slot.start, end_time: slot.end })))
+          .join("<br>")}<br>${escapeHtml(event.location_label || "Tiny Healthy Cafe, Berawa")}<br>${escapeHtml(
+          priceLabel
+        )}${unit ? " · Pay at Tiny" : ""}</p>
         <aside class="ticket">
-          <h2>Guest list</h2>
+          <h2>Tickets</h2>
           <p class="ticket__when">${escapeHtml(prettyDate(event.party_date))}<br>${slots
             .map((slot) => escapeHtml(timeRange({ start_time: slot.start, end_time: slot.end })))
             .join("<br>")}</p>
           <p class="ticket__price">${
             price
               ? `${escapeHtml(price)} <span class="muted" style="font-size:16px">per ticket</span>`
-              : "Ticket price TBC"
+              : escapeHtml(priceLabel)
           }</p>
-          <p class="ticket__pay">Pay on site at Tiny, unless the team has already marked you as paid.</p>
+          <p class="ticket__pay">${escapeHtml(payLine)}</p>
           <p class="ticket__due" id="ticket-due"${unit ? "" : " hidden"}></p>
-          <button class="btn" type="button" id="book-spot">Book your spot</button>
+          <button class="btn" type="button" id="book-spot">${actionLabel}</button>
           <form id="guest-form" hidden>
             <label class="honeypot">Website<input name="website" tabindex="-1" autocomplete="off"></label>
             <label class="field"><span>Time</span>
@@ -545,11 +575,16 @@
             </label>
             <label class="field"><span>Name</span><input name="name" required autocomplete="name"></label>
             <div class="field">
-              <span id="pax-label">Party size</span>
-              <button type="button" class="count-trigger" id="pax-trigger" aria-haspopup="dialog" aria-labelledby="pax-label">
-                <strong id="pax-value">1 guest</strong>
-              </button>
-              <input type="hidden" name="pax" id="guest-pax" value="1">
+              <span id="pax-label">Tickets</span>
+              <p class="field__hint">One ticket is one participant.</p>
+              <div class="guest-stepper" data-guest-stepper>
+                <div class="guest-stepper__row">
+                  <label class="guest-stepper__name" for="guest-pax">Tickets</label>
+                  <button type="button" class="guest-stepper__btn" data-for="guest-pax" data-step="-1" aria-label="Fewer tickets">−</button>
+                  <input class="guest-stepper__input" type="number" id="guest-pax" name="pax" min="1" max="40" inputmode="numeric" value="1" aria-labelledby="pax-label">
+                  <button type="button" class="guest-stepper__btn" data-for="guest-pax" data-step="1" aria-label="More tickets">+</button>
+                </div>
+              </div>
             </div>
             <div class="field">
               <span>WhatsApp</span>
@@ -559,11 +594,13 @@
                   <input type="text" id="contact-dial-search" class="dial-combobox__input" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="contact-dial-list" aria-label="Country code" autocomplete="off" spellcheck="false" placeholder="+62 ID">
                   <ul class="dial-combobox__list" id="contact-dial-list" role="listbox" hidden></ul>
                 </div>
-                <input type="tel" name="phone" required inputmode="tel" autocomplete="tel" placeholder="812 3456 7890">
+                <input type="tel" name="phone" inputmode="tel" autocomplete="tel" placeholder="812 3456 7890">
               </div>
             </div>
-            <label class="field"><span>Email</span><input name="email" type="email" required autocomplete="email"></label>
-            <div class="field">
+            <label class="field"><span>Email</span><input name="email" type="email" autocomplete="email"></label>
+            <p class="field__hint">Add an email or a WhatsApp number. One is enough.</p>
+            <button type="button" class="promo-reveal" id="promo-reveal">Have a promo code?</button>
+            <div class="field" id="promo-box" hidden>
               <span>Promo code</span>
               <div class="promo-row">
                 <input name="promo" id="promo-code" autocomplete="off" spellcheck="false" placeholder="Optional" maxlength="32">
@@ -571,13 +608,28 @@
               </div>
               <p class="status" id="promo-status" role="status"></p>
             </div>
-            <button class="btn" type="submit">Book your spot</button>
+            <button class="btn" type="submit">${actionLabel}</button>
             <p class="status" id="guest-status" role="status"></p>
           </form>
         </aside>
         <div class="about">
           <h2>About event</h2>
-          <p>${escapeHtml(event.about || "We’ll share the details of this gathering at Tiny.")}</p>
+          <p>${aboutText ? escapeHtml(aboutText) : "Details for this class are still being added."}</p>
+          ${
+            event.audience
+              ? `<p><strong>Who it’s for</strong><br>${escapeHtml(event.audience)}</p>`
+              : ""
+          }
+          ${
+            event.duration
+              ? `<p><strong>Duration</strong><br>${escapeHtml(event.duration)}</p>`
+              : ""
+          }
+          ${
+            event.includes
+              ? `<p><strong>Included</strong><br>${escapeHtml(event.includes)}</p>`
+              : ""
+          }
           <div class="map-frame">
             <iframe title="Map of Tiny Healthy Cafe" src="${MAPS_EMBED}" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
             <p><strong>${escapeHtml(event.location_label || "Tiny Healthy Cafe")}</strong><br>${escapeHtml(CAFE_ADDRESS)}<br><a href="${MAPS_LINK}" target="_blank" rel="noopener noreferrer">Open in Google Maps</a></p>
@@ -587,24 +639,12 @@
       <div class="wa-modal" id="wa-modal" hidden>
         <div class="wa-modal__card" role="dialog" aria-modal="true" aria-labelledby="wa-title">
           <h2 id="wa-title" class="section-title">You’re on the list</h2>
-          <p>Tiny will confirm your place. You can also send a WhatsApp so the team sees you straight away.</p>
+          <p>We received your request. Tiny will confirm your place. Pay at Tiny when you attend. This does not reserve the seat until the team confirms.</p>
           <p><a class="btn" id="wa-go" href="#" target="_blank" rel="noopener noreferrer">WhatsApp Tiny</a></p>
           <p><button class="btn" type="button" data-close-wa style="width:auto;background:transparent;color:var(--sage)">Close</button></p>
         </div>
       </div>
-      <div class="count-modal" id="pax-modal" hidden>
-        <button type="button" class="count-modal__backdrop" data-close-pax aria-label="Close"></button>
-        <div class="count-modal__panel" role="dialog" aria-modal="true" aria-labelledby="pax-modal-title">
-          <h3 id="pax-modal-title">How many?</h3>
-          <p class="count-modal__note">People in your party, including you.</p>
-          <div class="count-modal__value" id="pax-modal-value">1</div>
-          <div class="count-modal__unit">Guests</div>
-          <input type="range" id="pax-range" min="1" max="40" value="1">
-          <div class="count-modal__scale"><span>1</span><span>40</span></div>
-          <p class="count-modal__confirm" id="pax-modal-confirm">Got it — 1 guest.</p>
-          <button type="button" class="btn count-modal__done" id="pax-done">Continue</button>
-        </div>
-      </div>`;
+      `;
   }
 
   function guestHtml(guest, message) {
@@ -713,8 +753,6 @@
     if (search) search.value = "+62 ID";
   }
 
-  let partySizeKeyBound = false;
-
   function updateTicketDue() {
     const due = document.getElementById("ticket-due");
     const input = document.getElementById("guest-pax");
@@ -734,50 +772,17 @@
     due.hidden = false;
     due.textContent =
       pax === 1
-        ? `${formatIdr(net)} for 1 ticket${promoNote} · pay on site`
-        : `${formatIdr(net)} for ${pax} tickets${promoNote} · pay on site`;
+        ? `${formatIdr(net)} for 1 ticket${promoNote} · pay at Tiny`
+        : `${formatIdr(net)} for ${pax} tickets${promoNote} · pay at Tiny`;
   }
 
   function initPartySize() {
-    const modal = document.getElementById("pax-modal");
-    const range = document.getElementById("pax-range");
     const input = document.getElementById("guest-pax");
-    const value = document.getElementById("pax-value");
-    const big = document.getElementById("pax-modal-value");
-    const confirm = document.getElementById("pax-modal-confirm");
-    if (!modal || !range || !input) return;
-    const paint = (n) => {
-      const count = Math.max(1, Math.min(40, Number(n) || 1));
-      range.value = String(count);
-      input.value = String(count);
-      const label = `${count} ${count === 1 ? "guest" : "guests"}`;
-      if (value) value.textContent = label;
-      if (big) big.textContent = String(count);
-      if (confirm) confirm.textContent = `Got it — ${label}.`;
-      updateTicketDue();
-    };
-    paint(input.value || 1);
-    document.getElementById("pax-trigger")?.addEventListener("click", () => {
-      paint(input.value || 1);
-      modal.hidden = false;
-    });
-    range.addEventListener("input", () => paint(range.value));
-    document.getElementById("pax-done")?.addEventListener("click", () => {
-      paint(range.value);
-      modal.hidden = true;
-    });
-    modal.querySelectorAll("[data-close-pax]").forEach((el) => {
-      el.addEventListener("click", () => {
-        modal.hidden = true;
-      });
-    });
-    if (!partySizeKeyBound) {
-      partySizeKeyBound = true;
-      document.addEventListener("keydown", (event) => {
-        const open = document.getElementById("pax-modal");
-        if (event.key === "Escape" && open && !open.hidden) open.hidden = true;
-      });
-    }
+    if (!input) return;
+    window.TinyGuestStepper?.init?.(document.getElementById("events-app") || document);
+    input.addEventListener("input", updateTicketDue);
+    input.addEventListener("change", updateTicketDue);
+    updateTicketDue();
   }
 
   function bindEventPromo(eventCode) {
@@ -882,7 +887,15 @@
     updateTicketDue();
     bindDialCombobox();
     bindEventPromo(code);
+    document.getElementById("promo-reveal")?.addEventListener("click", () => {
+      const box = document.getElementById("promo-box");
+      const reveal = document.getElementById("promo-reveal");
+      if (box) box.hidden = false;
+      if (reveal) reveal.hidden = true;
+      document.getElementById("promo-code")?.focus();
+    });
     document.getElementById("book-spot")?.addEventListener("click", () => {
+      track("reservation_started", { event_code: code });
       const form = document.getElementById("guest-form");
       const trigger = document.getElementById("book-spot");
       if (form) form.hidden = false;
@@ -901,9 +914,24 @@
         status.className = "status is-error";
         return;
       }
-      const phone = normalizePhone(data.get("contact-dial") || document.getElementById("contact-dial")?.value, data.get("phone"));
-      if (!/^\+[1-9][0-9]{7,14}$/.test(phone)) {
-        status.textContent = "Add a WhatsApp number with the country code.";
+      const email = String(data.get("email") || "").trim();
+      const phoneRaw = String(data.get("phone") || "").trim();
+      let phone = "";
+      if (phoneRaw) {
+        phone = normalizePhone(data.get("contact-dial") || document.getElementById("contact-dial")?.value, phoneRaw);
+        if (!/^\+[1-9][0-9]{7,14}$/.test(phone)) {
+          status.textContent = "Add a WhatsApp number with the country code, or use email instead.";
+          status.className = "status is-error";
+          return;
+        }
+      }
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        status.textContent = "Enter a valid email, or use WhatsApp instead.";
+        status.className = "status is-error";
+        return;
+      }
+      if (!email && !phone) {
+        status.textContent = "Add an email or a WhatsApp number.";
         status.className = "status is-error";
         return;
       }
@@ -931,7 +959,7 @@
             code,
             name: String(data.get("name") || "").trim(),
             pax: Number(data.get("pax")) || 1,
-            email: String(data.get("email") || "").trim(),
+            email,
             phone,
             slot,
             payment: "onsite",
@@ -946,8 +974,9 @@
           button.disabled = false;
           return;
         }
-        status.textContent = "You’re on the guest list. Check your email for the link.";
+        status.textContent = "Request received. Tiny will confirm your place.";
         status.className = "status is-ok";
+        track("reservation_confirmed", { event_code: code });
         const modal = document.getElementById("wa-modal");
         const link = document.getElementById("wa-go");
         const eventItem = state.events.find((item) => item.public_code === code);
@@ -959,7 +988,7 @@
         if (link) {
           link.href = bookingWhatsappHref(body.whatsappHref, {
             name: String(data.get("name") || "").trim(),
-            email: String(data.get("email") || "").trim(),
+            email,
             eventName: eventItem?.name || "Event",
             slot: slotText,
             pax: paxCount,
@@ -1018,6 +1047,7 @@
       app.innerHTML = eventHtml(code);
       document.title = `${state.events.find((item) => item.public_code === code)?.name || "Event"} | Tiny Healthy Cafe`;
       bindEvent(code);
+      track("event_detail_view", { event_code: code });
       return;
     }
     document.title = "Events | Tiny Healthy Cafe";

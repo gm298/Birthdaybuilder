@@ -365,21 +365,18 @@
   }
 
   function guestName() {
-    const salutation = document.getElementById("reserve-salutation")?.value || "";
-    const name = document.getElementById("reserve-name")?.value.trim() || "";
-    return [salutation, name].filter(Boolean).join(" ");
+    return document.getElementById("reserve-name")?.value.trim() || "";
   }
 
   function guestNameParts() {
     return {
-      salutation: document.getElementById("reserve-salutation")?.value || "",
-      name: document.getElementById("reserve-name")?.value.trim() || "",
+      salutation: "",
+      name: guestName(),
     };
   }
 
   function composeMessage(code) {
     const notes = document.getElementById("reserve-notes")?.value.trim() || "";
-    const purpose = document.getElementById("reserve-purpose")?.value || "";
     const email = document.getElementById("contact-email")?.value.trim() || "";
     const phone = window.TinyContact?.readContact?.()?.phone || document.getElementById("contact-phone")?.value.trim() || "";
     return [
@@ -392,7 +389,6 @@
       `Please arrive by ${Map.graceLabel(state.time)} or the reservation is cancelled.`,
       `Guests: ${state.kids} kids, ${state.adults} adults`,
       Map.tableLabel(selectedTables()) ? `Table: ${Map.tableLabel(selectedTables())}` : null,
-      purpose ? `Purpose: ${purpose}` : null,
       notes ? `Notes: ${notes}` : null,
       phone ? `My WhatsApp: ${phone}` : null,
       email ? `Email: ${email}` : null,
@@ -416,7 +412,7 @@
       reservation: {
         name: guestNameParts().name,
         salutation: guestNameParts().salutation,
-        purpose: document.getElementById("reserve-purpose")?.value || "",
+        purpose: "",
         notes: document.getElementById("reserve-notes")?.value.trim() || "",
         guests: state.guests,
         kids: state.kids,
@@ -693,7 +689,6 @@
   function renderSummary() {
     const host = document.getElementById("summary-card");
     if (!host) return;
-    const purpose = document.getElementById("reserve-purpose")?.value || "—";
     const notes = document.getElementById("reserve-notes")?.value.trim() || "—";
     const email = document.getElementById("contact-email")?.value.trim() || "";
     const phone = window.TinyContact?.readContact?.()?.phone || document.getElementById("contact-phone")?.value.trim() || "";
@@ -728,8 +723,6 @@
         </div>
         <p><strong>${guestName()}</strong></p>
         <p class="field__hint">${[email, phone].filter(Boolean).join(" · ") || "—"}</p>
-        <p class="summary-kicker">Purpose</p>
-        <p>${purpose || "—"}</p>
         <p class="summary-kicker">Notes</p>
         <p>${notes}</p>
       </div>
@@ -951,8 +944,8 @@
 
   function boot() {
     if (!document.getElementById("floorplan") || !Map) return;
-    bindForm();
     initCountSliders();
+    bindForm();
     renderTimes();
     setDate(baliNowParts().date);
     renderPlan();

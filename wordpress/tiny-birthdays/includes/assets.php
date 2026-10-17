@@ -63,6 +63,11 @@ function tiny_birthdays_enqueue_front() {
         wp_enqueue_script('tiny-birthdays-reserve-tables', tiny_birthdays_asset('shared/reserve-tables.js'), [], $ver, true);
         $app_deps[] = 'tiny-birthdays-reserve-tables';
     }
+    if (in_array($type, ['builder', 'reserve', 'events'], true)) {
+        wp_enqueue_style('tiny-birthdays-guest-stepper', tiny_birthdays_asset('shared/guest-stepper.css'), ['tiny-birthdays-chrome'], $ver);
+        wp_enqueue_script('tiny-birthdays-guest-stepper', tiny_birthdays_asset('shared/guest-stepper.js'), [], $ver, true);
+        $app_deps[] = 'tiny-birthdays-guest-stepper';
+    }
 
     $app_scripts = [
         'landing' => ['tiny-birthdays-landing', 'birthdays/js/main.js'],

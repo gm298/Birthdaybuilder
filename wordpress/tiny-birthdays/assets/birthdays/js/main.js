@@ -5,9 +5,9 @@
 
   const DEFAULT_PACKAGES = {
     legal:
-      "Extra guests +150k per person on weekdays, +300k on weekends, up to each package's maximum. Every party runs 3 hours. Weekday starting rates shown; weekend rates are higher. All prices in IDR, subject to government tax & service. Custom combinations available on request.",
+      "Extra guests +150k per person on weekdays, +300k on weekends, up to each package's maximum. Adults and children both count. Every party runs 3 hours. Weekday starting rates shown; weekend rates are higher. Prices exclude 5% service and 10% tax. Custom combinations available on request.",
     legalMobile:
-      "Extra guests +150k weekdays / +300k weekends. Every party runs 3 hours, subject to tax & service.",
+      "Adults and children both count. Extra guests +150k weekdays / +300k weekends. Prices exclude 5% service and 10% tax.",
     packages: [
       {
         id: "simple",
@@ -21,7 +21,7 @@
           "Requested themed party",
           "Table decor (no flowers)",
           "Simple balloon decor",
-          "Food & play-area deposit",
+          "Food & drink credit · 750k weekday / 1.5M weekend. Extra orders are charged from the menu.",
         ],
         mobileSummary: "5 guests · cake 15cm · themed party · table & balloon decor",
       },
@@ -31,14 +31,13 @@
         shortName: "Signature themed party",
         guests: "10 guests included · add up to 20",
         price: "IDR 5.3M",
-        featured: true,
-        badge: "Most popular",
+        featured: false,
         features: [
           "Birthday cake · 18cm, 2 layers",
           "Requested themed party",
           "Medium balloon decor",
           "Photozone",
-          "Food & play-area deposit",
+          "Food & drink credit · 1.5M weekday / 3M weekend. Extra orders are charged from the menu.",
         ],
         mobileSummary: "10 guests · cake 18cm · themed decor · medium balloons · photozone",
       },
@@ -46,17 +45,19 @@
         id: "terrace",
         name: "Private terrace event",
         shortName: "Private terrace event",
-        guests: "20 guests included · add up to 30",
+        guests: "20 guests included · add up to 35",
         price: "IDR 12.7M",
         featured: false,
         features: [
+          "Birthday cake · 22cm, 2 layers",
           "Whole private terrace",
           "Full terrace balloon decor",
           "Photozone & piñata",
           "Dessert station",
           "Masterclass for 10 kids",
+          "Food & drink credit · 3M weekday / 6M weekend. Extra orders are charged from the menu.",
         ],
-        mobileSummary: "20 guests · private terrace · photozone · dessert station · masterclass",
+        mobileSummary: "20 guests · cake 22cm · dessert station · private terrace · masterclass",
       },
     ],
   };
@@ -124,11 +125,11 @@
         const features = (pkg.features || [])
           .map((f) => `<li>${escapeHtml(f)}</li>`)
           .join("");
-        const badge = pkg.featured
-          ? `<span class="pkg__badge">${escapeHtml(pkg.badge || "Most popular")}</span>`
+        const badge = pkg.badge
+          ? `<span class="pkg__badge">${escapeHtml(pkg.badge)}</span>`
           : "";
         return `
-          <a class="pkg${pkg.featured ? " pkg--featured" : ""}" href="${packageBuilderUrl(pkg)}">
+          <a class="pkg" href="${packageBuilderUrl(pkg)}#details">
             ${badge}
             <h3>${escapeHtml(pkg.name)}</h3>
             <div class="pkg__guests">${escapeHtml(pkg.guests)}</div>
@@ -139,21 +140,14 @@
       })
       .join("");
 
-    const featured = data.packages.find((p) => p.featured) || data.packages[1];
-    const ordered = featured
-      ? [featured, ...data.packages.filter((p) => p.id !== featured.id)]
-      : data.packages;
-
-    compact.innerHTML = ordered
+    compact.innerHTML = data.packages
       .map((pkg, index) => {
         const isOpen = index === 0;
-        const badge = pkg.featured
-          ? `<span class="pkg-compact__badge">${escapeHtml(pkg.badge || "Most popular")}</span>`
+        const badge = pkg.badge
+          ? `<span class="pkg-compact__badge">${escapeHtml(pkg.badge)}</span>`
           : "";
         return `
-        <div class="pkg-compact__item${isOpen ? " is-open" : ""}${
-          pkg.featured ? " is-featured" : ""
-        }" data-pkg="${escapeHtml(pkg.id)}">
+        <div class="pkg-compact__item${isOpen ? " is-open" : ""}" data-pkg="${escapeHtml(pkg.id)}">
           <button type="button" class="pkg-compact__toggle" aria-expanded="${isOpen}">
             ${badge}
             <span class="pkg-compact__name">${escapeHtml(pkg.shortName || pkg.name)}</span>
@@ -161,7 +155,7 @@
           </button>
           <div class="pkg-compact__panel"${isOpen ? "" : " hidden"}>
             <span class="pkg-compact__summary">${escapeHtml(pkg.mobileSummary || "")}</span>
-            <a class="pkg-compact__cta" href="${packageBuilderUrl(pkg)}">Customise this →</a>
+            <a class="pkg-compact__cta" href="${packageBuilderUrl(pkg)}#details">Customise this →</a>
           </div>
         </div>`;
       })
@@ -369,6 +363,7 @@
       const a = e.target.closest("[data-wa]");
       if (!a) return;
       track("whatsapp_click", { button: a.getAttribute("data-wa") });
+      if (a.getAttribute("data-wa") === "tasting_requested") track("tasting_requested");
     });
   }
 
@@ -392,7 +387,39 @@
     update();
   }
 
+  function initComparePhotos() {
+    const box = document.getElementById("pkg-lightbox");
+    const img = document.getElementById("pkg-lightbox-img");
+    const name = document.getElementById("pkg-lightbox-name");
+    if (!box || !img || !name) return;
+    const close = () => {
+      box.hidden = true;
+      box.setAttribute("aria-hidden", "true");
+      document.body.style.overflow = "";
+    };
+    const open = (src, title) => {
+      if (!src) return;
+      img.src = src;
+      img.alt = title || "Package photo";
+      name.textContent = title || "";
+      box.hidden = false;
+      box.setAttribute("aria-hidden", "false");
+      document.body.style.overflow = "hidden";
+    };
+    document.querySelectorAll(".pkg-compare__photo").forEach((btn) => {
+      btn.addEventListener("click", () => open(btn.dataset.expandSrc, btn.dataset.expandAlt));
+    });
+    box.querySelector(".pkg-lightbox__close")?.addEventListener("click", close);
+    box.addEventListener("click", (e) => {
+      if (e.target === box) close();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !box.hidden) close();
+    });
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
+    track("landing_view");
     loadPackages();
     initSmoothScroll();
     initFaq();
@@ -400,5 +427,6 @@
     initOfferSlider();
     initWhatsAppTracking();
     initMobileSticky();
+    initComparePhotos();
   });
 })();

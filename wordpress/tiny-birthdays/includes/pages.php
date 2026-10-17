@@ -91,7 +91,7 @@ function tiny_birthdays_ensure_pages() {
     $cakes_id = tiny_birthdays_upsert_page([
         'slug' => 'cakes',
         'title' => 'Custom Birthday Cakes in Berawa, Bali | Tiny Healthy Cafe',
-        'excerpt' => 'Custom birthday cakes baked at Tiny in Berawa, Bali — any theme, gluten-free or no added sugar as a paid add-on. Order 2 days ahead via WhatsApp.',
+        'excerpt' => 'Custom birthday cakes baked at Tiny in Berawa, Bali — any theme, with flourless and no-added-sugar sponges available. Order at least 2 days ahead.',
         'type' => 'cakes',
         'content' => tiny_birthdays_default_cakes_content(),
     ]);

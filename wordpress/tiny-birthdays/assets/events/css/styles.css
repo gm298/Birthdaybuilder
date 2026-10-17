@@ -296,6 +296,28 @@ button, input, select, textarea { font: inherit; }
   font-size: 15px;
 }
 
+.event-card__meta {
+  display: block;
+}
+
+.event-facts {
+  margin: 0 0 18px;
+  color: var(--body, rgba(51, 65, 58, 0.75));
+  line-height: 1.5;
+}
+
+.promo-reveal {
+  display: inline-flex;
+  margin: 4px 0 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--sage);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
 .calendar {
   background: var(--white);
   border: 1px solid var(--line);

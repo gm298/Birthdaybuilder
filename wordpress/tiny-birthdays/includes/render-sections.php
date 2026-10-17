@@ -57,7 +57,7 @@ function tiny_birthdays_cakes_hero_defaults() {
     return [
         'eyebrow' => 'Cakes at Tiny · Berawa, Bali',
         'headline' => "The cake they'll remember longer than the presents",
-        'sub' => "Baked here, decorated around your child's favourite thing. Any cake can be made gluten-free or with no added sugar as a paid add-on.",
+        'sub' => "Baked here, decorated around your child's favourite thing.",
         'primaryLabel' => 'Make your own cake',
         'primaryUrl' => '#build',
         'secondaryLabel' => 'See the cakes',
@@ -119,8 +119,7 @@ function tiny_birthdays_cakes_facts_defaults() {
         'items' => [
             ['title' => 'Baked here', 'text' => 'fresh, in our own kitchen'],
             ['title' => 'Any theme', 'text' => "send a picture, we'll match it"],
-            ['title' => 'Gluten-free', 'text' => 'and no added sugar — a paid add-on'],
-            ['title' => '2 days', 'text' => 'notice is all we need'],
+            ['title' => 'Flavours', 'text' => 'pick up to two sponges'],
         ],
     ];
 }

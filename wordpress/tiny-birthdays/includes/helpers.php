@@ -52,7 +52,7 @@ function tiny_birthdays_page_url($type) {
 }
 
 function tiny_birthdays_wa_tasting() {
-    return 'https://wa.me/6282147830142?text=' . rawurlencode("Hi Tiny! I'd like to book a free cake tasting.");
+    return 'https://wa.me/6282147830142?text=' . rawurlencode("Hi Tiny! I'd like to request a free cake tasting. Preferred day: . Party date if I know it: .");
 }
 
 function tiny_birthdays_wa_question() {

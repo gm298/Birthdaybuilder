@@ -315,7 +315,45 @@ h3 {
 .hero {
   padding: 56px var(--pad-x) 28px;
   display: grid;
-  gap: 36px;
+  grid-template-columns: minmax(0, 1.05fr) minmax(280px, 0.95fr);
+  gap: 28px 40px;
+  align-items: center;
+}
+
+.hero__photo {
+  margin: 0;
+  position: relative;
+  align-self: stretch;
+}
+
+.hero__photo img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: block;
+  width: auto;
+  height: calc(150% + 54px);
+  max-width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  -webkit-mask-image: radial-gradient(ellipse 78% 74% at 50% 44%, #000 36%, rgba(0, 0, 0, 0.55) 68%, transparent 100%);
+  mask-image: radial-gradient(ellipse 78% 74% at 50% 44%, #000 36%, rgba(0, 0, 0, 0.55) 68%, transparent 100%);
+}
+
+.hero__photo::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  height: calc(150% + 54px);
+  aspect-ratio: 1;
+  max-width: 100%;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, #f7f5ee 0%, rgba(247, 245, 238, 0.2) 16%, rgba(247, 245, 238, 0) 28%, rgba(247, 245, 238, 0) 72%, rgba(247, 245, 238, 0.35) 86%, #f7f5ee 100%),
+    linear-gradient(180deg, #f7f5ee 0%, rgba(247, 245, 238, 0.15) 14%, rgba(247, 245, 238, 0) 30%, rgba(247, 245, 238, 0) 62%, rgba(247, 245, 238, 0.72) 82%, #f7f5ee 100%);
 }
 
 .hero__copy h1 {
@@ -934,6 +972,8 @@ h3 {
 }
 
 .wizard {
+  position: relative;
+  z-index: 2;
   margin: 0 var(--pad-x) 72px;
   background: var(--white);
   border: 1px solid rgba(100, 124, 110, 0.18);
@@ -1592,7 +1632,8 @@ body.time-modal-open {
   inset: 0;
   z-index: 400;
   display: grid;
-  place-items: end center;
+  place-items: center;
+  padding: 24px;
 }
 
 .count-modal[hidden] {
@@ -1608,10 +1649,10 @@ body.time-modal-open {
 
 .count-modal__panel {
   position: relative;
-  width: min(560px, 100%);
+  width: min(420px, 100%);
   margin: 0;
   padding: 28px 24px 22px;
-  border-radius: 28px 28px 0 0;
+  border-radius: 28px;
   background: #fff;
   color: #1c1c1c;
   box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.16);
@@ -1722,6 +1763,17 @@ body.time-modal-open {
 
   .hero {
     padding-top: 28px;
+    grid-template-columns: 1fr;
+  }
+
+  .hero__photo {
+    height: 420px;
+    align-self: auto;
+  }
+
+  .hero__photo img,
+  .hero__photo::after {
+    height: 100%;
   }
 
   .hero__facts {

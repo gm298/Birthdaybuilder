@@ -77,7 +77,9 @@
     const title = opts.title || "Saved";
     const subtitle =
       opts.subtitle ||
-      (code ? `Reference ${code}. Send the details to Tiny on WhatsApp when you’re ready.` : "Send the details to Tiny on WhatsApp when you’re ready.");
+      (code
+        ? `Reference ${code}. Tiny already has this request. WhatsApp is optional.`
+        : "Tiny already has this request. WhatsApp is optional.");
 
     body.innerHTML = `
       <p class="tiny-success-modal__eyebrow">Tiny Healthy Cafe</p>
@@ -89,12 +91,14 @@
           whatsappHref
             ? `<a class="btn tiny-success-modal__primary" href="${escapeHtml(
                 whatsappHref
-              )}" target="_blank" rel="noopener noreferrer" data-wa="success_send">Send to WhatsApp</a>`
+              )}" target="_blank" rel="noopener noreferrer" data-wa="success_send">${escapeHtml(
+                opts.whatsappLabel || "Send your message in WhatsApp"
+              )}</a>`
             : ""
         }
         ${showEdit ? `<a class="btn btn--outline" href="${escapeHtml(manageHref)}">Edit</a>` : ""}
         ${showShare ? `<button type="button" class="btn btn--outline" data-share>Share</button>` : ""}
-        ${showCancel ? `<button type="button" class="btn btn--outline tiny-success-modal__danger" data-cancel>Cancel booking</button>` : ""}
+        ${showCancel ? `<button type="button" class="btn btn--outline tiny-success-modal__danger" data-cancel>${escapeHtml(opts.cancelLabel || "Cancel booking")}</button>` : ""}
       </div>
       <p class="tiny-success-modal__status" id="tiny-success-status" role="status" aria-live="polite"></p>
       <button type="button" class="tiny-success-modal__dismiss" data-close>Close</button>

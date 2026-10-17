@@ -2,7 +2,7 @@
   "packages": [
     {
       "id": "simple",
-      "name": "Simple",
+      "name": "Simple celebration",
       "guests": "5 people included · add up to 9",
       "guestsIncluded": 5,
       "guestsMax": 9,
@@ -17,14 +17,14 @@
         "Requested themed party",
         "Table decor (no flowers)",
         "Simple balloon decor",
-        "Food & play-area deposit · 750k weekday / 1.5M weekend"
+        "Food & drink credit · 750k weekday / 1.5M weekend. Extra orders are charged from the menu."
       ],
       "decorId": "simple",
       "cakeSize": "15 cm"
     },
     {
       "id": "signature",
-      "name": "Optimal",
+      "name": "Signature themed party",
       "guests": "10 people included · add up to 20",
       "guestsIncluded": 10,
       "guestsMax": 20,
@@ -32,8 +32,7 @@
       "priceWeekend": "IDR 8.7M",
       "priceWeekdayValue": 5300000,
       "priceWeekendValue": 8700000,
-      "featured": true,
-      "badge": "Most popular",
+      "featured": false,
       "image": "img/packages/signature.jpg",
       "includes": [
         "Birthday cake · 18cm, 2 layers",
@@ -41,14 +40,14 @@
         "Table decor (no flowers)",
         "Medium balloon decor",
         "Photozone",
-        "Food & play-area deposit · 1.5M weekday / 3M weekend"
+        "Food & drink credit · 1.5M weekday / 3M weekend. Extra orders are charged from the menu."
       ],
       "decorId": "optimal",
       "cakeSize": "18 cm"
     },
     {
       "id": "terrace",
-      "name": "Whole Terrace",
+      "name": "Private terrace event",
       "guests": "20 people included · max 35 total",
       "guestsIncluded": 20,
       "guestsMax": 35,
@@ -65,7 +64,7 @@
         "Photozone & piñata",
         "Dessert station",
         "Masterclass for 10 kids",
-        "Food & play-area deposit · 3M weekday / 6M weekend"
+        "Food & drink credit · 3M weekday / 6M weekend. Extra orders are charged from the menu."
       ],
       "decorId": "terrace",
       "cakeSize": "22 cm"
@@ -74,9 +73,9 @@
   "decorPackages": [
     {
       "id": "simple",
-      "name": "Simple",
+      "name": "Simple celebration",
       "image": "img/decor/simple.jpg",
-      "note": "Included with Simple · 950k as an add-on",
+      "note": "Included with Simple celebration · 950k as an add-on",
       "items": [
         "11 pcs flying balloons",
         "1 standing number",
@@ -86,9 +85,9 @@
     },
     {
       "id": "optimal",
-      "name": "Optimal",
+      "name": "Signature themed party",
       "image": "img/decor/optimal.jpg",
-      "note": "Included with Optimal · 2.4M as an add-on",
+      "note": "Included with Signature themed party · 2.4M as an add-on",
       "items": [
         "1 rounded garland",
         "1 head character",
@@ -100,9 +99,9 @@
     },
     {
       "id": "terrace",
-      "name": "Whole Terrace",
+      "name": "Private terrace event",
       "image": "img/decor/terrace.jpg",
-      "note": "Included with Whole Terrace · 4M as an add-on",
+      "note": "Included with Private terrace event · 4M as an add-on",
       "items": [
         "1½ backdrop with balloon & name (2m)",
         "1 character balloon",
@@ -174,7 +173,7 @@
     ],
     "decoration": [
       { "id": "simple-balloon", "name": "Simple balloon decor", "price": "950k", "priceValue": 950000, "image": "img/extras/balloons.jpg" },
-      { "id": "optimal-balloon", "name": "Optimal balloon & photozone", "price": "2.4M", "priceValue": 2400000, "image": "img/decor/optimal.jpg" },
+      { "id": "optimal-balloon", "name": "Signature balloon & photozone", "price": "2.4M", "priceValue": 2400000, "image": "img/decor/optimal.jpg" },
       { "id": "terrace-balloon", "name": "Terrace balloon & photozone", "price": "4M", "priceValue": 4000000, "image": "img/decor/terrace.jpg" },
       { "id": "table-decor", "name": "Table decor (flowers / themed)", "price": "on request", "priceValue": 0, "image": "img/extras/table.jpg" }
     ],
@@ -189,8 +188,8 @@
     "weekend": 300000
   },
   "food": {
-    "image": "img/food.jpg",
-    "lede": "Food and drink sit in the package as a play-area deposit. Tell us allergies and we’ll set the table from Tiny’s kitchen.",
+    "image": "img/food.jpg?v=20261017j",
+    "lede": "Each package includes a food and drink credit. Anything above that credit is charged from the menu.",
     "menuUrl": "https://drive.google.com/drive/folders/1-Ubm3u3EvXdcDY-TdVo_sA4bPH5s5ARI?usp=drive_link",
     "depositByPackage": {
       "simple": {

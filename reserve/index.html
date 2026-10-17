@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20260928c">
+  <link rel="stylesheet" href="css/styles.css?v=20261017r">
   <link rel="stylesheet" href="../shared/chrome.css?v=20260917d">
 </head>
 <body data-page="reserve">
@@ -20,8 +20,11 @@
       <div class="hero__copy">
         <div class="eyebrow">Tiny Healthy Cafe · Berawa, Bali</div>
         <h1>Reserve a table</h1>
-        <p class="hero__sub">Book a 2-hour table. We hold it for 15 minutes after your start time — if you have not arrived by then, the reservation is cancelled.</p>
+        <p class="hero__sub">The cafe is open 8:30am–8pm. Online Reservations last for 2 hours and we will hold your table for 15 minutes. Full booking conditions are shown before you confirm.</p>
       </div>
+      <figure class="hero__photo">
+        <img src="img/dining.jpg" alt="Family at a table with drinks, food, and a server at Tiny" width="1024" height="1024">
+      </figure>
     </section>
 
     <section class="wizard" id="book">
@@ -68,7 +71,7 @@
               <span class="time-trigger__label" id="time-trigger-label">Select time</span>
               <span class="time-trigger__hint" id="time-trigger-hint">Choose an available 2-hour slot</span>
             </button>
-            <span class="field__hint">Each booking is 2 hours. Last start is 16:00. We hold the table for 15 minutes after your start time; if you have not arrived by then, it is cancelled. Fully booked times are blocked.</span>
+            <span class="field__hint">2 hours · arrive within 15 minutes.</span>
           </div>
           <p class="form-status" id="schedule-occupancy-status" role="status" hidden></p>
         </div>
@@ -99,20 +102,9 @@
         <div class="wizard-panel" data-panel="3" hidden>
           <h3 class="panel-title">Reservation details</h3>
           <p class="field__hint">We’ll email your reservation details and a private link to edit or cancel. We’ll also send a copy to Tiny.</p>
-          <div class="form-row form-row--name">
-            <div class="field">
-              <label class="field__label" for="reserve-salutation">Title</label>
-              <select id="reserve-salutation" name="salutation">
-                <option>Mr.</option>
-                <option>Mrs.</option>
-                <option>Ms.</option>
-                <option>Mx.</option>
-              </select>
-            </div>
-            <div class="field">
-              <label class="field__label" for="reserve-name">Name</label>
-              <input type="text" id="reserve-name" name="name" autocomplete="name" required placeholder="Full name">
-            </div>
+          <div class="field">
+            <label class="field__label" for="reserve-name">Name</label>
+            <input type="text" id="reserve-name" name="name" autocomplete="name" required placeholder="Full name">
           </div>
           <div id="contact-fields">
             <div class="field">
@@ -130,18 +122,6 @@
                 <input type="tel" id="contact-phone" name="phone" inputmode="tel" autocomplete="tel" placeholder="812 3456 7890">
               </div>
             </div>
-          </div>
-          <div class="field">
-            <label class="field__label" for="reserve-purpose">Reservation purpose</label>
-            <select id="reserve-purpose" name="purpose">
-              <option value="">Select reservation purpose</option>
-              <option>Family meal</option>
-              <option>Friends</option>
-              <option>Reunion</option>
-              <option>Birthday</option>
-              <option>Business</option>
-              <option>Other</option>
-            </select>
           </div>
           <div class="field">
             <label class="field__label" for="reserve-notes">Notes <span class="field__label-note">(optional)</span></label>
@@ -176,17 +156,6 @@
 
   <div id="site-chrome-footer"></div>
 
-  <div class="time-modal" id="time-modal" hidden aria-hidden="true">
-    <button type="button" class="time-modal__backdrop" data-close-time aria-label="Close"></button>
-    <div class="time-modal__panel" role="dialog" aria-modal="true" aria-labelledby="time-modal-title">
-      <div class="time-modal__head">
-        <h3 id="time-modal-title">Available times</h3>
-        <button type="button" class="time-modal__close" data-close-time aria-label="Close">&times;</button>
-      </div>
-      <div class="time-grid" id="time-grid" role="group" aria-labelledby="time-modal-title"></div>
-    </div>
-  </div>
-
   <div class="count-modal" id="count-modal" hidden>
     <button type="button" class="count-modal__backdrop" data-close-count aria-label="Close"></button>
     <div class="count-modal__panel" role="dialog" aria-modal="true" aria-labelledby="count-modal-title">
@@ -201,11 +170,23 @@
     </div>
   </div>
 
+  <div class="time-modal" id="time-modal" hidden aria-hidden="true">
+    <button type="button" class="time-modal__backdrop" data-close-time aria-label="Close"></button>
+    <div class="time-modal__panel" role="dialog" aria-modal="true" aria-labelledby="time-modal-title">
+      <div class="time-modal__head">
+        <h3 id="time-modal-title">Available times</h3>
+        <button type="button" class="time-modal__close" data-close-time aria-label="Close">&times;</button>
+      </div>
+      <div class="time-grid" id="time-grid" role="group" aria-labelledby="time-modal-title"></div>
+    </div>
+  </div>
+
+
   <script src="../shared/supabase-config.js?v=20260917d"></script>
   <script src="../shared/submit-request.js?v=20260917d"></script>
   <script src="../shared/success-modal.js?v=20260917d"></script>
   <script src="../shared/reserve-tables.js?v=20260928b"></script>
-  <script src="../shared/chrome.js?v=20260928c" defer></script>
-  <script src="js/main.js?v=20260928b" defer></script>
+  <script src="../shared/chrome.js?v=20261017d" defer></script>
+  <script src="js/main.js?v=20261017d" defer></script>
 </body>
 </html>

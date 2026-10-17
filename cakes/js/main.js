@@ -7,6 +7,7 @@
   const DIET_NONE = "No special requirements";
 
   const SPONGE_FLOURLESS = "Flourless Zucchini Chocolate (Gluten free)";
+  const FLOURLESS_SURCHARGE = 200000;
   const SPONGES_ALL = [
     "Wholewheat kale & apple",
     "Wholewheat pumpkin cacao",
@@ -24,7 +25,7 @@
     ],
     sponges: SPONGES_ALL.slice(),
     sugarSponges: SUGAR_SPONGES.slice(),
-    addons: ["Gluten-free", "No added sugar"],
+    addons: ["No added sugar"],
     filters: ["All", "Animals", "Dinosaurs", "Vehicles", "Ocean", "Characters", "Flowers", "First birthday"],
     cakes: [
       { id: "safari-chocolate", src: "img/cakes/safari-chocolate.jpg", name: "Chocolate safari", theme: "Animals" },
@@ -63,6 +64,7 @@
     file: null,
     activeCake: null,
     galleryExpanded: false,
+    designEditing: false,
   };
 
   let data = DEFAULT_DATA;
@@ -101,22 +103,22 @@
       cakes: (raw.cakes || []).map((c) => ({ ...c, src: cakeSrc(c.src) })),
       sponges: SPONGES_ALL.slice(),
       sugarSponges: (raw.sugarSponges || SUGAR_SPONGES).slice(),
-      addons: raw.addons || ["Gluten-free", "No added sugar"],
+      addons: ["No added sugar"],
     };
   }
 
+  function flourlessSelected() {
+    return state.sponges.includes(SPONGE_FLOURLESS);
+  }
+
   function availableSponges() {
-    const gf = state.addons.includes("Gluten-free");
-    const noSugar = state.addons.includes("No added sugar");
-    if (gf) return [SPONGE_FLOURLESS];
-    if (noSugar) return SPONGES_NO_SUGAR.slice();
+    if (state.addons.includes("No added sugar")) return SPONGES_NO_SUGAR.slice();
     return SPONGES_ALL.slice();
   }
 
   function syncSugarSpongeVisibility() {
     const field = document.getElementById("sugar-sponge-field");
-    const hide =
-      state.addons.includes("No added sugar") || state.addons.includes("Gluten-free");
+    const hide = state.addons.includes("No added sugar");
     if (hide) {
       state.sugarSponge = [];
       if (field) field.hidden = true;
@@ -158,12 +160,20 @@
   }
 
   function flavourHintText() {
+    const noSugar = state.addons.includes("No added sugar");
     const n = flavourCount();
+    const surcharge = flourlessSelected() ? " Flourless Chocolate Zucchini adds IDR 200k." : "";
     if (n === 0) {
-      return "Select one or two flavours — mix a no-sugar sponge with a sugar-added one if you like.";
+      return noSugar
+        ? "Select one or two no-added-sugar flavours. The only gluten-free sponge is Flourless Chocolate Zucchini, + IDR 200k."
+        : "Select one or two flavours. You can mix a no-sugar sponge with a sugar-added one. The only gluten-free sponge is Flourless Chocolate Zucchini, + IDR 200k.";
     }
-    if (n === 1) return "1 flavour selected — you can add one more from either list.";
-    return "2 flavours selected.";
+    if (n === 1) {
+      return (noSugar
+        ? "1 flavour selected — you can add one more no-added-sugar flavour."
+        : "1 flavour selected — you can add one more from either list.") + surcharge;
+    }
+    return `2 flavours selected.${surcharge}`;
   }
 
   function afterFlavourChange() {
@@ -181,9 +191,12 @@
     state.mode = "gallery";
     state.design = cake.name;
     state.activeCake = cake;
+    state.designEditing = false;
     renderMode();
     renderDesignGrid();
     renderGallery();
+    if (typeof showCakeSection === "function") showCakeSection("design");
+    renderCakeSummary();
     const status = document.getElementById("form-status");
     if (status) {
       status.textContent = `Selected “${cake.name}” from the gallery.`;
@@ -356,8 +369,8 @@
     const name = document.getElementById("lightbox-name");
     const theme = document.getElementById("lightbox-theme");
     if (!box || !img || !name || !theme) return;
-    img.style.backgroundImage = `url("${cake.src}")`;
-    img.setAttribute("aria-label", cake.name);
+    img.src = cake.src;
+    img.alt = cake.name;
     name.textContent = cake.name;
     theme.textContent = cake.theme;
     box.classList.add("is-open");
@@ -393,6 +406,7 @@
         const cake = state.activeCake;
         if (cake) selectCakeDesign(cake);
         closeLightbox();
+        showCakeSection("design");
         scrollToId("#build");
       });
     }
@@ -426,6 +440,7 @@
       btn.addEventListener("click", () => {
         state.size = btn.dataset.size;
         renderSizeOptions();
+        renderCakeSummary();
       });
     });
 
@@ -446,13 +461,16 @@
         (label) =>
           `<button type="button" class="option-btn${
             state.sponges.includes(label) ? " is-active" : ""
-          }" data-sponge="${escapeHtml(label)}">${escapeHtml(label)}</button>`
+          }" data-sponge="${escapeHtml(label)}">${escapeHtml(label)}${
+            label === SPONGE_FLOURLESS ? " · + IDR 200k" : ""
+          }</button>`
       )
       .join("");
     el.querySelectorAll("[data-sponge]").forEach((btn) => {
       btn.addEventListener("click", () => {
         toggleFlavour("plain", btn.dataset.sponge);
         afterFlavourChange();
+        renderCakeSummary();
       });
     });
     if (hint) hint.textContent = flavourHintText();
@@ -485,10 +503,8 @@
   function renderAddons() {
     const el = document.getElementById("addon-options");
     if (!el) return;
-    const dietOptions = [
-      DIET_NONE,
-      ...(data.addons || []).filter((label) => label !== DIET_NONE),
-    ];
+    state.addons = state.addons.filter((label) => label === "No added sugar");
+    const dietOptions = [DIET_NONE, "No added sugar"];
     el.innerHTML = dietOptions
       .map((label) => {
         const active =
@@ -516,6 +532,7 @@
         renderSpongeOptions();
         renderSugarSpongeOptions();
         renderGallery();
+        renderCakeSummary();
       });
     });
   }
@@ -526,8 +543,18 @@
     });
     const grid = document.getElementById("design-grid");
     const drop = document.getElementById("file-drop");
-    if (grid) grid.classList.toggle("is-visible", state.mode === "gallery");
-    if (drop) drop.classList.toggle("is-visible", state.mode === "own");
+    const locked = state.mode === "gallery" && state.design && !state.designEditing;
+    const modes = document.getElementById("mode-options");
+    const chosen = document.getElementById("design-chosen");
+    const change = document.getElementById("design-change");
+    if (modes) modes.hidden = locked;
+    if (chosen) {
+      chosen.hidden = !locked;
+      chosen.textContent = locked ? `Selected design: ${state.design}` : "";
+    }
+    if (change) change.hidden = !locked;
+    if (grid) grid.classList.toggle("is-visible", state.mode === "gallery" && !locked);
+    if (drop) drop.classList.toggle("is-visible", state.mode === "own" && !locked);
   }
 
   function renderDesignGrid() {
@@ -562,6 +589,7 @@
     document.querySelectorAll("#mode-options [data-mode]").forEach((btn) => {
       btn.addEventListener("click", () => {
         state.mode = btn.dataset.mode;
+        state.designEditing = true;
         if (state.mode === "own") state.design = "";
         renderMode();
         renderDesignGrid();
@@ -618,6 +646,7 @@
       state.mode === "own" ? "Design: my own idea" : "",
       theme ? `Theme: ${theme}` : "",
       state.addons.length ? `Diet: ${state.addons.join(", ")}` : "Diet: No special requirements",
+      flourlessSelected() ? "Flourless Chocolate Zucchini: + IDR 200k" : "",
       state.fileName
         ? publicCode
           ? `Cake reference photo uploaded: ${state.fileName}`
@@ -645,9 +674,98 @@
         design: state.design || "",
         theme,
         diet: state.addons.length ? state.addons.slice() : [DIET_NONE],
+        flourlessSurcharge: flourlessSelected() ? FLOURLESS_SURCHARGE : 0,
         referenceOriginalName: state.fileName || "",
       },
     };
+  }
+
+  const CAKE_SECTIONS = ["date", "flavours", "design", "contact", "review"];
+  let cakeSection = "date";
+
+  function renderCakeSummary() {
+    const el = document.getElementById("cake-summary");
+    if (!el) return;
+    const size = selectedSize();
+    const flavours = [...state.sponges, ...selectedSugarSponges()];
+    const lines = [
+      size ? `Size: ${size.label}${size.price ? ` · ${size.price}` : ""}` : "Size: not chosen",
+      flavours.length ? `Flavours: ${flavours.join(", ")}` : "Flavours: not chosen",
+      flourlessSelected() ? "Flourless Chocolate Zucchini: + IDR 200k" : "",
+      state.design
+        ? `Design: ${state.design}`
+        : state.mode === "own"
+          ? "Design: your own idea"
+          : "Design: not chosen",
+    ].filter(Boolean);
+    el.innerHTML = `<h3>Your cake</h3><ul>${lines
+      .map((line) => `<li>${escapeHtml(line)}</li>`)
+      .join("")}</ul><p>${
+      flourlessSelected()
+        ? "The size price does not include the IDR 200k flourless surcharge."
+        : "The size price is the cake price. Flourless Chocolate Zucchini adds IDR 200k when selected."
+    }</p>`;
+  }
+
+  function showCakeSection(id) {
+    cakeSection = CAKE_SECTIONS.includes(id) ? id : "date";
+    document.querySelectorAll("[data-cake-section]").forEach((section) => {
+      const on = section.dataset.cakeSection === cakeSection;
+      section.hidden = !on;
+      section.classList.toggle("is-active", on);
+    });
+    const index = CAKE_SECTIONS.indexOf(cakeSection);
+    const back = document.getElementById("cake-back");
+    const next = document.getElementById("cake-next");
+    if (back) back.hidden = index <= 0;
+    if (next) next.hidden = index >= CAKE_SECTIONS.length - 1;
+    renderCakeSummary();
+  }
+
+  function cakeDateError(message) {
+    const error = document.getElementById("cake-date-error");
+    const input = document.getElementById("cake-date");
+    if (!error) return;
+    error.hidden = !message;
+    error.textContent = message || "";
+    input?.closest(".field")?.classList.toggle("is-invalid", Boolean(message));
+  }
+
+  function initCakeSections() {
+    document.getElementById("cake-back")?.addEventListener("click", () => {
+      const index = CAKE_SECTIONS.indexOf(cakeSection);
+      if (index > 0) showCakeSection(CAKE_SECTIONS[index - 1]);
+    });
+    document.getElementById("cake-next")?.addEventListener("click", () => {
+      if (cakeSection === "date") {
+        const dateInput = document.getElementById("cake-date");
+        const date = dateInput?.value || "";
+        if (!date) {
+          cakeDateError("Choose the date you need the cake.");
+          dateInput?.focus();
+          return;
+        }
+        if (date < (dateInput.min || minOrderDate())) {
+          cakeDateError("Order at least 2 days ahead.");
+          dateInput?.focus();
+          return;
+        }
+        cakeDateError("");
+        if (!state.size) return;
+      }
+      const index = CAKE_SECTIONS.indexOf(cakeSection);
+      if (index < CAKE_SECTIONS.length - 1) showCakeSection(CAKE_SECTIONS[index + 1]);
+    });
+    document.getElementById("design-change")?.addEventListener("click", () => {
+      state.designEditing = true;
+      renderMode();
+      renderDesignGrid();
+    });
+    document.getElementById("cake-date")?.addEventListener("change", () => {
+      cakeDateError("");
+      renderCakeSummary();
+    });
+    showCakeSection("date");
   }
 
   function initForm() {
@@ -671,13 +789,16 @@
 
       const date = dateInput ? dateInput.value : "";
       if (!date) {
-        setStatus("Please choose the date you need the cake.", "is-error");
+        showCakeSection("date");
+        cakeDateError("Choose the date you need the cake.");
         dateInput?.focus();
         return;
       }
 
       if (dateInput && date < dateInput.min) {
-        setStatus("Please order at least 2 days ahead.", "is-error");
+        showCakeSection("date");
+        cakeDateError("Order at least 2 days ahead.");
+        dateInput?.focus();
         return;
       }
 
@@ -859,6 +980,7 @@
     initModeToggle();
     initFileInput();
     initForm();
+    initCakeSections();
     initLightbox();
     initDrawer();
     initSmoothScroll();

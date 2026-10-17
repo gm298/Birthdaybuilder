@@ -1,0 +1,80 @@
+.guest-stepper {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(100, 124, 110, 0.28);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.guest-stepper__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px 64px 36px;
+  align-items: center;
+  gap: 8px;
+}
+
+.guest-stepper__name {
+  font-weight: 500;
+  color: #2d3a33;
+}
+
+.guest-stepper__btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid #647c6e;
+  background: #fff;
+  color: #647c6e;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.guest-stepper__btn:hover {
+  background: rgba(100, 124, 110, 0.08);
+}
+
+.guest-stepper__input {
+  width: 64px;
+  height: 36px;
+  text-align: center;
+  border: 1px solid rgba(100, 124, 110, 0.35);
+  border-radius: 10px;
+  padding: 0 6px;
+  font: inherit;
+  color: #2d3a33;
+  background: #fff;
+}
+
+.guest-stepper__input::-webkit-outer-spin-button,
+.guest-stepper__input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.guest-stepper__input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+.guest-stepper__total {
+  margin: 0;
+  font-weight: 600;
+  color: #2d3a33;
+}
+
+.field__error {
+  display: block;
+  margin-top: 6px;
+  color: #c45c4a;
+  font-size: 14px;
+}
+
+.field__error[hidden] {
+  display: none;
+}
+
+.field.is-invalid .guest-stepper {
+  box-shadow: 0 0 0 2px rgba(196, 92, 74, 0.18);
+}

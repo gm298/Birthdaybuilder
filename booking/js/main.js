@@ -138,7 +138,7 @@
 
   function displayName(booking) {
     if (isReservation(booking)) {
-      return [booking.reservation?.salutation, bareReservationName(booking)].filter(Boolean).join(" ");
+      return bareReservationName(booking);
     }
     if (isCake(booking)) return booking.contactName || "Guest";
     return booking.party?.childName || booking.childName || booking.contactName || "Guest";
@@ -342,21 +342,9 @@
       <form class="booking-form" id="booking-form">
         <p class="booking__code">${escapeHtml(booking.publicCode || "")}</p>
         <h2>Edit reservation</h2>
-        <div class="booking-form__row">
-          <label class="field"><span>Title</span>
-            <select name="salutation">
-              ${["Mr.", "Mrs.", "Ms.", "Mx."]
-                .map(
-                  (item) =>
-                    `<option value="${item}" ${r.salutation === item ? "selected" : ""}>${item}</option>`
-                )
-                .join("")}
-            </select>
-          </label>
-          <label class="field"><span>Name</span>
-            <input name="name" required value="${escapeHtml(bareReservationName(booking))}">
-          </label>
-        </div>
+        <label class="field"><span>Name</span>
+          <input name="name" required value="${escapeHtml(bareReservationName(booking))}">
+        </label>
         <div class="booking-form__row">
           <label class="field"><span>Date</span>
             <input type="date" name="date" required value="${escapeHtml(booking.partyDate || "")}">
@@ -373,9 +361,6 @@
             <input type="number" name="adults" min="0" value="${escapeHtml(String(r.adults ?? booking.guestAdults ?? 0))}">
           </label>
         </div>
-        <label class="field"><span>Purpose</span>
-          <input name="purpose" value="${escapeHtml(r.purpose || "")}">
-        </label>
         <label class="field"><span>Notes</span>
           <textarea name="notes" maxlength="200">${escapeHtml(r.notes || "")}</textarea>
         </label>
@@ -815,9 +800,9 @@
             email: state.verifiedEmail,
             phone: state.verifiedPhone,
             reservation: {
-              salutation: String(data.get("salutation") || ""),
+              salutation: "",
               name: String(data.get("name") || "").trim(),
-              purpose: String(data.get("purpose") || "").trim(),
+              purpose: String(state.booking?.reservation?.purpose || "").trim(),
               notes: String(data.get("notes") || "").trim(),
               kids: Number(data.get("kids") || 0),
               adults: Number(data.get("adults") || 0),

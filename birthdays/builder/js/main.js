@@ -8,7 +8,7 @@
   const TERRACE_GUEST_MAX = 35;
   const BUILDER_FLOW = [
     { id: "intro", href: "#intro", nextLabel: "Continue", required: false },
-    { id: "details", href: "#details", nextLabel: "Next: Tables", required: true },
+    { id: "details", href: "#details", nextLabel: "See packages & estimate", required: true },
     { id: "package", href: "#package", nextLabel: "Next: Decorations", required: true },
     { id: "decor", href: "#decor", nextLabel: "Next: Cake", required: true },
     { id: "cakes", href: "#cakes", nextLabel: "Next: Add ons", required: true },
@@ -30,14 +30,7 @@
   }
 
   function builderFlow() {
-    const showTables = needsTablesStep();
-    return BUILDER_FLOW.filter((step) => step.id !== "package" || showTables).map((step) => {
-      if (step.id !== "details") return step;
-      return {
-        ...step,
-        nextLabel: showTables ? "Next: Tables" : "Next: Decorations",
-      };
-    });
+    return BUILDER_FLOW;
   }
 
   function builderRequiredSteps() {
@@ -85,7 +78,7 @@
     packages: [
       {
         id: "simple",
-        name: "Simple",
+        name: "Simple celebration",
         guests: "5 people included · add up to 9",
         guestsIncluded: 5,
         guestsMax: 9,
@@ -100,14 +93,14 @@
           "Requested themed party",
           "Table decor (no flowers)",
           "Simple balloon decor",
-          "Food & play-area deposit",
+          "Food & drink credit · 750k weekday / 1.5M weekend",
         ],
         decorId: "simple",
         cakeSize: "15 cm",
       },
       {
         id: "signature",
-        name: "Optimal",
+        name: "Signature themed party",
         guests: "10 people included · add up to 20",
         guestsIncluded: 10,
         guestsMax: 20,
@@ -115,22 +108,21 @@
         priceWeekend: "IDR 8.7M",
         priceWeekdayValue: 5300000,
         priceWeekendValue: 8700000,
-        featured: true,
-        badge: "Most popular",
+        featured: false,
         image: "img/packages/signature.jpg",
         includes: [
           "Birthday cake · 18cm, 2 layers",
           "Requested themed party",
           "Medium balloon decor",
           "Photozone",
-          "Food & play-area deposit",
+          "Food & drink credit · 1.5M weekday / 3M weekend",
         ],
         decorId: "optimal",
         cakeSize: "18 cm",
       },
       {
         id: "terrace",
-        name: "Whole Terrace",
+        name: "Private terrace event",
         guests: "20 people included · max 35 total",
         guestsIncluded: 20,
         guestsMax: 35,
@@ -141,11 +133,13 @@
         featured: false,
         image: "img/packages/terrace.jpg",
         includes: [
+          "Birthday cake · 22cm, 2 layers",
           "Whole private terrace",
           "Full terrace balloon decor",
-          "Photozone & piÃ±ata",
+          "Photozone & piñata",
           "Dessert station",
           "Masterclass for 10 kids",
+          "Food & drink credit · 3M weekday / 6M weekend",
         ],
         decorId: "terrace",
         cakeSize: "22 cm",
@@ -154,16 +148,16 @@
     decorPackages: [
       {
         id: "simple",
-        name: "Simple",
+        name: "Simple celebration",
         image: "img/decor/simple.jpg",
-        note: "Included with Simple",
+        note: "Included with Simple celebration",
         items: ["11 pcs flying balloons", "1 standing number", "1 glitter balloon PVC", "1 head character"],
       },
       {
         id: "optimal",
-        name: "Optimal",
+        name: "Signature themed party",
         image: "img/decor/optimal.jpg",
-        note: "Included with Optimal",
+        note: "Included with Signature themed party",
         items: [
           "1 rounded garland",
           "1 head character",
@@ -175,9 +169,9 @@
       },
       {
         id: "terrace",
-        name: "Whole Terrace",
+        name: "Private terrace event",
         image: "img/decor/terrace.jpg",
-        note: "Included with Whole Terrace",
+        note: "Included with Private terrace event",
         items: [
           "1Â½ backdrop with balloon & name (2m)",
           "1 character balloon",
@@ -221,7 +215,7 @@
       ],
       decoration: [
         { id: "simple-balloon", name: "Simple balloon decor", price: "950k", priceValue: 950000, image: "img/extras/balloons.jpg" },
-        { id: "optimal-balloon", name: "Optimal balloon & photozone", price: "2.4M", priceValue: 2400000, image: "img/decor/optimal.jpg" },
+        { id: "optimal-balloon", name: "Signature balloon & photozone", price: "2.4M", priceValue: 2400000, image: "img/decor/optimal.jpg" },
         { id: "terrace-balloon", name: "Terrace balloon & photozone", price: "4M", priceValue: 4000000, image: "img/decor/terrace.jpg" },
         { id: "table-decor", name: "Table decor (flowers / themed)", price: "on request", priceValue: 0, image: "img/extras/table.jpg" },
       ],
@@ -233,8 +227,8 @@
     },
     extraGuest: { weekday: 150000, weekend: 300000 },
     food: {
-      image: "img/food.jpg",
-      lede: "Food and drink sit in the package as a play-area deposit. Tell us allergies and we’ll set the table from Tiny’s kitchen.",
+      image: "img/food.jpg?v=20261017j",
+      lede: "Each package includes a food and drink credit. Anything above that credit is charged from the menu.",
       menuUrl: "https://drive.google.com/drive/folders/1-Ubm3u3EvXdcDY-TdVo_sA4bPH5s5ARI?usp=drive_link",
       depositByPackage: {
         simple: {
@@ -261,6 +255,7 @@
 
   const FILTER_OWN_IDEA = "My own idea";
   const SPONGE_FLOURLESS = "Flourless Zucchini Chocolate (Gluten free)";
+  const FLOURLESS_SURCHARGE = 200000;
   const SPONGES_ALL = [
     "Wholewheat kale & apple",
     "Wholewheat pumpkin cacao",
@@ -283,7 +278,7 @@
     ],
     sponges: SPONGES_ALL.slice(),
     sugarSponges: SUGAR_SPONGES.slice(),
-    addons: ["Gluten-free", "No added sugar"],
+    addons: ["No added sugar"],
     filters: ["All", "Animals", "Dinosaurs", "Vehicles", "Ocean", "Characters", "Flowers", "First birthday"],
     cakes: [
       { id: "safari-chocolate", src: "img/cakes/safari-chocolate.jpg", name: "Chocolate safari", theme: "Animals" },
@@ -316,8 +311,8 @@
     decorPackageId: "optimal",
     decorThemeId: "",
     masterclassId: "",
-    masterclassReviewed: false,
-    entertainmentReviewed: false,
+    masterclassReviewed: true,
+    entertainmentReviewed: true,
     foodReviewed: false,
     decorReviewed: false,
     extras: [],
@@ -327,7 +322,8 @@
     occupancyOk: false,
   };
 
-  let currentStepId = "intro";
+  let currentStepId = "details";
+  let quoteViewTracked = false;
   let builderBooted = false;
   const staffRequestId = new URLSearchParams(window.location.search).get("staffRequest") || "";
   const editManageToken = new URLSearchParams(window.location.search).get("edit") || "";
@@ -395,23 +391,23 @@
   const BACKDROP_BY_PKG = {
     simple: {
       id: "simple",
-      name: "Simple",
+      name: "Simple celebration",
       mode: "static",
       photo: SIMPLE_BUILDER_PHOTO_FALLBACK,
       panels: [],
       colours: [],
-      lede: "Enter the turning age in Details to preview the standing number balloon, then describe your theme and colours.",
+      lede: "Add the party date and date of birth in Details to preview the standing number balloon, then describe your theme and colours.",
     },
     optimal: {
       id: "optimal",
-      name: "Optimal",
+      name: "Signature themed party",
       mode: "full",
       ...OPTIMAL_BACKDROP,
       lede: "Upload a print for each arch and remap the three balloon groups. Balloons stay in front of the prints.",
     },
     terrace: {
       id: "terrace",
-      name: "Whole Terrace",
+      name: "Private terrace event",
       mode: "full",
       ...TERRACE_BACKDROP,
       lede: "Upload a print for each board and remap the five balloon colours. Balloons stay in front of the prints.",
@@ -625,21 +621,17 @@
   function detailsAreComplete() {
     const date = document.getElementById("party-date")?.value || "";
     const time = partyTimeValue();
-    const child = document.getElementById("child-name")?.value.trim() || "";
-    const age = parseChildAge();
+    const guestName = document.getElementById("child-name")?.value.trim() || "";
     if (
       !(
         date &&
         time &&
-        child &&
-        age &&
-        childBirthdayValid() &&
+        guestName &&
         totalGuests() > 0 &&
         partyState.packageChosen &&
         partyState.packageId &&
         partyState.occupancyOk &&
-        !partyTimeIsBooked(time) &&
-        contactIsComplete()
+        !partyTimeIsBooked(time)
       )
     ) {
       return false;
@@ -650,26 +642,107 @@
     return true;
   }
 
+  function setFieldMessage(id, message) {
+    const input = document.getElementById(id);
+    const wrap = input?.closest(".field");
+    if (!wrap) return;
+    let error = wrap.querySelector(":scope > .field__error");
+    if (!message) {
+      wrap.classList.remove("is-invalid");
+      if (error) error.hidden = true;
+      return;
+    }
+    wrap.classList.add("is-invalid");
+    if (!error) {
+      error = document.createElement("span");
+      error.className = "field__error";
+      wrap.appendChild(error);
+    }
+    error.hidden = false;
+    error.textContent = message;
+  }
+
   function validateDetailsSection(showErrors) {
-    const fields = [
-      { id: "party-date", test: () => Boolean(document.getElementById("party-date")?.value) },
-      { id: "party-time", test: () => Boolean(partyTimeValue()) },
-      { id: "child-name", test: () => Boolean(document.getElementById("child-name")?.value.trim()) },
-      { id: "child-age", test: () => parseChildAge() != null },
-      { id: "child-birthday", test: () => childBirthdayValid() },
-      { id: "guest-kids", test: () => totalGuests() > 0 },
+    const partyDate = document.getElementById("party-date")?.value || "";
+    const checks = [
+      {
+        id: "child-name",
+        ok: Boolean(document.getElementById("child-name")?.value.trim()),
+        message: "Enter the guest’s name.",
+      },
+      { id: "party-date", ok: Boolean(partyDate), message: "Choose the party date." },
+      { id: "party-time", ok: Boolean(partyTimeValue()), message: "Choose a start time." },
+      { id: "guest-kids", ok: totalGuests() > 0, message: "Add at least one guest." },
+    ];
+    let ok = true;
+    let firstId = "";
+    checks.forEach((check) => {
+      if (!check.ok) {
+        ok = false;
+        if (!firstId) firstId = check.id;
+      }
+      setFieldMessage(check.id, showErrors && !check.ok ? check.message : "");
+    });
+    if (showErrors && firstId) {
+      const el = document.getElementById(firstId);
+      const visible =
+        firstId === "party-time" || el?.type === "hidden"
+          ? document.getElementById(`${firstId}-trigger`) || el
+          : el;
+      if (visible && visible.type !== "hidden" && typeof visible.focus === "function") visible.focus();
+      (el?.closest(".field") || visible)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+    return ok;
+  }
+
+  function validateRequestDetails(showErrors) {
+    syncChildAge();
+    const partyDate = document.getElementById("party-date")?.value || "";
+    const birthdayMessage = !childBirthdayValue()
+      ? "Enter the child’s date of birth."
+      : !childBirthdayValid()
+        ? "Enter a date of birth that is today or earlier."
+        : celebrationAgeInfo()?.invalid
+          ? "The party date is before the date of birth."
+          : partyDate && parseChildAge() == null
+            ? "We couldn’t calculate an age from these dates."
+            : "";
+    const checks = [
+      {
+        id: "child-name",
+        ok: Boolean(document.getElementById("child-name")?.value.trim()),
+        message: "Enter the guest’s name.",
+      },
+      {
+        id: "child-birthday",
+        ok: !birthdayMessage && childBirthdayValid() && (!partyDate || parseChildAge() != null),
+        message: birthdayMessage || "Enter the child’s date of birth.",
+      },
     ];
     const contactOk = contactIsComplete();
     window.TinyContact?.markContactValidity?.(contactOk);
-    let ok = contactOk;
-    fields.forEach(({ id, test }) => {
-      const input = document.getElementById(id);
-      const wrap = input?.closest(".field");
-      const valid = test();
-      if (!valid) ok = false;
-      if (showErrors && wrap) wrap.classList.toggle("is-invalid", !valid);
-      else if (wrap) wrap.classList.remove("is-invalid");
+    const contactWrap = document.getElementById("contact-fields");
+    const contactHint = document.getElementById("contact-hint");
+    if (contactWrap) contactWrap.classList.toggle("is-invalid", Boolean(showErrors && !contactOk));
+    if (contactHint && showErrors && !contactOk) {
+      contactHint.textContent = "Add an email or a WhatsApp number. At least one is required.";
+    }
+    let ok = true;
+    let firstId = "";
+    checks.forEach((check) => {
+      if (!check.ok) {
+        ok = false;
+        if (!firstId) firstId = check.id;
+      }
+      setFieldMessage(check.id, showErrors && !check.ok ? check.message : "");
     });
+    if (!contactOk) {
+      ok = false;
+      if (!firstId) firstId = "contact-email";
+    }
+    if (showErrors && firstId) {
+      document.getElementById(firstId)?.focus();
+    }
     return ok;
   }
 
@@ -710,7 +783,83 @@
     return /^\d{4}-\d{2}-\d{2}$/.test(value) && value <= todayLocalIso();
   }
 
+  function parseIsoDate(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+    if (!match) return null;
+    const year = Number(match[1]);
+    const month = Number(match[2]) - 1;
+    const day = Number(match[3]);
+    const date = new Date(year, month, day);
+    if (date.getFullYear() !== year || date.getMonth() !== month || date.getDate() !== day) return null;
+    return date;
+  }
+
+  function dayNumber(date) {
+    return Math.round(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / 86400000);
+  }
+
+  function anniversaryInYear(birth, year) {
+    const month = birth.getMonth();
+    const day = birth.getDate();
+    const candidate = new Date(year, month, day);
+    if (candidate.getMonth() !== month) return new Date(year, month + 1, 0);
+    return candidate;
+  }
+
+  function celebrationAgeInfo() {
+    const birth = parseIsoDate(childBirthdayValue());
+    const party = parseIsoDate(document.getElementById("party-date")?.value || "");
+    if (!birth || !party) return null;
+    if (dayNumber(party) < dayNumber(birth)) return { invalid: true };
+    let age = party.getFullYear() - birth.getFullYear();
+    const anniversary = anniversaryInYear(birth, party.getFullYear());
+    if (dayNumber(party) < dayNumber(anniversary)) age -= 1;
+    const nextBirthday =
+      dayNumber(party) < dayNumber(anniversary)
+        ? anniversary
+        : anniversaryInYear(birth, party.getFullYear() + 1);
+    const daysUntil = dayNumber(nextBirthday) - dayNumber(party);
+    let turning = age;
+    let early = false;
+    if (daysUntil > 0 && daysUntil <= 14) {
+      turning = age + 1;
+      early = true;
+    }
+    if (!Number.isFinite(turning) || turning < 1) return { invalid: true };
+    const dayWord = daysUntil === 1 ? "day" : "days";
+    return {
+      age: turning,
+      text: early
+        ? `Turning ${turning} — the party is ${daysUntil} ${dayWord} before the birthday.`
+        : `Turning ${turning}.`,
+    };
+  }
+
+  function syncChildAge() {
+    const info = celebrationAgeInfo();
+    const input = document.getElementById("child-age");
+    const confirm = document.getElementById("child-age-confirm");
+    const party = document.getElementById("party-date")?.value || "";
+    const birth = childBirthdayValue();
+    let text = "Add the party date and the child’s date of birth. We’ll calculate the age.";
+    let next = "";
+    if (info?.invalid) text = "The party date is before the date of birth.";
+    else if (info?.age) {
+      next = String(info.age);
+      text = info.text;
+    } else if (birth && !party) text = "Add the party date to calculate the age.";
+    else if (!birth && party) text = "Add the child’s date of birth to calculate the age.";
+    if (confirm) confirm.textContent = text;
+    if (input && input.value !== next) {
+      input.value = next;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
+
   function parseChildAge() {
+    const info = celebrationAgeInfo();
+    if (info?.age) return info.age;
     const raw = document.getElementById("child-age")?.value.trim() || "";
     const match = raw.match(/\d+/);
     if (!match) return null;
@@ -736,7 +885,7 @@
   function simpleBuilderHint() {
     const age = parseChildAge();
     if (!age) {
-      return "Enter the turning age in Details to preview the standing number balloon.";
+      return "Add the party date and date of birth in Details to preview the standing number balloon.";
     }
     if (age < SIMPLE_BUILDER_AGE_MIN || age > SIMPLE_BUILDER_AGE_MAX) {
       return `No preview for age ${age} yet — we have sample looks for ages ${SIMPLE_BUILDER_AGE_MIN}–${SIMPLE_BUILDER_AGE_MAX}. Tell us the age in your design request.`;
@@ -787,6 +936,21 @@
     } catch (_) {
       /* optional */
     }
+  }
+
+  function guestCountBand() {
+    const n = totalGuests();
+    if (n <= 9) return "1-9";
+    if (n <= 20) return "10-20";
+    return "21-plus";
+  }
+
+  function funnelParams() {
+    return {
+      package_id: partyState.packageId || "",
+      day_type: partyState.day === "weekend" ? "weekend" : "weekday",
+      guest_band: guestCountBand(),
+    };
   }
 
   function escapeHtml(str) {
@@ -1642,23 +1806,22 @@
       cakes,
       sponges: SPONGES_ALL.slice(),
       sugarSponges: SUGAR_SPONGES.slice(),
-      addons: ["Gluten-free", "No added sugar"],
+      addons: ["No added sugar"],
     };
   }
 
+  function flourlessSelected() {
+    return cakeState.sponges.includes(SPONGE_FLOURLESS);
+  }
+
   function availableSponges() {
-    const gf = cakeState.addons.includes("Gluten-free");
-    const noSugar = cakeState.addons.includes("No added sugar");
-    if (gf) return [SPONGE_FLOURLESS];
-    if (noSugar) return SPONGES_NO_SUGAR.slice();
+    if (cakeState.addons.includes("No added sugar")) return SPONGES_NO_SUGAR.slice();
     return SPONGES_ALL.slice();
   }
 
   function syncSugarSpongeVisibility() {
     const field = document.getElementById("sugar-sponge-field");
-    const hide =
-      cakeState.addons.includes("No added sugar") ||
-      cakeState.addons.includes("Gluten-free");
+    const hide = cakeState.addons.includes("No added sugar");
     if (hide) {
       cakeState.sugarSponge = [];
       if (field) field.hidden = true;
@@ -1700,13 +1863,20 @@
   }
 
   function flavourHintText() {
+    const noSugar = cakeState.addons.includes("No added sugar");
     const n = flavourCount();
-    if (cakeState.addons.includes("Gluten-free")) {
-      return "Gluten-free uses one sponge only: Flourless Zucchini Chocolate.";
+    const surcharge = flourlessSelected() ? " Flourless Chocolate Zucchini adds IDR 200k." : "";
+    if (n === 0) {
+      return noSugar
+        ? "Select one or two no-added-sugar flavours."
+        : "Select one or two flavours. You can mix a no-sugar sponge with a sugar-added one.";
     }
-    if (n === 0) return "Select one or two flavours — mix a no-sugar sponge with a sugar-added one if you like.";
-    if (n === 1) return "1 flavour selected — you can add one more from either list.";
-    return "2 flavours selected.";
+    if (n === 1) {
+      return (noSugar
+        ? "1 flavour selected — you can add one more no-added-sugar flavour."
+        : "1 flavour selected — you can add one more from either list.") + surcharge;
+    }
+    return `2 flavours selected.${surcharge}`;
   }
 
   function updateGlutenFreeHint() {
@@ -1846,9 +2016,30 @@
         const baseNote =
           "This is how much is included for you to purchase food and beverages.";
         lines.push({
-          label: "Food & drink deposit",
+          label: "Food & drink credit",
           value: foodTotal,
-          detail: extraNote ? `${extraNote}. ${baseNote}` : baseNote,
+          detail: extraNote ? `${extraNote}. ${baseNote} Anything above this credit is charged from the menu.` : `${baseNote} Anything above this credit is charged from the menu.`,
+        });
+      }
+
+      const decorUpgrade = decorUpgradeAmount();
+      if (decorUpgrade > 0) {
+        subtotal += decorUpgrade;
+        const decor = (partyData.decorPackages || []).find(
+          (d) => d.id === (partyState.decorPackageId || includedDecorId())
+        );
+        lines.push({
+          label: `Decoration upgrade · ${decor?.name || "Upgrade"}`,
+          value: decorUpgrade,
+        });
+      }
+
+      const cakeUpgrade = cakeUpgradeAmount();
+      if (cakeUpgrade > 0) {
+        subtotal += cakeUpgrade;
+        lines.push({
+          label: `Cake size · ${cakeState.size}`,
+          value: cakeUpgrade,
         });
       }
     }
@@ -1864,6 +2055,14 @@
           value: mCost,
         });
       }
+    }
+
+    if (flourlessSelected()) {
+      subtotal += FLOURLESS_SURCHARGE;
+      lines.push({
+        label: "Flourless Chocolate Zucchini",
+        value: FLOURLESS_SURCHARGE,
+      });
     }
 
     flatExtraItems().forEach((item) => {
@@ -1916,7 +2115,71 @@
         <li><span>Tax 10%</span><span>${escapeHtml(formatIdr(q.tax))}</span></li>
         <li class="is-total"><span>Estimated total</span><span>${escapeHtml(formatIdr(q.total))}</span></li>
       </ul>
-      <p class="quote-note">Estimate only — final quote confirmed on WhatsApp. Items marked TBC are priced on request.</p>`;
+      <p class="quote-note">Estimate for this day and guest count. It includes service and tax. The team confirms the final quote. Sending a request does not confirm the party.</p>`;
+    renderRunningEstimate();
+  }
+
+  function quotationLineRows(q) {
+    return q.lines.map((line) => ({
+      label: line.label,
+      value: line.note ? "TBC" : formatIdr(line.value),
+    }));
+  }
+
+  function renderRunningEstimate() {
+    renderPackages();
+    const bar = document.getElementById("builder-estimate");
+    const rowsEl = document.getElementById("builder-estimate-rows");
+    const noteEl = document.getElementById("builder-estimate-note");
+    const packageNote = document.getElementById("selected-package-note");
+    const pkg = selectedPackage();
+    const date = document.getElementById("party-date")?.value;
+    if (packageNote) {
+      if (pkg) {
+        packageNote.hidden = false;
+        packageNote.textContent = `Package: ${pkg.name}. Included choices stay in place unless you change them.`;
+      } else {
+        packageNote.hidden = true;
+        packageNote.textContent = "";
+      }
+    }
+    const hide = !bar || !rowsEl || !pkg || !date || currentStepId === "send" || currentStepId === "intro";
+    if (hide) {
+      if (bar) bar.hidden = true;
+      document.documentElement.style.setProperty("--estimate-h", "0px");
+      return;
+    }
+    const q = buildQuotation();
+    const rows = [
+      ...quotationLineRows(q).map((row) => ({ ...row, kind: "" })),
+      { label: "Subtotal", value: formatIdr(q.subtotal), kind: "" },
+      ...(q.discount
+        ? [{ label: `Promo ${q.promo?.code || ""}`, value: `−${formatIdr(q.discount)}`, kind: "" }]
+        : []),
+      { label: "Service 5%", value: formatIdr(q.service), kind: "" },
+      { label: "Tax 10%", value: formatIdr(q.tax), kind: "" },
+      { label: "Estimated total", value: formatIdr(q.total), kind: "is-total" },
+    ];
+    rowsEl.innerHTML = rows
+      .map(
+        (row) =>
+          `<tr class="${row.kind}"><th scope="row">${escapeHtml(row.label)}</th><td>${escapeHtml(row.value)}</td></tr>`
+      )
+      .join("");
+    if (noteEl) {
+      noteEl.textContent = `Includes the food and drink credit, 5% service and 10% tax for this ${
+        partyState.day || "weekday"
+      } and guest count. The team confirms the final quote.`;
+    }
+    bar.hidden = false;
+    bar.classList.toggle("is-mini", currentStepId !== "details");
+    const height = Math.ceil(bar.getBoundingClientRect().height);
+    document.documentElement.style.setProperty("--estimate-h", `${height}px`);
+    if (!quoteViewTracked) {
+      quoteViewTracked = true;
+      track("quote_viewed", funnelParams());
+    }
+    syncStepsBarH();
   }
 
   function syncStepsBarH() {
@@ -2025,6 +2288,7 @@
     renderPartyTimes();
     renderSummary();
     updateStepProgress();
+    track("package_selected", funnelParams());
   }
 
   function selectedPackage() {
@@ -2228,6 +2492,7 @@
     if (!pkg || !partyState.packageChosen) {
       host.hidden = true;
       if (confirmCopy) {
+        confirmCopy.hidden = false;
         confirmCopy.textContent =
           "Select date, guests and start time in step 01, then confirm tables here.";
       }
@@ -2235,18 +2500,17 @@
     }
     if (pkg.id !== "simple") {
       host.hidden = true;
-      const label = partyTableLabel();
       const blocked = unavailablePartyTables().length > 0;
       if (confirmCopy) {
+        confirmCopy.hidden = !blocked;
         confirmCopy.textContent = blocked
           ? "Those tables aren’t free at this time. Please pick another start time in step 01."
-          : label
-            ? `${pkg.name} reserves ${label} for your party window (1 hour before start, then 3 hours).`
-            : `${pkg.name} tables are held for your party window (1 hour before start, then 3 hours).`;
+          : "";
       }
       return;
     }
     if (confirmCopy) {
+      confirmCopy.hidden = false;
       confirmCopy.textContent =
         "Pick free tables that fit your party. Held tables are blocked for this time.";
     }
@@ -3129,8 +3393,157 @@
     return decor?.items || pkg.decor || [];
   }
 
+  function selectedDayWord() {
+    return partyState.day === "weekend" ? "weekend" : "weekday";
+  }
+
+  function packageCakeLines(pkg) {
+    const includes = pkg.includes || [];
+    const cake =
+      includes.find((item) => /\bcake\b/i.test(item)) ||
+      (pkg.cakeSize ? `Birthday cake · ${pkg.cakeSize}` : "");
+    const dessert = includes.find((item) => /dessert/i.test(item));
+    return [cake, dessert].filter(Boolean);
+  }
+
+  function packageCakeLine(pkg) {
+    return packageCakeLines(pkg).join(" · ");
+  }
+
+  function packageSpendLine(pkg) {
+    const deposits = partyData.food?.depositByPackage || {};
+    const credit = deposits[packageDepositKey(pkg)];
+    const day = selectedDayWord();
+    if (credit) {
+      const amount = day === "weekend" ? credit.weekendLabel : credit.weekdayLabel;
+      return `Food & drink credit · ${amount} ${day}`;
+    }
+    const line = (pkg.includes || []).find((item) => /credit|spend|food/i.test(item));
+    return line || "";
+  }
+
+  function packagePriceLine(pkg) {
+    const price = selectedDayWord() === "weekend" ? pkg.priceWeekend : pkg.priceWeekday;
+    return `Package ${price} · ${selectedDayWord()}`;
+  }
+
+  function packageOtherLines(pkg) {
+    return (pkg.includes || []).filter(
+      (item) => !/cake|dessert|credit|spend|food|balloon|photo|decor|piñata|pinata|themed|table/i.test(item)
+    );
+  }
+
+  function packageCategoryPhoto(title) {
+    if (title === "Decorations") {
+      const id = partyState.decorPackageId || includedDecorId();
+      const decor = (partyData.decorPackages || []).find((d) => d.id === id);
+      return { src: decor?.image || "", title: decor?.name || "Decorations" };
+    }
+    if (title === "Cake") {
+      const cake = selectedCakeRecord();
+      const fallback =
+        (cakeData.cakes || []).find((c) => c.id === "unicorn-meadow") || (cakeData.cakes || [])[0];
+      const chosen = cake || fallback;
+      return { src: chosen?.src || "", title: chosen?.name || "Birthday cake" };
+    }
+    if (title === "Minimum spend") {
+      return { src: partyData.food?.image || "img/food.jpg?v=20261017j", title: "Food and drinks" };
+    }
+    return { src: "", title: "" };
+  }
+
+  function packagePhotoButton(src, title) {
+    if (!src) return "";
+    return `<button type="button" class="package-cat__photo" data-expand-src="${escapeHtml(src)}" data-expand-alt="${escapeHtml(title)}" aria-label="Expand ${escapeHtml(title)} photo"><img src="${escapeHtml(src)}" alt="" width="640" height="420" loading="lazy"></button>`;
+  }
+
   function renderPackages() {
-    /* Package is inferred from guest count — no details picker. */
+    const included = document.getElementById("package-included");
+    const compare = document.getElementById("package-compare");
+    const pkg = selectedPackage();
+    const packages = partyData.packages || [];
+    if (included) {
+      if (!pkg) {
+        included.innerHTML = `<p class="section-note">Add your guest count in step 01 and we’ll match a package.</p>`;
+      } else {
+        const groups = [
+          { title: "Decorations", items: decorItemsForPackage(pkg) },
+          { title: "Cake", items: packageCakeLines(pkg) },
+          {
+            title: "Minimum spend",
+            items: [packageSpendLine(pkg), packagePriceLine(pkg)].filter(Boolean),
+          },
+        ];
+        const other = packageOtherLines(pkg);
+        if (other.length) groups.push({ title: "Also included", items: other });
+        included.innerHTML = `
+          <p class="package-match">Matched to your guest count: <strong>${escapeHtml(pkg.name)}</strong>. ${escapeHtml(pkg.guests)}. Prices are ${escapeHtml(selectedDayWord())} rates for the date you chose.</p>
+          <div class="package-cats">
+            ${groups
+              .map((group) => {
+                const photo = packageCategoryPhoto(group.title);
+                return `
+              <section class="package-cat">
+                ${packagePhotoButton(photo.src, photo.title)}
+                <h3>${escapeHtml(group.title)}</h3>
+                <ul>${group.items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+              </section>`;
+              })
+              .join("")}
+          </div>`;
+        bindPhotoExpand(included);
+      }
+    }
+    if (!compare) return;
+    if (!packages.length) {
+      compare.innerHTML = "";
+      return;
+    }
+    const day = selectedDayWord();
+    const rows = [
+      {
+        label: day === "weekend" ? "Weekend price" : "Weekday price",
+        cell: (item) => (day === "weekend" ? item.priceWeekend : item.priceWeekday),
+      },
+      { label: "Guests", cell: (item) => item.guests },
+      { label: "Cake", cell: (item) => packageCakeLine(item) },
+      { label: "Decorations", cell: (item) => decorItemsForPackage(item).join(" · ") },
+      { label: "Food & drink credit", cell: (item) => packageSpendLine(item) },
+    ];
+    const heads = packages
+      .map((item) => {
+        const current = item.id === pkg?.id ? " is-current" : "";
+        return `<div class="builder-compare__colhead${current}" role="columnheader">
+          <button type="button" class="builder-compare__photo" data-expand-src="${escapeHtml(item.image || "")}" data-expand-alt="${escapeHtml(item.name)}" aria-label="Expand ${escapeHtml(item.name)} photo">
+            <img src="${escapeHtml(item.image || "")}" alt="" width="480" height="320" loading="lazy">
+          </button>
+          <p class="builder-compare__name">${escapeHtml(item.name)}</p>
+        </div>`;
+      })
+      .join("");
+    const body = rows
+      .map((row, index) => {
+        const last = index === rows.length - 1 ? " builder-compare__cell--last" : "";
+        const cells = packages
+          .map((item) => {
+            const current = item.id === pkg?.id ? " is-current" : "";
+            return `<div class="builder-compare__cell${last}${current}" role="cell">${escapeHtml(row.cell(item) || "—")}</div>`;
+          })
+          .join("");
+        return `<div class="builder-compare__label" role="rowheader"><span>${escapeHtml(row.label)}</span></div>${cells}`;
+      })
+      .join("");
+    compare.innerHTML = `
+      <h3 class="builder-compare__title">Compare by package</h3>
+      <div class="builder-compare__scroll">
+        <div class="builder-compare__board" role="table" aria-label="Compare by package">
+          <div class="builder-compare__label builder-compare__label--head"></div>
+          ${heads}
+          ${body}
+        </div>
+      </div>
+      <p class="builder-compare__note">Prices follow your selected ${escapeHtml(day)} date. They exclude 5% service and 10% tax. The food and drink credit is included in the package. Extra orders are charged from the menu.</p>`;
+    bindPhotoExpand(compare);
   }
 
   function renderPackageHint() {
@@ -3158,12 +3571,29 @@
     return decorRank(id) >= decorRank(includedDecorId());
   }
 
+  const CAKE_SIZE_VALUE = { "15 cm": 1000000, "18 cm": 1500000, "22 cm": 1800000 };
+
+  function decorUpgradeAmount() {
+    if (!selectedPackage()) return 0;
+    const selected = partyState.decorPackageId || includedDecorId();
+    const included = includedDecorId();
+    if (decorRank(selected) <= decorRank(included)) return 0;
+    return Math.max(0, (DECOR_UPGRADE_PRICE[selected] || 0) - (DECOR_UPGRADE_PRICE[included] || 0));
+  }
+
+  function cakeUpgradeAmount() {
+    const included = selectedPackage()?.cakeSize || "";
+    const chosen = cakeState.size || included;
+    if (!chosen || !included) return 0;
+    return Math.max(0, (CAKE_SIZE_VALUE[chosen] || 0) - (CAKE_SIZE_VALUE[included] || 0));
+  }
+
   function decorUpgradeNote(d) {
     const included = includedDecorId();
     if (d.id === included) return "Included with your package";
     if (decorRank(d.id) < decorRank(included)) return "Below your package";
-    const price = DECOR_UPGRADE_PRICE[d.id];
-    return price ? `Upgrade · ${formatIdr(price)}` : "Upgrade available";
+    const delta = Math.max(0, (DECOR_UPGRADE_PRICE[d.id] || 0) - (DECOR_UPGRADE_PRICE[included] || 0));
+    return delta ? `Upgrade · ${formatIdr(delta)}` : "Upgrade available";
   }
 
   function renderDecorPackages() {
@@ -3286,6 +3716,7 @@
     const img = document.getElementById("food-image");
     const list = document.getElementById("food-deposits");
     const included = document.getElementById("food-included");
+    const heading = document.getElementById("food-heading");
     if (lede && food.lede) lede.textContent = food.lede;
     if (img && food.image) img.src = food.image;
 
@@ -3294,9 +3725,9 @@
     const selectedKey = packageDepositKey(selectedPkg);
     const day = partyState.day;
     const pkgMeta = [
-      { key: "simple", name: "Simple" },
-      { key: "optimal", name: "Optimal" },
-      { key: "terrace", name: "Whole Terrace" },
+      { key: "simple", name: "Simple celebration" },
+      { key: "optimal", name: "Signature themed party" },
+      { key: "terrace", name: "Private terrace event" },
     ];
 
     if (list) {
@@ -3320,17 +3751,25 @@
         .join("");
     }
 
-    if (included) {
+    if (included || heading) {
       const d = deposits[selectedKey];
       if (d) {
         const amount = day === "weekend" ? d.weekend : d.weekday;
-        included.textContent = `This means you have ${formatIdr(
-          amount
-        )} included to purchase food and drinks.`;
+        if (heading) {
+          heading.textContent = `${formatIdr(amount)} is included for you to purchase food & drinks.`;
+        }
+        if (included) {
+          included.textContent = `Included in this package: ${formatIdr(
+            amount
+          )} to spend on food and drinks. Extra orders are charged from the menu.`;
+        }
       } else {
-        included.textContent = "";
+        if (heading) heading.textContent = "Included for you to purchase food & drinks.";
+        if (included) included.textContent = "";
       }
     }
+    const menuLink = document.getElementById("food-menu-link");
+    if (menuLink && window.TINY_WP?.menuUrl) menuLink.href = window.TINY_WP.menuUrl;
   }
 
   function initPartyDate() {
@@ -3706,6 +4145,15 @@
     const btn = document.getElementById("send-whatsapp");
     const exportBtn = document.getElementById("export-quote-pdf");
     const status = document.getElementById("send-status");
+    const promoReveal = document.getElementById("promo-reveal");
+    const promoBox = document.getElementById("promo-box");
+    if (promoReveal && promoBox) {
+      promoReveal.addEventListener("click", () => {
+        promoBox.hidden = false;
+        promoReveal.hidden = true;
+        document.getElementById("promo-code")?.focus();
+      });
+    }
     if (exportBtn) {
       exportBtn.addEventListener("click", () => {
         exportQuotationPdf();
@@ -3735,14 +4183,11 @@
         showStepGate(stepIncompleteMessage(incomplete));
         return;
       }
-      const contact = window.TinyContact?.validateContact?.();
-      if (!contact?.ok) {
-        setStatus(contact?.message || "Please add an email or WhatsApp number.", "is-error");
-        window.TinyContact?.markContactValidity?.(false);
-        goToStep("details");
-        showStepGate(contact?.message || "Please add an email or WhatsApp number.");
+      if (!validateRequestDetails(true)) {
+        setStatus("Add the child's name, date of birth, and an email or WhatsApp number.", "is-error");
         return;
       }
+      const contact = window.TinyContact?.validateContact?.();
       window.TinyContact?.markContactValidity?.(true);
 
       const typedPromo = document.getElementById("promo-code")?.value.trim() || "";
@@ -3844,15 +4289,19 @@
           saved: true,
           edited: isEdit,
         });
+        track("request_saved", funnelParams());
         setStatus(code ? (isEdit ? `Updated ${code}.` : `Saved as ${code}.`) : "Saved.", "is-success");
-        try { sessionStorage.removeItem("tiny-builder-draft"); } catch (_) {}
+        clearBuilderDraft();
         const waHref = `${WA_BASE}?text=${encodeURIComponent(composeWhatsAppMessage(code))}`;
         const manageHref = isEdit
           ? window.TinySubmit?.bookingUrl?.(manageToken)
           : window.TinySubmit?.builderEditUrl?.(manageToken) || window.TinySubmit?.bookingUrl?.(manageToken);
         if (window.TinySuccessModal?.open) {
           window.TinySuccessModal.open({
-            title: isEdit ? "Birthday plan updated" : "Birthday request saved",
+            title: isEdit ? "Birthday plan updated" : "Request received",
+            subtitle: code
+              ? `Reference ${code}. We received your request. The team will confirm availability and the final quote. This does not hold the date.`
+              : "We received your request. The team will confirm availability and the final quote. This does not hold the date.",
             code,
             manageToken,
             manageHref: isEdit ? manageHref : window.TinySubmit?.builderEditUrl?.(manageToken) || manageHref,
@@ -3860,6 +4309,7 @@
             showEdit: true,
             showCancel: true,
             showShare: false,
+            cancelLabel: "Cancel request",
             email: payload.email,
             phone: payload.phone,
           });
@@ -4059,8 +4509,8 @@
     const name = document.getElementById("lightbox-name");
     const theme = document.getElementById("lightbox-theme");
     if (!box || !img || !name || !theme) return;
-    img.style.backgroundImage = `url("${cake.src}")`;
-    img.setAttribute("aria-label", cake.name);
+    img.src = cake.src;
+    img.alt = cake.name;
     name.textContent = cake.name;
     theme.textContent = cake.theme;
     box.classList.add("is-open");
@@ -4087,8 +4537,8 @@
     const name = document.getElementById("photo-lightbox-name");
     const noteEl = document.getElementById("photo-lightbox-note");
     if (!box || !img || !name || !noteEl || !src) return;
-    img.style.backgroundImage = `url("${src}")`;
-    img.setAttribute("aria-label", title || "Expanded photo");
+    img.src = src;
+    img.alt = title || "Expanded photo";
     name.textContent = title || "";
     noteEl.textContent = note || "";
     box.classList.add("is-open");
@@ -4162,11 +4612,9 @@
         <button type="button" class="option-btn option-btn--center${
           cakeState.size === s.label ? " is-active" : ""
         }" data-size="${escapeHtml(s.label)}">${escapeHtml(s.label)}</button>
-        <div class="size-tip${s.label === includedSize ? " is-included" : ""}">${
-          s.label === includedSize
-            ? "Included in selected package"
-            : escapeHtml(s.note)
-        }</div>
+        <div class="size-tip${s.label === includedSize ? " is-included" : ""}">${escapeHtml(
+          cakeSizeTip(s, includedSize)
+        )}</div>
       </div>`
       )
       .join("");
@@ -4179,13 +4627,25 @@
       });
     });
     if (note) {
+      const upgrade = cakeUpgradeAmount();
       if (cakeState.size && cakeState.size === includedSize) {
         note.textContent = `${cakeState.size} — included in selected package.`;
+      } else if (upgrade > 0) {
+        note.textContent = `${cakeState.size} — upgrade ${formatIdr(upgrade)}.`;
       } else {
         const selected = cakeData.sizes.find((s) => s.label === cakeState.size);
         note.textContent = selected ? selected.line : "Two layers, whichever size you pick.";
       }
     }
+  }
+
+  function cakeSizeTip(size, includedSize) {
+    if (includedSize && size.label === includedSize) return "Included in selected package";
+    if (includedSize) {
+      const delta = Math.max(0, (CAKE_SIZE_VALUE[size.label] || 0) - (CAKE_SIZE_VALUE[includedSize] || 0));
+      if (delta > 0) return `Upgrade · ${formatIdr(delta)}`;
+    }
+    return size.note || "";
   }
 
   function isStepComplete(stepId) {
@@ -4195,6 +4655,7 @@
       case "details":
         return detailsAreComplete();
       case "package":
+        if (!partyState.packageChosen || !partyState.packageId) return false;
         if (!needsTablesStep()) return true;
         return (
           partyState.occupancyOk &&
@@ -4211,7 +4672,7 @@
       case "cakes":
         return flavourCount() > 0 && Boolean(cakeState.size);
       case "addons":
-        return partyState.masterclassReviewed && partyState.entertainmentReviewed;
+        return true;
       case "food":
         return partyState.foodReviewed;
       case "send":
@@ -4236,12 +4697,12 @@
   function stepIncompleteMessage(stepId) {
     switch (stepId) {
       case "details":
+        if (!document.getElementById("child-name")?.value.trim()) return "Enter the guest’s name.";
         if (!(totalGuests() > 0)) return "Please select date & amount of guests first";
         if (!document.getElementById("party-date")?.value) {
           return "Please select date & amount of guests first";
         }
         if (!partyTimeValue()) return "Please choose an available start time.";
-        if (!childBirthdayValid()) return "Please add the child's birthday.";
         if (!partyState.occupancyOk) return "Couldn’t check availability — try again.";
         if (partyTimeIsBooked(partyTimeValue())) {
           return "That start time isn’t free for your guest count. Please pick another.";
@@ -4254,7 +4715,7 @@
             return "Those tables aren’t free at this time. Please pick another start time.";
           }
         }
-        return "Please fill out the required details, including email or WhatsApp.";
+        return "Please fill out the date, guests, and start time.";
       case "package":
         return packageIncompleteMessage();
       case "decor":
@@ -4262,7 +4723,7 @@
       case "cakes":
         return "Please choose a cake size and at least one sponge flavour.";
       case "addons":
-        return "Please choose a masterclass and entertainment option, or select no add on.";
+        return "";
       case "food":
         return "Please review food and drink, then continue.";
       default:
@@ -4293,7 +4754,6 @@
 
   function canVisitStep(stepId) {
     if (staffRequestId || editManageToken) return true;
-    if (stepId === "package" && !needsTablesStep()) return false;
     const flow = builderFlow();
     const target = flow.findIndex((step) => step.id === stepId);
     if (target < 0) return false;
@@ -4310,10 +4770,15 @@
   }
 
   function updateStepChips() {
+    let number = 1;
     document.querySelectorAll(".step-chip[data-step]").forEach((chip) => {
       const stepId = chip.dataset.step;
-      if (stepId === "package") {
-        chip.hidden = !needsTablesStep();
+      chip.hidden = false;
+      const text = chip.querySelector(".step-chip__text");
+      if (text && stepId !== "send" && !chip.hidden) {
+        const label = chip.dataset.label || text.textContent.replace(/^\d+\s*/, "");
+        text.textContent = `${String(number).padStart(2, "0")} ${label}`;
+        number += 1;
       }
       const allowed = canVisitStep(stepId);
       chip.classList.toggle("is-active", stepId === currentStepId);
@@ -4328,8 +4793,8 @@
   function goToStep(stepId, options = {}) {
     const fromHistory = Boolean(options.fromHistory);
     const flow = builderFlow();
-    let nextId = flow.some((step) => step.id === stepId) ? stepId : "intro";
-    if (nextId === "package" && !needsTablesStep()) nextId = "decor";
+    let nextId = flow.some((step) => step.id === stepId) ? stepId : "details";
+    if (nextId === "intro") nextId = "details";
     if (!canVisitStep(nextId)) nextId = firstIncompleteRequiredStep();
     currentStepId = nextId;
     document.body.dataset.builderStep = nextId;
@@ -4398,6 +4863,7 @@
       }
       return false;
     }
+    if (current.id === "details") track("date_guest_step_complete", funnelParams());
     const next = flow[flowIndex(current.id) + 1];
     if (!next) return false;
     goToStep(next.id);
@@ -4418,7 +4884,16 @@
       track.setAttribute("aria-valuemax", String(total));
     }
     updateStepChips();
+    updateNextStepButton();
     saveBuilderDraft();
+    renderRunningEstimate();
+  }
+
+  const DRAFT_KEY = "tiny-builder-draft";
+
+  function clearBuilderDraft() {
+    try { localStorage.removeItem(DRAFT_KEY); } catch (_) {}
+    try { sessionStorage.removeItem(DRAFT_KEY); } catch (_) {}
   }
 
   function saveBuilderDraft() {
@@ -4443,25 +4918,24 @@
       if (el) fields[id] = el.value;
     });
     try {
-      sessionStorage.setItem(
-        "tiny-builder-draft",
-        JSON.stringify({
-          step: currentStepId,
-          fields,
-          party: { ...partyState, occupancy: [] },
-          cake: {
-            size: cakeState.size,
-            sponges: cakeState.sponges,
-            sugarSponge: cakeState.sugarSponge,
-            mode: cakeState.mode,
-            design: cakeState.design,
-            theme: cakeState.theme,
-            filter: cakeState.filter,
-            fileName: cakeState.fileName,
-            addons: cakeState.addons,
-          },
-        })
-      );
+      const json = JSON.stringify({
+        step: currentStepId,
+        fields,
+        party: { ...partyState, occupancy: [] },
+        cake: {
+          size: cakeState.size,
+          sponges: cakeState.sponges,
+          sugarSponge: cakeState.sugarSponge,
+          mode: cakeState.mode,
+          design: cakeState.design,
+          theme: cakeState.theme,
+          filter: cakeState.filter,
+          fileName: cakeState.fileName,
+          addons: cakeState.addons,
+        },
+      });
+      localStorage.setItem(DRAFT_KEY, json);
+      sessionStorage.setItem(DRAFT_KEY, json);
     } catch (_) {}
   }
 
@@ -4469,7 +4943,7 @@
     if (editManageToken || staffRequestId) return;
     let draft;
     try {
-      draft = JSON.parse(sessionStorage.getItem("tiny-builder-draft") || "");
+      draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || sessionStorage.getItem(DRAFT_KEY) || "");
     } catch (_) {
       return;
     }
@@ -4530,7 +5004,15 @@
       return;
     }
     btn.hidden = false;
-    btn.textContent = current.nextLabel || "Next step";
+    if (current.id === "addons") {
+      const hasExtra =
+        Boolean(partyState.masterclassId) ||
+        hasEntertainmentExtra() ||
+        (partyState.extras || []).length > 0;
+      btn.textContent = hasExtra ? "Continue with selected extras" : "Continue without extras";
+    } else {
+      btn.textContent = current.nextLabel || "Next step";
+    }
     btn.setAttribute("href", next.href);
   }
 
@@ -4542,13 +5024,13 @@
   }
 
   function initWizard() {
-    const requested = (location.hash || "#intro").replace("#", "") || "intro";
+    const requested = (location.hash || "#details").replace("#", "") || "details";
     goToStep(requested, { fromHistory: true });
     if (location.hash !== `#${currentStepId}`) {
       history.replaceState({ step: currentStepId }, "", `#${currentStepId}`);
     }
     window.addEventListener("popstate", () => {
-      const stepId = (location.hash || "#intro").replace("#", "") || "intro";
+      const stepId = (location.hash || "#details").replace("#", "") || "details";
       goToStep(stepId, { fromHistory: true });
     });
   }
@@ -4580,44 +5062,37 @@
 
   const COUNT_SLIDERS = {
     "guest-kids": {
-      title: "About how many little guests?",
-      note: "A ballpark is fine. It sizes the cake, the table and the team.",
-      unit: "Little guests",
+      title: "How many kids?",
+      note: "Little guests joining the table.",
+      unit: "Kids",
       min: 0,
-      max: 30,
-      start: 8,
+      max: 35,
+      start: 2,
       label: (n) => `${n} ${n === 1 ? "kid" : "kids"}`,
-      confirm: (n) => `Got it — we will size everything for ${n} ${n === 1 ? "guest" : "guests"}.`,
+      confirm: (n) => `Got it — ${n} ${n === 1 ? "kid" : "kids"}.`,
     },
     "guest-adults": {
       title: "How many adults?",
-      note: "Parents and other grown-ups joining the party.",
+      note: "Grown-ups joining the table.",
       unit: "Adults",
       min: 0,
-      max: 20,
+      max: 35,
       start: 2,
       label: (n) => `${n} ${n === 1 ? "adult" : "adults"}`,
-      confirm: (n) => `Got it — ${n} ${n === 1 ? "adult" : "adults"} joining.`,
-    },
-    "child-age": {
-      title: "How old are they turning?",
-      note: "This sets the cake size and the party tone.",
-      unit: "Years",
-      min: 1,
-      max: 18,
-      start: 5,
-      label: (n) => `Turning ${n}`,
-      confirm: (n) => `Got it — turning ${n}.`,
+      confirm: (n) => `Got it — ${n} ${n === 1 ? "adult" : "adults"}.`,
     },
   };
 
   function paintCountValue(id) {
-    const spec = COUNT_SLIDERS[id];
-    const input = document.getElementById(id);
-    const label = document.getElementById(`${id}-value`);
-    if (!spec || !input || !label) return;
-    const value = input.value;
-    label.textContent = value === "" ? "Slide to choose" : spec.label(Number(value));
+    const ids = id ? [id] : Object.keys(COUNT_SLIDERS);
+    ids.forEach((key) => {
+      const spec = COUNT_SLIDERS[key];
+      const input = document.getElementById(key);
+      const label = document.getElementById(`${key}-value`);
+      if (!spec || !input || !label) return;
+      const value = input.value;
+      label.textContent = value === "" ? "Slide to choose" : spec.label(Number(value));
+    });
   }
 
   function initCountSliders() {
@@ -4646,11 +5121,11 @@
       activeId = "";
     };
 
-    const open = (id) => {
-      const spec = COUNT_SLIDERS[id];
-      const input = document.getElementById(id);
+    const open = (sliderId) => {
+      const spec = COUNT_SLIDERS[sliderId];
+      const input = document.getElementById(sliderId);
       if (!spec || !input) return;
-      activeId = id;
+      activeId = sliderId;
       range.min = String(spec.min);
       range.max = String(spec.max);
       range.value = input.value === "" ? String(spec.start) : String(input.value);
@@ -4658,14 +5133,14 @@
       if (note) note.textContent = spec.note;
       if (unit) unit.textContent = spec.unit;
       if (minLabel) minLabel.textContent = String(spec.min);
-      if (maxLabel) maxLabel.textContent = spec.max >= 30 && id === "guest-kids" ? `${spec.max}+` : String(spec.max);
+      if (maxLabel) maxLabel.textContent = String(spec.max);
       paint();
       modal.hidden = false;
     };
 
-    Object.keys(COUNT_SLIDERS).forEach((id) => {
-      paintCountValue(id);
-      document.getElementById(`${id}-trigger`)?.addEventListener("click", () => open(id));
+    Object.keys(COUNT_SLIDERS).forEach((sliderId) => {
+      paintCountValue(sliderId);
+      document.getElementById(`${sliderId}-trigger`)?.addEventListener("click", () => open(sliderId));
     });
     range.addEventListener("input", paint);
     document.getElementById("count-modal-done")?.addEventListener("click", () => {
@@ -4679,6 +5154,16 @@
       close();
     });
     modal.querySelectorAll("[data-close-count]").forEach((el) => el.addEventListener("click", close));
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !modal.hidden) close();
+    });
+  }
+
+  function initBuilderExit() {
+    const exit = document.getElementById("builder-exit");
+    if (!exit) return;
+    if (window.TINY_WP?.birthdaysUrl) exit.href = window.TINY_WP.birthdaysUrl;
+    exit.addEventListener("click", () => saveBuilderDraft());
   }
 
   function initGuestLimit() {
@@ -4691,7 +5176,6 @@
         checkTerraceGuestLimit();
         assignPartyTables();
         updatePartyTimeTrigger();
-        if (currentStepId === "package" && !needsTablesStep()) goToStep("decor");
         updateStepProgress();
       });
       el.addEventListener("change", () => {
@@ -4699,7 +5183,6 @@
         checkTerraceGuestLimit();
         assignPartyTables();
         updatePartyTimeTrigger();
-        if (currentStepId === "package" && !needsTablesStep()) goToStep("decor");
         updateStepProgress();
       });
     });
@@ -4772,7 +5255,9 @@
         (label) =>
           `<button type="button" class="option-btn${
             cakeState.sponges.includes(label) ? " is-active" : ""
-          }" data-sponge="${escapeHtml(label)}">${escapeHtml(label)}</button>`
+          }" data-sponge="${escapeHtml(label)}">${escapeHtml(label)}${
+            label === SPONGE_FLOURLESS ? " · + IDR 200k" : ""
+          }</button>`
       )
       .join("");
     el.querySelectorAll("[data-sponge]").forEach((btn) => {
@@ -4811,10 +5296,8 @@
   function renderAddons() {
     const el = document.getElementById("addon-options");
     if (!el) return;
-    const dietOptions = [
-      DIET_NONE,
-      ...(cakeData.addons || []).filter((label) => label !== DIET_NONE),
-    ];
+    cakeState.addons = cakeState.addons.filter((label) => label === "No added sugar");
+    const dietOptions = [DIET_NONE, "No added sugar"];
     el.innerHTML = dietOptions
       .map((label) => {
         const active =
@@ -5291,7 +5774,7 @@
     prefixImgStrings(OPTIMAL_BACKDROP);
     prefixImgStrings(BACKDROP_BY_PKG);
     partyData = prefixImgStrings(
-      await loadJson(wpConfig().partyJson || "data/party.json", DEFAULT_PARTY)
+      await loadJson(wpConfig().partyJson || "data/party.json?v=20261017j", DEFAULT_PARTY)
     );
     cakeData = normalizeCakes(
       mergeCatalogCakes(
@@ -5320,6 +5803,9 @@
     initCollapsibleAddons();
     initGuestLimit();
     initCountSliders();
+    initBuilderExit();
+    syncChildAge();
+    paintCountValue();
     initPartyTables();
     renderMasterclasses();
     renderExtras();
@@ -5383,6 +5869,7 @@
     }
     updateStepProgress();
     checkTerraceGuestLimit();
+    paintCountValue();
     builderBooted = true;
     saveBuilderDraft();
   });

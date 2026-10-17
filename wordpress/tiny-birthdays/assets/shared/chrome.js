@@ -1,10 +1,21 @@
 (() => {
   "use strict";
 
+  const WA_BIRTHDAY = "https://wa.me/6282147830142";
+  const WA_RESERVE = "https://wa.me/6282266484226";
   const WA_TASTING =
-    "https://wa.me/6282147830142?text=" +
+    WA_BIRTHDAY +
+    "?text=" +
     encodeURIComponent("Hi Tiny! I'd like to book a free cake tasting.");
-  const WA_CONTACT = "https://wa.me/6282266484226";
+  const WA_CONTACT = WA_RESERVE;
+
+  function isBirthdaySite(page) {
+    return page === "landing" || page === "builder";
+  }
+
+  function whatsappHref(page) {
+    return isBirthdaySite(page) ? WA_BIRTHDAY : WA_RESERVE;
+  }
   const CAFE = {
     home: (window.TINY_WP && window.TINY_WP.homeUrl) || "https://tinyhealthycafe.com/",
     about: "https://tinyhealthycafe.com/about-us/",
@@ -180,17 +191,23 @@
   function ctaHtml(page, p) {
     if (page === "reserve") {
       return `
-      <span class="site-header__caption">Tables · 8:30–18:00</span>
+      <span class="site-header__caption">Cafe &amp; table reservations · 8:30–18:00</span>
       <a class="btn" href="#book">Reserve</a>`;
     }
-    if (page === "booking") {
+    if (page === "events") {
       return `
-      <span class="site-header__caption">Berawa, Bali</span>
-      <a class="btn" href="${WA_CONTACT}" target="_blank" rel="noopener noreferrer" data-wa="header_booking">WhatsApp</a>`;
+      <span class="site-header__caption">Classes &amp; family events</span>
+      <a class="btn" href="#upcoming-events">See upcoming events</a>`;
     }
+    const birthday = isBirthdaySite(page);
+    const caption = birthday
+      ? "Birthdays · +62 821 4783 0142"
+      : "Cafe &amp; table reservations · +62 822 6648 4226";
     return `
-      <span class="site-header__caption">Free tasting · no deposit</span>
-      <a class="btn" href="${WA_TASTING}" target="_blank" rel="noopener noreferrer" data-wa="header_tasting">Book a free cake tasting</a>`;
+      <span class="site-header__caption">${caption}</span>
+      <a class="btn" href="${whatsappHref(page)}" target="_blank" rel="noopener noreferrer" data-wa="${
+        birthday ? "header_birthday" : "header_reservations"
+      }">WhatsApp</a>`;
   }
 
   function headerHtml(page, p) {
@@ -234,11 +251,17 @@
         ${
           page === "reserve"
             ? `<a href="#book">Reserve a table</a>`
-            : `<a href="${WA_TASTING}" target="_blank" rel="noopener noreferrer" data-wa="drawer_tasting">Book a free cake tasting</a>`
+            : page === "events"
+              ? `<a href="#upcoming-events">See upcoming events</a>`
+              : `<a href="${whatsappHref(page)}" target="_blank" rel="noopener noreferrer" data-wa="${
+                  isBirthdaySite(page) ? "drawer_birthday" : "drawer_reservations"
+                }">WhatsApp</a>`
         }
       </div>
     </div>
-    <a class="wa-float" href="${WA_CONTACT}" target="_blank" rel="noopener noreferrer" aria-label="WhatsApp Tiny">
+    <a class="wa-float" href="${whatsappHref(page)}" target="_blank" rel="noopener noreferrer" aria-label="${
+      isBirthdaySite(page) ? "Birthday parties on WhatsApp" : "Cafe and table reservations on WhatsApp"
+    }">
       ${ICON_WA}
     </a>`;
   }
@@ -261,9 +284,9 @@
         <a class="${current(page, "location").trim()}" href="${p.location}">Location</a>
       </nav>
       <div class="site-footer__links">
-        <a class="footer-link" href="${WA_CONTACT}" target="_blank" rel="noopener noreferrer" data-wa="footer_whatsapp" aria-label="WhatsApp +62 822 6648 4226">
+        <a class="footer-link" href="${WA_CONTACT}" target="_blank" rel="noopener noreferrer" data-wa="footer_whatsapp" aria-label="Cafe and table reservations, +62 822 6648 4226">
           <span class="footer-link__icon">${ICON_WA}</span>
-          <span class="footer-link__label">+62 822 6648 4226</span>
+          <span class="footer-link__label">Cafe &amp; table reservations · +62 822 6648 4226</span>
         </a>
         <a class="footer-link" href="https://www.instagram.com/tiny.cafe.bali/" target="_blank" rel="noopener noreferrer" aria-label="Instagram @tiny.cafe.bali">
           <span class="footer-link__icon">${ICON_IG}</span>
