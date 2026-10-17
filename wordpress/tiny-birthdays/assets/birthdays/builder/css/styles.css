@@ -535,6 +535,37 @@ body.steps-pinned .site-header {
   color: var(--deep);
 }
 
+.builder-estimate__table tr.is-total {
+  cursor: pointer;
+}
+
+.builder-estimate__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.builder-estimate__toggle::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-top: 2px solid currentColor;
+  border-right: 2px solid currentColor;
+  transform: rotate(-45deg);
+  margin-top: 3px;
+}
+
+.builder-estimate:not(.is-mini) .builder-estimate__toggle::before {
+  transform: rotate(135deg);
+  margin-top: -2px;
+}
+
 .builder-estimate__note {
   width: min(880px, 100%);
   margin: 8px auto 0;
@@ -578,8 +609,10 @@ body.steps-pinned .site-header {
 .package-cat__photo img {
   display: block;
   width: 100%;
-  height: 160px;
+  height: auto;
+  aspect-ratio: 1 / 1;
   object-fit: cover;
+  object-position: center;
 }
 
 .package-cat__photo::after {

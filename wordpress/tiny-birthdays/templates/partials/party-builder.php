@@ -348,6 +348,14 @@ $menu = esc_url(tiny_birthdays_page_url('menu'));
 <p class="step-gate" id="step-gate" role="status" aria-live="polite" hidden></p>
 <a class="btn btn--next-step" href="#details" id="next-step" hidden>Continue</a>
 
+<aside class="builder-estimate" id="builder-estimate" hidden aria-label="Estimate">
+  <table class="builder-estimate__table">
+    <caption>Estimate</caption>
+    <tbody id="builder-estimate-rows"></tbody>
+  </table>
+  <p class="builder-estimate__note" id="builder-estimate-note"></p>
+</aside>
+
 <div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="lightbox-name">
   <button class="lightbox__close" type="button" aria-label="Close">&times;</button>
   <div class="lightbox__panel">

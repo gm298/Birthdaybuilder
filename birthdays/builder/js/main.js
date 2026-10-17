@@ -323,6 +323,7 @@
   };
 
   let currentStepId = "details";
+  let estimateExpanded = false;
   let quoteViewTracked = false;
   let builderBooted = false;
   const staffRequestId = new URLSearchParams(window.location.search).get("staffRequest") || "";
@@ -1162,7 +1163,7 @@
     if (!assets || assets.photoOnly) return;
     const colours = activeBackdropColours();
     const anyChanged = colours.some(
-      (c) => backdropState.colours[c.id].toLowerCase() !== c.original.toLowerCase()
+      (c) => String(backdropState.colours[c.id] || "").toLowerCase() !== String(c.original || "").toLowerCase()
     );
     if (!anyChanged) return;
 
@@ -1457,7 +1458,7 @@
 
   function backdropColoursChanged() {
     return activeBackdropColours().some(
-      (c) => backdropState.colours[c.id].toLowerCase() !== c.original.toLowerCase()
+      (c) => String(backdropState.colours[c.id] || "").toLowerCase() !== String(c.original || "").toLowerCase()
     );
   }
 
@@ -2161,10 +2162,14 @@
       { label: "Estimated total", value: formatIdr(q.total), kind: "is-total" },
     ];
     rowsEl.innerHTML = rows
-      .map(
-        (row) =>
-          `<tr class="${row.kind}"><th scope="row">${escapeHtml(row.label)}</th><td>${escapeHtml(row.value)}</td></tr>`
-      )
+      .map((row) => {
+        if (row.kind === "is-total") {
+          return `<tr class="is-total"><th scope="row"><button type="button" class="builder-estimate__toggle" aria-expanded="${
+            estimateExpanded ? "true" : "false"
+          }">Estimated total</button></th><td>${escapeHtml(row.value)}</td></tr>`;
+        }
+        return `<tr class="${row.kind}"><th scope="row">${escapeHtml(row.label)}</th><td>${escapeHtml(row.value)}</td></tr>`;
+      })
       .join("");
     if (noteEl) {
       noteEl.textContent = `Includes the food and drink credit, 5% service and 10% tax for this ${
@@ -2172,14 +2177,33 @@
       } and guest count. The team confirms the final quote.`;
     }
     bar.hidden = false;
-    bar.classList.toggle("is-mini", currentStepId !== "details");
-    const height = Math.ceil(bar.getBoundingClientRect().height);
-    document.documentElement.style.setProperty("--estimate-h", `${height}px`);
+    applyEstimateLayout(bar);
     if (!quoteViewTracked) {
       quoteViewTracked = true;
       track("quote_viewed", funnelParams());
     }
     syncStepsBarH();
+  }
+
+  function applyEstimateLayout(bar) {
+    if (!bar) return;
+    bar.classList.toggle("is-mini", !estimateExpanded);
+    const toggle = bar.querySelector(".builder-estimate__toggle");
+    if (toggle) toggle.setAttribute("aria-expanded", estimateExpanded ? "true" : "false");
+    const height = bar.hidden ? 0 : Math.ceil(bar.getBoundingClientRect().height);
+    document.documentElement.style.setProperty("--estimate-h", `${height}px`);
+  }
+
+  function initEstimateToggle() {
+    const bar = document.getElementById("builder-estimate");
+    if (!bar || bar.dataset.toggleBound) return;
+    bar.dataset.toggleBound = "1";
+    bar.addEventListener("click", (event) => {
+      if (!event.target.closest("tr.is-total")) return;
+      estimateExpanded = !estimateExpanded;
+      applyEstimateLayout(bar);
+      syncStepsBarH();
+    });
   }
 
   function syncStepsBarH() {
@@ -4796,6 +4820,7 @@
     let nextId = flow.some((step) => step.id === stepId) ? stepId : "details";
     if (nextId === "intro") nextId = "details";
     if (!canVisitStep(nextId)) nextId = firstIncompleteRequiredStep();
+    if (nextId !== currentStepId) estimateExpanded = false;
     currentStepId = nextId;
     document.body.dataset.builderStep = nextId;
     document.body.classList.add("is-wizard");
@@ -5024,6 +5049,7 @@
   }
 
   function initWizard() {
+    initEstimateToggle();
     const requested = (location.hash || "#details").replace("#", "") || "details";
     goToStep(requested, { fromHistory: true });
     if (location.hash !== `#${currentStepId}`) {
