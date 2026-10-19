@@ -93,7 +93,7 @@
 
   function ticketPriceLabel(event) {
     const raw = event?.price_idr ?? event?.pricing?.total ?? event?.pricing?.price;
-    if (raw === 0 || raw === "0") return "Free";
+    if (raw === 0 || raw === "0") return "FREE!";
     const amount = ticketUnit(event);
     return amount ? `${formatIdr(amount)} / ticket` : "Price not confirmed";
   }
@@ -464,7 +464,7 @@
       details.slot ? `Time: ${details.slot}` : "",
       `Tickets: ${tickets}`,
       details.price ? `Price: ${details.price}` : "",
-      "Payment: pay on site at Tiny",
+      details.price === "FREE!" ? "Payment: free" : "Payment: pay on site at Tiny",
     ].filter(Boolean);
     let phone = "6282266484226";
     try {
@@ -525,14 +525,14 @@
     const unit = ticketUnit(event);
     const price = formatIdr(unit);
     const priceLabel = ticketPriceLabel(event);
+    const isFree = priceLabel === "FREE!";
     const bookable = priceLabel !== "Price not confirmed";
     const actionLabel = bookable ? "Request tickets" : "Register your interest";
-    const payLine =
-      priceLabel === "Free"
-        ? "The team confirms your place."
-        : unit
-          ? "The team confirms your place. Pay at Tiny when you attend."
-          : "The price is not confirmed, so this is not a paid reservation.";
+    const payLine = isFree
+      ? "The team confirms your place."
+      : unit
+        ? "The team confirms your place. Pay at Tiny when you attend."
+        : "The price is not confirmed, so this is not a paid reservation.";
     const slots = eventSlots(event);
     const aboutText = String(event.about || "").trim();
     return `
@@ -599,7 +599,9 @@
             </div>
             <label class="field"><span>Email</span><input name="email" type="email" autocomplete="email"></label>
             <p class="field__hint">Add an email or a WhatsApp number. One is enough.</p>
-            <button type="button" class="promo-reveal" id="promo-reveal">Have a promo code?</button>
+            ${
+              unit
+                ? `<button type="button" class="promo-reveal" id="promo-reveal">Have a promo code?</button>
             <div class="field" id="promo-box" hidden>
               <span>Promo code</span>
               <div class="promo-row">
@@ -607,7 +609,9 @@
                 <button class="btn" type="button" id="promo-apply">Apply</button>
               </div>
               <p class="status" id="promo-status" role="status"></p>
-            </div>
+            </div>`
+                : ""
+            }
             <button class="btn" type="submit">${actionLabel}</button>
             <p class="status" id="guest-status" role="status"></p>
           </form>
@@ -639,7 +643,11 @@
       <div class="wa-modal" id="wa-modal" hidden>
         <div class="wa-modal__card" role="dialog" aria-modal="true" aria-labelledby="wa-title">
           <h2 id="wa-title" class="section-title">You’re on the list</h2>
-          <p>We received your request. Tiny will confirm your place. Pay at Tiny when you attend. This does not reserve the seat until the team confirms.</p>
+          <p>${
+            isFree
+              ? "We received your request. Tiny will confirm your place. This event is free."
+              : "We received your request. Tiny will confirm your place. Pay at Tiny when you attend. This does not reserve the seat until the team confirms."
+          }</p>
           <p><a class="btn" id="wa-go" href="#" target="_blank" rel="noopener noreferrer">WhatsApp Tiny</a></p>
           <p><button class="btn" type="button" data-close-wa style="width:auto;background:transparent;color:var(--sage)">Close</button></p>
         </div>
@@ -693,7 +701,11 @@
       <p>${escapeHtml(guest.name)} · ${escapeHtml(guest.pax)} ${Number(guest.pax) === 1 ? "guest" : "guests"}</p>
       ${guest.priceLabel ? `<p>${escapeHtml(guest.priceLabel)}</p>` : ""}
       <p><strong>${escapeHtml(guestStatusLabel(guest.status))}</strong></p>
-      <p>${escapeHtml(guest.payment === "paid" ? "Paid" : "Pay on site")}</p>`;
+      ${
+        guest.payment === "free"
+          ? ""
+          : `<p>${escapeHtml(guest.payment === "paid" ? "Paid" : "Pay on site")}</p>`
+      }`;
   }
 
   function guestHtml() {

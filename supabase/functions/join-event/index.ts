@@ -72,10 +72,15 @@ function formatIdr(value: number) {
   return `Rp ${amount.toLocaleString("id-ID")}`;
 }
 
-function ticketUnit(row: { quote_total_idr?: number | null; payload?: { event?: { pricing?: { total?: unknown; price?: unknown } } } }) {
+function ticketUnit(row: { quote_total_idr?: number | null; payload?: { event?: { pricing?: { total?: unknown; price?: unknown; free?: unknown } } } }) {
   const pricing = row.payload?.event?.pricing;
   const amount = Number(pricing?.total) || Number(pricing?.price) || Number(row.quote_total_idr) || 0;
   return amount > 0 ? Math.round(amount) : 0;
+}
+
+function eventIsFree(row: { payload?: { event?: { pricing?: { free?: unknown } } } }) {
+  const free = row.payload?.event?.pricing?.free;
+  return free === true || free === "true";
 }
 
 function whatsappHref(details: { name: string; email: string; eventName: string; slot: string; pax: number; price?: string }) {
@@ -89,7 +94,7 @@ function whatsappHref(details: { name: string; email: string; eventName: string;
     details.slot ? `Time: ${details.slot}` : "",
     `Tickets: ${tickets}`,
     details.price ? `Price: ${details.price}` : "",
-    "Payment: pay on site at Tiny",
+    details.price === "FREE!" ? "Payment: free" : "Payment: pay on site at Tiny",
   ]
     .filter(Boolean)
     .join("\n");
@@ -210,7 +215,7 @@ Deno.serve(async (req) => {
       party_date?: string;
       party_time?: string;
       status?: string;
-      payload?: { event?: { name?: string } };
+      payload?: { event?: { name?: string; pricing?: { free?: unknown; total?: unknown; price?: unknown } } };
       quote_total_idr?: number | null;
     };
     guests: Guest[];
@@ -221,6 +226,7 @@ Deno.serve(async (req) => {
     const eventName = row.payload?.event?.name || row.contact_name || "Event";
     const start = slotLabel(guest.slot) || String(row.party_time || "").slice(0, 5);
     const unit = ticketUnit(row);
+    const free = eventIsFree(row);
     const pax = Number(guest.pax) || 1;
     const due = guest.promo?.code && Number.isFinite(Number(guest.payment?.amount))
       ? Number(guest.payment?.amount)
@@ -238,8 +244,8 @@ Deno.serve(async (req) => {
       startTime: start,
       publicCode: row.public_code,
       eventOpen: !INACTIVE.has(String(row.status || "")),
-      payment: guest.payment?.status === "paid" ? "paid" : "onsite",
-      priceLabel: due ? `${formatIdr(due)} for ${pax} ${pax === 1 ? "ticket" : "tickets"}` : "",
+      payment: free ? "free" : guest.payment?.status === "paid" ? "paid" : "onsite",
+      priceLabel: due ? `${formatIdr(due)} for ${pax} ${pax === 1 ? "ticket" : "tickets"}` : free ? "FREE!" : "",
       editable: !guest.archived_at && !INACTIVE.has(String(row.status || "")) && Boolean(asString(guest.email) || asString(guest.phone)),
       hasEmail: Boolean(asString(guest.email)),
       hasPhone: Boolean(asString(guest.phone)),
@@ -362,6 +368,7 @@ Deno.serve(async (req) => {
 
   const token = crypto.randomUUID();
   const unit = ticketUnit(row);
+  const free = eventIsFree(row);
   const promoCode = asString(body.promoCode);
   let due = unit * pax;
   let promo: Guest["promo"];
@@ -406,7 +413,9 @@ Deno.serve(async (req) => {
       guestName: name,
       partyDate: date,
       partyTime: slotLabel(matched),
-      guestsLabel: `${pax}${due ? ` · ${formatIdr(due)}${promo?.code ? ` · ${promo.code}` : ""} · pay on site` : ""}`,
+      guestsLabel: free
+        ? `${pax} · FREE!`
+        : `${pax}${due ? ` · ${formatIdr(due)}${promo?.code ? ` · ${promo.code}` : ""} · pay on site` : ""}`,
       eventName,
       link: guestLink(token),
     });
@@ -427,7 +436,9 @@ Deno.serve(async (req) => {
         pax,
         price: due
           ? `${formatIdr(due)}${promo?.code ? ` with ${promo.code}` : ""}${pax > 1 ? ` for ${pax} tickets` : ""}`
-          : "",
+          : free
+            ? "FREE!"
+            : "",
       }),
       status: "pending",
     },

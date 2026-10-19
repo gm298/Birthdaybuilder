@@ -51,6 +51,7 @@ type RequestRow = {
       fullTerrace?: boolean;
       payment?: string;
       pricing?: {
+        free?: boolean | string;
         price?: number;
         includeService?: boolean;
         includeTax?: boolean;
@@ -458,6 +459,7 @@ function formatIdr(n: number) {
 
 function eventPricingLines(row: RequestRow) {
   const pricing = row.payload?.event?.pricing;
+  if (pricing?.free === true || pricing?.free === "true") return ["Price: FREE!"];
   const price = Number(pricing?.price) || 0;
   const total = Number(pricing?.total) || 0;
   if (!price && !total) return [];

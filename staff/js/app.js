@@ -241,8 +241,8 @@ function displaySubtitle(row) {
   if (eventType(row) === "reservation") return tableText(row);
   if (eventType(row) === "event") {
     const table = tableText(row);
-    const total = eventPricingFromRow(row)?.total || row.quote_total_idr;
-    return total ? `${table}${table ? " · " : ""}${formatIdr(total)}` : table;
+    const price = eventPriceCaption(row);
+    return price ? `${table}${table ? " · " : ""}${price}` : table;
   }
   const pkg = row.package_name || (row.source === "cake" ? "Cake only" : "Package TBC");
   const total = row.quote_total_idr ? ` · ${formatIdr(row.quote_total_idr)}` : "";
@@ -2927,8 +2927,22 @@ function eventPricingTotals(price, includeService, includeTax) {
   };
 }
 
+function eventMarkedFree(row) {
+  return Boolean(eventPricingFromRow(row)?.free);
+}
+
+function eventPriceCaption(row) {
+  const pricing = eventPricingFromRow(row);
+  if (pricing?.free) return "FREE!";
+  const total = pricing?.total || Number(row?.quote_total_idr) || 0;
+  return total ? formatIdr(total) : "";
+}
+
 function eventPricingFromRow(row) {
   const stored = row?.payload?.event?.pricing;
+  if (stored && (stored.free === true || stored.free === "true")) {
+    return { ...eventPricingTotals(0, false, false), free: true };
+  }
   if (stored && (Number(stored.total) || Number(stored.price))) {
     return eventPricingTotals(stored.price, stored.includeService, stored.includeTax);
   }
@@ -2943,6 +2957,9 @@ function eventPricingFromRow(row) {
 }
 
 function readEventPricing() {
+  if (document.getElementById("event-free")?.checked) {
+    return { ...eventPricingTotals(0, false, false), free: true };
+  }
   return eventPricingTotals(
     document.getElementById("event-price")?.value,
     document.getElementById("event-add-service")?.checked,
@@ -2951,6 +2968,9 @@ function readEventPricing() {
 }
 
 function eventPricingHtml(pricing) {
+  if (pricing?.free) {
+    return `<p><strong>FREE!</strong></p><p class="muted">Guests see FREE! on the events page.</p>`;
+  }
   if (!pricing?.price) return `<p class="muted">Enter a price in IDR. Tax and service are optional.</p>`;
   return `<ul class="kv">
     <li><span>Price</span><span>${escapeHtml(formatIdr(pricing.price))}</span></li>
@@ -2973,14 +2993,24 @@ function refreshEventPricingPreview() {
   if (host) host.innerHTML = eventPricingHtml(readEventPricing());
 }
 
+function syncEventFreePricing() {
+  const free = Boolean(document.getElementById("event-free")?.checked);
+  const fields = document.getElementById("event-price-fields");
+  if (fields) fields.hidden = free;
+  refreshEventPricingPreview();
+}
+
 function fillEventPricing(pricing = {}) {
   const priceInput = document.getElementById("event-price");
   const serviceInput = document.getElementById("event-add-service");
   const taxInput = document.getElementById("event-add-tax");
-  if (priceInput) priceInput.value = pricing.price ? String(pricing.price) : "";
-  if (serviceInput) serviceInput.checked = Boolean(pricing.includeService);
-  if (taxInput) taxInput.checked = Boolean(pricing.includeTax);
-  refreshEventPricingPreview();
+  const freeInput = document.getElementById("event-free");
+  const free = Boolean(pricing.free);
+  if (freeInput) freeInput.checked = free;
+  if (priceInput) priceInput.value = !free && pricing.price ? String(pricing.price) : "";
+  if (serviceInput) serviceInput.checked = !free && Boolean(pricing.includeService);
+  if (taxInput) taxInput.checked = !free && Boolean(pricing.includeTax);
+  syncEventFreePricing();
 }
 
 const EVENT_DAY_START = 8 * 60;
@@ -3615,7 +3645,13 @@ async function saveStaffEvent() {
   const notes = document.getElementById("event-notes")?.value.trim() || "";
   const payment = document.querySelector('input[name="event-payment"]:checked')?.value || "tiny";
   const pricing = readEventPricing();
-  const hasPricing = pricing.price > 0;
+  const isFree = Boolean(pricing.free);
+  const hasPricing = !isFree && pricing.price > 0;
+  const savedPricing = isFree || hasPricing ? pricing : null;
+  const quoteSubtotal = isFree ? 0 : hasPricing ? pricing.price : null;
+  const quoteService = isFree ? 0 : hasPricing ? pricing.service : null;
+  const quoteTax = isFree ? 0 : hasPricing ? pricing.tax : null;
+  const quoteTotal = isFree ? 0 : hasPricing ? pricing.total : null;
   const keptGallery = [...(state.eventGallery || [])];
   const keptPaths = [...(state.eventPhotoPaths || [])];
   const newPhotos = [...(state.eventNewPhotos || [])];
@@ -3680,7 +3716,7 @@ async function saveStaffEvent() {
       location,
       fullTerrace: location === "service" && fullTerrace,
       payment,
-      pricing: hasPricing ? pricing : null,
+      pricing: savedPricing,
       guests,
       partySize,
       repeat,
@@ -3715,10 +3751,10 @@ async function saveStaffEvent() {
         phone: requestPhoneFromGuests(guests),
         payload,
         files: { ...existingFiles, eventPhotos: keptPaths },
-        quote_subtotal_idr: hasPricing ? pricing.price : null,
-        quote_service_idr: hasPricing ? pricing.service : null,
-        quote_tax_idr: hasPricing ? pricing.tax : null,
-        quote_total_idr: hasPricing ? pricing.total : null,
+        quote_subtotal_idr: quoteSubtotal,
+        quote_service_idr: quoteService,
+        quote_tax_idr: quoteTax,
+        quote_total_idr: quoteTotal,
       })
       .eq("id", requestId)
       .eq("source", "event");
@@ -3743,10 +3779,10 @@ async function saveStaffEvent() {
         package_name: tableLabel,
         guest_adults: pax || partySize,
         payload,
-        quote_subtotal_idr: hasPricing ? pricing.price : null,
-        quote_service_idr: hasPricing ? pricing.service : null,
-        quote_tax_idr: hasPricing ? pricing.tax : null,
-        quote_total_idr: hasPricing ? pricing.total : null,
+        quote_subtotal_idr: quoteSubtotal,
+        quote_service_idr: quoteService,
+        quote_tax_idr: quoteTax,
+        quote_total_idr: quoteTotal,
       })
       .select("id")
       .single();
@@ -4835,7 +4871,9 @@ function slotGuestCardHtml(entry, slots, eventRow, focusGuestId, number) {
     </label>
     ${
       isFreeEvent(eventRow)
-        ? `<div class="slot-guest__cell"><span class="slot-guest__label">Payment</span><span class="slot-guest__text">Free</span></div>`
+        ? `<div class="slot-guest__cell"><span class="slot-guest__label">Payment</span><span class="slot-guest__text">${
+            eventMarkedFree(eventRow) ? "FREE!" : "Free"
+          }</span></div>`
         : `<label class="slot-guest__cell">
       <span class="slot-guest__label">Payment</span>
       <select class="slot-guest__pay is-${payment === "paid" ? "paid" : "onsite"}" data-guest-payment data-event-id="${escapeHtml(
@@ -4901,9 +4939,11 @@ async function loadGuestSlot(id, key, focusGuestId = "") {
           <p class="staff-brand">Guest list</p>
           <h2>${escapeHtml(eventName)}</h2>
           <p class="muted">${escapeHtml(eventRow.public_code || "")} · ${escapeHtml(formatLongDate(eventRow.party_date))}${
-            eventPricingFromRow(eventRow)?.total
-              ? ` · ${escapeHtml(formatIdr(eventPricingFromRow(eventRow).total))} / ticket`
-              : ""
+            eventMarkedFree(eventRow)
+              ? " · FREE!"
+              : eventPricingFromRow(eventRow)?.total
+                ? ` · ${escapeHtml(formatIdr(eventPricingFromRow(eventRow).total))} / ticket`
+                : ""
           }</p>
         </div>
       </header>
@@ -5593,6 +5633,7 @@ async function loadDetail(id) {
               : `<p class="muted">No ticket price saved. Edit the event to add one so it shows on the events page.</p>`
           }
           ${(() => {
+            if (eventMarkedFree(row)) return `<p class="muted">No ticket payments to track.</p>`;
             if (isFreeEvent(row)) return `<p class="muted">Free event. No ticket payments to track.</p>`;
             const guests = (payload.event?.guests || []).filter((guest) => !guest?.archived_at);
             const paid = guests.filter((guest) => normalizeGuestPayment(guest) === "paid").length;
@@ -7691,7 +7732,8 @@ document.getElementById("event-form")?.addEventListener("input", (e) => {
   if (e.target.closest("#event-pricing")) refreshEventPricingPreview();
 });
 document.getElementById("event-form")?.addEventListener("change", (e) => {
-  if (e.target.closest("#event-pricing")) refreshEventPricingPreview();
+  if (e.target?.id === "event-free") syncEventFreePricing();
+  else if (e.target.closest("#event-pricing")) refreshEventPricingPreview();
 });
 document.getElementById("event-form")?.addEventListener("submit", async (e) => {
   e.preventDefault();

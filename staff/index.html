@@ -540,18 +540,24 @@
         </fieldset>
         <fieldset class="field" id="event-pricing">
           <legend>Pricing</legend>
-          <label class="field">
-            <span>Price (IDR)</span>
-            <input type="number" id="event-price" min="0" step="1000" placeholder="0">
-          </label>
           <label class="check">
-            <input type="checkbox" id="event-add-service">
-            <span>Add 5% service charge</span>
+            <input type="checkbox" id="event-free">
+            <span>Free event</span>
           </label>
-          <label class="check">
-            <input type="checkbox" id="event-add-tax">
-            <span>Add 10% tax</span>
-          </label>
+          <div id="event-price-fields">
+            <label class="field">
+              <span>Price (IDR)</span>
+              <input type="number" id="event-price" min="0" step="1000" placeholder="0">
+            </label>
+            <label class="check">
+              <input type="checkbox" id="event-add-service">
+              <span>Add 5% service charge</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" id="event-add-tax">
+              <span>Add 10% tax</span>
+            </label>
+          </div>
           <div id="event-pricing-preview" class="event-pricing-preview"></div>
         </fieldset>
         <label class="field">
