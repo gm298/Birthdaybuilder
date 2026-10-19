@@ -619,15 +619,23 @@
     return Boolean(result && result.ok);
   }
 
+  function parentNameValue() {
+    return document.getElementById("parent-name")?.value.trim() || "";
+  }
+
+  function childNameValue() {
+    return document.getElementById("child-name")?.value.trim() || "";
+  }
+
   function detailsAreComplete() {
     const date = document.getElementById("party-date")?.value || "";
     const time = partyTimeValue();
-    const guestName = document.getElementById("child-name")?.value.trim() || "";
     if (
       !(
         date &&
         time &&
-        guestName &&
+        parentNameValue() &&
+        childNameValue() &&
         totalGuests() > 0 &&
         partyState.packageChosen &&
         partyState.packageId &&
@@ -667,9 +675,14 @@
     const partyDate = document.getElementById("party-date")?.value || "";
     const checks = [
       {
+        id: "parent-name",
+        ok: Boolean(parentNameValue()),
+        message: "Enter your name.",
+      },
+      {
         id: "child-name",
-        ok: Boolean(document.getElementById("child-name")?.value.trim()),
-        message: "Enter the guest’s name.",
+        ok: Boolean(childNameValue()),
+        message: "Enter the child’s name.",
       },
       { id: "party-date", ok: Boolean(partyDate), message: "Choose the party date." },
       { id: "party-time", ok: Boolean(partyTimeValue()), message: "Choose a start time." },
@@ -710,9 +723,14 @@
             : "";
     const checks = [
       {
+        id: "parent-name",
+        ok: Boolean(parentNameValue()),
+        message: "Enter your name.",
+      },
+      {
         id: "child-name",
-        ok: Boolean(document.getElementById("child-name")?.value.trim()),
-        message: "Enter the guest’s name.",
+        ok: Boolean(childNameValue()),
+        message: "Enter the child’s name.",
       },
       {
         id: "child-birthday",
@@ -1046,7 +1064,7 @@
   function prefillBackdropName() {
     const el = document.getElementById("backdrop-name");
     if (!el || backdropState.nameTouched || el.value.trim()) return;
-    const child = document.getElementById("child-name")?.value.trim() || "";
+    const child = childNameValue();
     if (child) el.value = `${child}’s Birthday`;
   }
 
@@ -1736,6 +1754,35 @@
     } catch (_) {
       return [];
     }
+  }
+
+  async function loadDecorImageOverrides() {
+    const cfg = window.TINY_SUPABASE || {};
+    if (!cfg.url || !cfg.anonKey || location.protocol === "file:") return [];
+    try {
+      const res = await fetch(`${cfg.url}/rest/v1/catalog_images?select=slot,image_path`, {
+        headers: { apikey: cfg.anonKey, Authorization: `Bearer ${cfg.anonKey}` },
+      });
+      if (!res.ok) return [];
+      const rows = await res.json();
+      return Array.isArray(rows) ? rows : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function applyDecorImageOverrides(data, rows) {
+    const cfg = window.TINY_SUPABASE || {};
+    if (!cfg.url || !rows?.length) return data;
+    const bySlot = new Map(rows.map((row) => [row.slot, row.image_path]));
+    const paint = (item, slot) => {
+      const path = bySlot.get(slot);
+      if (item && path) item.image = `${cfg.url}/storage/v1/object/public/decor-catalog/${path}`;
+    };
+    (data.decorPackages || []).forEach((item) => paint(item, `decor-package:${item.id}`));
+    (data.decorThemes || []).forEach((item) => paint(item, `decor-theme:${item.id}`));
+    (data.extras?.decoration || []).forEach((item) => paint(item, `decor-extra:${item.id}`));
+    return data;
   }
 
   function initPromoCode() {
@@ -2919,7 +2966,7 @@
   function buildQuotationPdfMarkup(cakeImage) {
     const q = buildQuotation();
     const pkg = selectedPackage();
-    const child = document.getElementById("child-name")?.value.trim() || "";
+    const child = childNameValue();
     const partyDate = document.getElementById("party-date")?.value || "";
     const dateLabel = formatPartyDateLong(partyDate);
     const guests = guestLabel();
@@ -2977,7 +3024,8 @@
     const metaBlock = `
       <div class="qp-meta">
         <div class="qp-meta-left">
-          <div><strong>Name</strong> : ${escapeHtml(child)}</div>
+          <div><strong>Name</strong> : ${escapeHtml(parentNameValue() || child)}</div>
+          <div><strong>Child</strong> : ${escapeHtml(child)}</div>
           <div><strong>Phone</strong> : ${escapeHtml(contact.phone || "")}</div>
           <div><strong>Email</strong> : ${escapeHtml(contact.email || "")}</div>
           <div><strong>Time</strong> : ${escapeHtml(partyTimeValue() || "")}</div>
@@ -3175,7 +3223,8 @@
         endTime: partyEndTimeLabel(),
         durationHours: PARTY_DURATION_HOURS,
         day: partyState.day,
-        childName: document.getElementById("child-name")?.value.trim() || "",
+        childName: childNameValue(),
+        parentName: parentNameValue(),
         childAge: document.getElementById("child-age")?.value.trim() || "",
         childBirthday: childBirthdayValue(),
         guestKids: kids,
@@ -3184,7 +3233,7 @@
         notes: document.getElementById("party-notes")?.value.trim() || "",
       },
       reservation: {
-        name: document.getElementById("child-name")?.value.trim() || "",
+        name: parentNameValue(),
         area: partyTables()[0]?.area || partyState.tableArea || "terrace",
         tableIds: partyState.tableIds || [],
         tableNumbers: partyTables().map((table) => table.number),
@@ -4023,7 +4072,7 @@
     const pkg = selectedPackage();
     const partyDate = document.getElementById("party-date")?.value || "—";
     const guests = guestLabel();
-    const child = document.getElementById("child-name")?.value.trim() || "—";
+    const child = childNameValue() || "—";
     const age = document.getElementById("child-age")?.value.trim() || "";
     const notes = document.getElementById("party-notes")?.value.trim() || "—";
     const foodNotes = document.getElementById("food-notes")?.value.trim() || "—";
@@ -4036,6 +4085,7 @@
 
     const contact = window.TinyContact?.readContact?.() || {};
     const rows = [
+      ["Your name", parentNameValue() || "—"],
       ["Contact", [contact.email, contact.phone].filter(Boolean).join(" · ") || "—"],
       ["Package", pkg ? `${pkg.name} · ${packagePrice(pkg)}` : "—"],
       ["Tables", partyTableLabel() || "—"],
@@ -4087,7 +4137,7 @@
     const pkg = selectedPackage();
     const partyDate = document.getElementById("party-date")?.value || "";
     const guests = guestLabel();
-    const child = document.getElementById("child-name")?.value.trim() || "";
+    const child = childNameValue();
     const age = document.getElementById("child-age")?.value.trim() || "";
     const notes = document.getElementById("party-notes")?.value.trim() || "";
     const foodNotes = document.getElementById("food-notes")?.value.trim() || "";
@@ -4121,6 +4171,7 @@
         ? `Start time: ${partyTimeValue()} (${PARTY_DURATION_HOURS} hours, until ${partyEndTimeLabel() || "—"})`
         : "",
       guests !== "—" ? `Guests: ${guests}` : "",
+      parentNameValue() ? `Name: ${parentNameValue()}` : "",
       child
         ? `Birthday child: ${child}${age ? ` (turning ${age})` : ""}${
             childBirthdayValue() ? `, birthday ${childBirthdayValue()}` : ""
@@ -4208,7 +4259,7 @@
         return;
       }
       if (!validateRequestDetails(true)) {
-        setStatus("Add the child's name, date of birth, and an email or WhatsApp number.", "is-error");
+        setStatus("Add your name, the child’s name, date of birth, and an email or WhatsApp number.", "is-error");
         return;
       }
       const contact = window.TinyContact?.validateContact?.();
@@ -4265,7 +4316,7 @@
         const payload = buildRequestPayload();
         payload.email = contact.email || editVerifiedEmail || "";
         payload.phone = contact.phone || editVerifiedPhone || "";
-        payload.contactName = document.getElementById("child-name")?.value.trim() || "";
+        payload.contactName = parentNameValue();
 
         let code = editPublicCode || "";
         let manageToken = editManageToken || "";
@@ -4386,6 +4437,7 @@
       "party-time",
       "guest-kids",
       "guest-adults",
+      "parent-name",
       "child-name",
       "child-age",
       "child-birthday",
@@ -4721,7 +4773,8 @@
   function stepIncompleteMessage(stepId) {
     switch (stepId) {
       case "details":
-        if (!document.getElementById("child-name")?.value.trim()) return "Enter the guest’s name.";
+        if (!parentNameValue()) return "Enter your name.";
+        if (!childNameValue()) return "Enter the child’s name.";
         if (!(totalGuests() > 0)) return "Please select date & amount of guests first";
         if (!document.getElementById("party-date")?.value) {
           return "Please select date & amount of guests first";
@@ -4927,6 +4980,7 @@
     [
       "party-date",
       "party-time",
+      "parent-name",
       "child-name",
       "child-age",
       "child-birthday",
@@ -5212,7 +5266,7 @@
         updateStepProgress();
       });
     });
-    ["party-date", "party-time", "child-name", "child-age", "child-birthday"].forEach((id) => {
+    ["party-date", "party-time", "parent-name", "child-name", "child-age", "child-birthday"].forEach((id) => {
       const el = document.getElementById(id);
       if (!el || el.dataset.stepBound) return;
       el.dataset.stepBound = "1";
@@ -5551,6 +5605,7 @@
     };
     setVal("party-date", booking.partyDate || party.date || "");
     setPartyTimeValue(String(booking.partyTime || party.time || "").slice(0, 5));
+    setVal("parent-name", booking.contactName || reservation.name || party.parentName || "");
     setVal("child-name", booking.childName || party.childName || "");
     setVal("child-age", booking.childAge || party.childAge || "");
     setVal("child-birthday", party.childBirthday || "");
@@ -5653,6 +5708,7 @@
     };
     setVal("party-date", row.party_date || party.date || "");
     setVal("party-time", String(row.party_time || party.time || "").slice(0, 5));
+    setVal("parent-name", row.contact_name || payload.reservation?.name || party.parentName || "");
     setVal("child-name", row.child_name || party.childName || "");
     setVal("child-age", row.child_age || party.childAge || "");
     setVal("child-birthday", party.childBirthday || "");
@@ -5802,6 +5858,7 @@
     partyData = prefixImgStrings(
       await loadJson(wpConfig().partyJson || "data/party.json?v=20261017j", DEFAULT_PARTY)
     );
+    applyDecorImageOverrides(partyData, await loadDecorImageOverrides());
     cakeData = normalizeCakes(
       mergeCatalogCakes(
         await loadJson(wpConfig().cakesJson || "../../cakes/data/cakes.json", DEFAULT_CAKES),

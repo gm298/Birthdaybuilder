@@ -2661,6 +2661,7 @@ body.time-modal-open {
   overflow: visible;
 }
 
+.details-row--names,
 .details-row--top {
   grid-column: 1 / -1;
   display: grid;
@@ -3084,6 +3085,7 @@ body.time-modal-open {
   .option-grid,
   .extras-grid,
   .details-grid,
+  .details-row--names,
   .details-row--top,
   .details-row--contact,
   .summary-panel,

@@ -1096,6 +1096,19 @@ select {
 
 .cake-catalog__body .field { margin-bottom: 0; }
 
+.decor-group { margin-top: 18px; }
+.decor-group h3 { margin: 0 0 10px; font-size: 16px; }
+
+#booking-drawer h3 {
+  margin: 18px 0 8px;
+  font-size: 16px;
+}
+
+#booking-drawer .check-list {
+  display: grid;
+  gap: 4px;
+}
+
 .modal__card--confirm {
   width: min(420px, 100%);
 }

@@ -676,7 +676,7 @@ function parseHash() {
   if (day) return { view: "day", date: day[1] };
   const parts = hash.split("/").filter(Boolean);
   if (parts[0] === "master") {
-    const section = parts[1] === "cakes" || parts[1] === "promos" ? parts[1] : "";
+    const section = parts[1] === "cakes" || parts[1] === "promos" || parts[1] === "decor" ? parts[1] : "";
     return { view: "master", section };
   }
   if (parts[0] === "reservations" || parts[0] === "birthdays") {
@@ -3749,7 +3749,11 @@ window.addEventListener("message", (event) => {
   if (event.origin !== location.origin) return;
   if (event.data?.type !== "tiny-staff-decor-saved") return;
   closeDecorBuilder();
-  if (event.data.id) loadInvoice(event.data.id);
+  const id = event.data.id;
+  if (!id) return;
+  const parsed = parseHash();
+  if (parsed.view === "detail") loadDetail(id);
+  else loadInvoice(id);
 });
 
 function quoteLineHtml(line = {}) {
@@ -4726,6 +4730,316 @@ async function loadGuestSlot(id, key, focusGuestId = "") {
   });
 }
 
+function addonSummary(payload) {
+  const addons = payload?.addons || {};
+  const extras = Array.isArray(addons.extras) ? addons.extras : [];
+  const names = extras
+    .map((item) => (typeof item === "string" ? item : item?.name || item?.id || ""))
+    .filter(Boolean);
+  const masterclass =
+    addons.masterclassLabel && addons.masterclassLabel !== "None" ? addons.masterclassLabel : "";
+  return [masterclass ? `Masterclass: ${masterclass}` : "", names.join(", ")].filter(Boolean).join(" · ") || "—";
+}
+
+function catalogExtraChoices(catalog) {
+  const extras = catalog?.extras || {};
+  const entertainment = [];
+  const addons = [];
+  (extras.entertainment || []).forEach((item) => {
+    if (item.options) {
+      item.options.forEach((opt) =>
+        entertainment.push({ id: opt.id, name: opt.name, priceValue: opt.priceValue || 0 })
+      );
+    } else {
+      entertainment.push({ id: item.id, name: item.name, priceValue: item.priceValue || 0 });
+    }
+  });
+  (extras.decoration || []).forEach((item) =>
+    addons.push({ id: item.id, name: item.name, priceValue: item.priceValue || 0 })
+  );
+  (extras.cake || []).forEach((item) =>
+    addons.push({ id: item.id, name: item.name, priceValue: item.priceValue || 0 })
+  );
+  return { entertainment, addons };
+}
+
+function selectedExtraIds(payload) {
+  const extras = payload?.addons?.extras;
+  if (!Array.isArray(extras)) return [];
+  return extras.map((item) => (typeof item === "string" ? item : item?.id)).filter(Boolean);
+}
+
+function choiceListHtml(items, selected) {
+  if (!items.length) return `<p class="muted">None in the catalogue.</p>`;
+  const picked = new Set(selected);
+  return `<div class="check-list">${items
+    .map(
+      (item) => `<label class="check"><input type="checkbox" name="booking-extra" value="${escapeHtml(item.id)}"${
+        picked.has(item.id) ? " checked" : ""
+      }> ${escapeHtml(item.name)}</label>`
+    )
+    .join("")}</div>`;
+}
+
+function setPreview(id, url) {
+  const img = document.getElementById(id);
+  if (!img) return;
+  if (url) {
+    img.src = url;
+    img.hidden = false;
+  } else {
+    img.hidden = true;
+    img.removeAttribute("src");
+  }
+}
+
+function closeBookingEditor() {
+  const drawer = document.getElementById("booking-drawer");
+  if (drawer) drawer.hidden = true;
+  const status = document.getElementById("booking-edit-status");
+  if (status) {
+    status.textContent = "";
+    status.className = "status";
+  }
+}
+
+async function openBookingEditor(row) {
+  const drawer = document.getElementById("booking-drawer");
+  if (!drawer) return;
+  const payload = row.payload || {};
+  const party = payload.party || {};
+  const decor = payload.decor || {};
+  const cake = payload.cake || {};
+  const addons = payload.addons || {};
+  const catalog = await loadPartyCatalog().catch(() => null);
+  const set = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.value = value == null ? "" : String(value);
+  };
+  set("booking-edit-id", row.id);
+  set("booking-parent", row.contact_name || party.parentName || payload.reservation?.name || "");
+  set("booking-child", row.child_name || party.childName || "");
+  set("booking-age", row.child_age || party.childAge || "");
+  set("booking-birthday", String(party.childBirthday || "").slice(0, 10));
+  set("booking-email", row.email || "");
+  set("booking-phone", row.phone || "");
+  set("booking-date", row.party_date || party.date || "");
+  set("booking-time", String(row.party_time || party.time || "").slice(0, 5));
+  set("booking-kids", row.guest_kids ?? party.guestKids ?? 0);
+  set("booking-adults", row.guest_adults ?? party.guestAdults ?? 0);
+  set("booking-decor-notes", decor.notes || "");
+  set("booking-cake-size", cake.size || "");
+  set("booking-cake-sponges", (cake.sponges || []).join(" + "));
+  set("booking-cake-design", cake.design || "");
+  set("booking-cake-theme", cake.theme || "");
+  set("booking-cake-notes", cake.notes || "");
+  const decorFile = document.getElementById("booking-decor-file");
+  const cakeFile = document.getElementById("booking-cake-file");
+  if (decorFile) decorFile.value = "";
+  if (cakeFile) cakeFile.value = "";
+
+  const packageSelect = document.getElementById("booking-decor-package");
+  const themeSelect = document.getElementById("booking-decor-theme");
+  const classSelect = document.getElementById("booking-masterclass");
+  if (packageSelect) {
+    packageSelect.innerHTML = `<option value="">—</option>${(catalog?.decorPackages || [])
+      .map(
+        (item) =>
+          `<option value="${escapeHtml(item.id)}"${item.id === decor.packageId ? " selected" : ""}>${escapeHtml(
+            item.name
+          )}</option>`
+      )
+      .join("")}`;
+  }
+  if (themeSelect) {
+    themeSelect.innerHTML = `<option value="">—</option>${(catalog?.decorThemes || [])
+      .map(
+        (item) =>
+          `<option value="${escapeHtml(item.id)}"${item.id === decor.themeId ? " selected" : ""}>${escapeHtml(
+            item.name
+          )}</option>`
+      )
+      .join("")}`;
+  }
+  if (classSelect) {
+    classSelect.innerHTML = `<option value="">None</option>${(catalog?.masterclasses || [])
+      .map(
+        (item) =>
+          `<option value="${escapeHtml(item.id)}"${item.id === addons.masterclassId ? " selected" : ""}>${escapeHtml(
+            item.name
+          )}</option>`
+      )
+      .join("")}`;
+  }
+  const choices = catalogExtraChoices(catalog);
+  const picked = selectedExtraIds(payload);
+  const addonHost = document.getElementById("booking-addons");
+  const entertainHost = document.getElementById("booking-entertainment");
+  if (addonHost) addonHost.innerHTML = choiceListHtml(choices.addons, picked);
+  if (entertainHost) entertainHost.innerHTML = choiceListHtml(choices.entertainment, picked);
+
+  const files = row.files || {};
+  const [decorUrl, cakeUrl] = await Promise.all([
+    signedUrl(files.decorPhoto || files.backdropPng),
+    signedUrl(files.cakePhoto),
+  ]);
+  setPreview("booking-decor-preview", decorUrl);
+  setPreview("booking-cake-preview", cakeUrl);
+  const status = document.getElementById("booking-edit-status");
+  if (status) {
+    status.textContent = "";
+    status.className = "status";
+  }
+  drawer.hidden = false;
+  document.getElementById("booking-parent")?.focus();
+}
+
+function readBookingExtras(catalog) {
+  const choices = catalogExtraChoices(catalog);
+  const byId = new Map([...choices.addons, ...choices.entertainment].map((item) => [item.id, item]));
+  return [...document.querySelectorAll('#booking-edit-form input[name="booking-extra"]:checked')]
+    .map((input) => {
+      const item = byId.get(input.value);
+      return item
+        ? { id: item.id, name: item.name, priceValue: item.priceValue || 0 }
+        : { id: input.value, name: input.value, priceValue: 0 };
+    });
+}
+
+async function saveBookingEdit(event, options = {}) {
+  event?.preventDefault?.();
+  const statusEl = document.getElementById("booking-edit-status");
+  const id = document.getElementById("booking-edit-id")?.value || "";
+  if (!id) return false;
+  if (statusEl) {
+    statusEl.textContent = "Saving…";
+    statusEl.className = "status";
+  }
+  try {
+    const { data: row, error } = await supabase.from("requests").select("*").eq("id", id).maybeSingle();
+    if (error || !row) throw new Error(error?.message || "Booking not found.");
+    const catalog = await loadPartyCatalog().catch(() => null);
+    const payload = row.payload || {};
+    const parent = document.getElementById("booking-parent")?.value.trim() || "";
+    const child = document.getElementById("booking-child")?.value.trim() || "";
+    const age = document.getElementById("booking-age")?.value.trim() || "";
+    const birthday = document.getElementById("booking-birthday")?.value || "";
+    const email = normalizeStaffEmail(document.getElementById("booking-email")?.value);
+    const phone = normalizeStaffPhone(document.getElementById("booking-phone")?.value);
+    if (!email && !phone) throw new Error("Add an email or a WhatsApp number.");
+    const date = document.getElementById("booking-date")?.value || null;
+    const timeRaw = document.getElementById("booking-time")?.value || "";
+    const time = timeRaw ? (timeRaw.length === 5 ? `${timeRaw}:00` : timeRaw) : null;
+    const kids = Number(document.getElementById("booking-kids")?.value) || 0;
+    const adults = Number(document.getElementById("booking-adults")?.value) || 0;
+    const decorPackageId = document.getElementById("booking-decor-package")?.value || "";
+    const decorThemeId = document.getElementById("booking-decor-theme")?.value || "";
+    const decorPackage = (catalog?.decorPackages || []).find((item) => item.id === decorPackageId);
+    const decorTheme = (catalog?.decorThemes || []).find((item) => item.id === decorThemeId);
+    const masterclassId = document.getElementById("booking-masterclass")?.value || "";
+    const masterclass = (catalog?.masterclasses || []).find((item) => item.id === masterclassId);
+    const nextFiles = { ...(row.files || {}) };
+    const decorFile = document.getElementById("booking-decor-file")?.files?.[0];
+    const cakeFile = document.getElementById("booking-cake-file")?.files?.[0];
+    if (decorFile) nextFiles.decorPhoto = await uploadStaffFile(row.id, "decor", decorFile);
+    if (cakeFile) nextFiles.cakePhoto = await uploadStaffFile(row.id, "cake", cakeFile);
+    const nextPayload = {
+      ...payload,
+      contactName: parent,
+      email,
+      phone,
+      party: {
+        ...(payload.party || {}),
+        parentName: parent,
+        childName: child,
+        childAge: age,
+        childBirthday: birthday,
+        date: date || "",
+        time: timeRaw,
+        guestKids: kids,
+        guestAdults: adults,
+      },
+      reservation: {
+        ...(payload.reservation || {}),
+        name: parent,
+      },
+      decor: {
+        ...(payload.decor || {}),
+        packageId: decorPackageId,
+        packageLabel: decorPackage?.name || payload.decor?.packageLabel || "",
+        themeId: decorThemeId,
+        themeLabel: decorTheme?.custom ? payload.decor?.themeLabel || decorTheme.name : decorTheme?.name || "",
+        notes: document.getElementById("booking-decor-notes")?.value.trim() || "",
+      },
+      cake: {
+        ...(payload.cake || {}),
+        size: document.getElementById("booking-cake-size")?.value.trim() || "",
+        sponges: (document.getElementById("booking-cake-sponges")?.value || "")
+          .split("+")
+          .map((item) => item.trim())
+          .filter(Boolean),
+        design: document.getElementById("booking-cake-design")?.value.trim() || "",
+        theme: document.getElementById("booking-cake-theme")?.value.trim() || "",
+        notes: document.getElementById("booking-cake-notes")?.value.trim() || "",
+      },
+      addons: {
+        ...(payload.addons || {}),
+        masterclassId,
+        masterclassLabel: masterclass?.name || (masterclassId ? payload.addons?.masterclassLabel || "" : "None"),
+        extras: readBookingExtras(catalog),
+      },
+    };
+    const { error: saveError } = await supabase
+      .from("requests")
+      .update({
+        contact_name: parent || null,
+        child_name: child || null,
+        child_age: age || null,
+        email: email || null,
+        phone: phone || null,
+        party_date: date,
+        party_time: time,
+        guest_kids: kids,
+        guest_adults: adults,
+        payload: nextPayload,
+        files: nextFiles,
+      })
+      .eq("id", row.id);
+    if (saveError) throw saveError;
+    if (options.close !== false) {
+      closeBookingEditor();
+      await loadRows().catch(() => {});
+      await loadDetail(row.id);
+    } else if (statusEl) {
+      statusEl.textContent = "Saved.";
+      statusEl.className = "status is-success";
+    }
+    return true;
+  } catch (err) {
+    if (statusEl) {
+      statusEl.textContent = err.message || "Could not save the booking.";
+      statusEl.className = "status is-error";
+    }
+    return false;
+  }
+}
+
+function normalizeStaffEmail(value) {
+  const email = String(value || "").trim();
+  if (!email) return "";
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/i.test(email)) throw new Error("Enter a valid email.");
+  return email;
+}
+
+function normalizeStaffPhone(value) {
+  const phone = String(value || "").replace(/[\s-]/g, "");
+  if (!phone) return "";
+  if (!/^\+[1-9][0-9]{7,14}$/.test(phone)) {
+    throw new Error("WhatsApp needs a country code, like +628123456789.");
+  }
+  return phone;
+}
+
 async function loadDetail(id) {
   const reopening = detailDrawerOpen();
   showDetailDrawer();
@@ -4765,11 +5079,13 @@ async function loadDetail(id) {
   const isReservation = type === "reservation";
   const isEvent = type === "event";
   const statuses = isEvent ? EVENT_STATUSES : ALL_STATUSES;
-  const [pdfUrl, backdropUrl, cakeUrl] = await Promise.all([
+  const [pdfUrl, backdropUrl, cakeUrl, decorPhotoUrl] = await Promise.all([
     signedUrl(files.quotePdf),
     signedUrl(files.backdropPng),
     signedUrl(files.cakePhoto),
+    signedUrl(files.decorPhoto),
   ]);
+  const decorPicture = decorPhotoUrl || backdropUrl;
   const eventPhotoPaths = files.eventPhotos || [];
   const eventPhotoUrls = await Promise.all(eventPhotoPaths.map((path) => signedUrl(path)));
   const galleryUrls = eventGalleryFrom(payload.event || {});
@@ -4810,7 +5126,13 @@ async function loadDetail(id) {
                 : ""
           }</p>
         </div>
-        <label class="field" style="margin:0;min-width:160px">
+        <div class="staff-top__meta">
+          ${
+            type === "birthday"
+              ? `<button class="btn" type="button" id="edit-booking">Edit booking</button>`
+              : ""
+          }
+          <label class="field" style="margin:0;min-width:160px">
           <span>Status</span>
           <select id="status-select">
             ${statuses
@@ -4819,8 +5141,9 @@ async function loadDetail(id) {
                   `<option value="${s}"${s === row.status ? " selected" : ""}>${statusLabel(s)}</option>`
               )
               .join("")}
-          </select>
-        </label>
+            </select>
+          </label>
+        </div>
       </header>
       <div class="contact-actions">
         ${row.email ? `<a class="btn btn--outline" href="mailto:${escapeHtml(row.email)}">${escapeHtml(row.email)}</a>` : ""}
@@ -4853,7 +5176,9 @@ async function loadDetail(id) {
             : `<section>
           <h3>${isEvent ? "Event" : "Booking"}</h3>
           <ul class="kv">
-            <li><span>${isEvent ? "Guest / name" : "Child"}</span><span>${escapeHtml(displayName(row))}${
+            <li><span>${isEvent ? "Guest / name" : "Child"}</span><span>${escapeHtml(
+                type === "birthday" ? row.child_name || "—" : displayName(row)
+              )}${
                 !isEvent && row.child_age ? ` · turning ${escapeHtml(row.child_age)}` : ""
               }</span></li>
             ${
@@ -4893,7 +5218,11 @@ async function loadDetail(id) {
                        : "Does not repeat"
                    )}</span></li>`
                 : type === "birthday"
-                  ? `<li><span>Package</span><span>${escapeHtml(row.package_name || "—")}</span></li>
+                  ? `<li><span>Your name</span><span>${escapeHtml(row.contact_name || "—")}</span></li>
+                     <li><span>Email</span><span>${escapeHtml(row.email || "—")}</span></li>
+                     <li><span>WhatsApp</span><span>${escapeHtml(row.phone || "—")}</span></li>
+                     <li><span>Package</span><span>${escapeHtml(row.package_name || "—")}</span></li>
+                     <li><span>Add-ons</span><span>${escapeHtml(addonSummary(payload))}</span></li>
                      <li><span>Theme / request</span><span>${escapeHtml(
                        decor.designRequest || decor.themeLabel || "—"
                      )}</span></li>`
@@ -5046,7 +5375,7 @@ async function loadDetail(id) {
             }</span></li>
             <li><span>Decor notes</span><span>${escapeHtml(decor.notes || "—")}</span></li>
           </ul>
-          ${backdropUrl ? `<img class="hero-img" src="${escapeHtml(backdropUrl)}" alt="Custom backdrop mockup">` : ""}
+          ${decorPicture ? `<img class="hero-img" src="${escapeHtml(decorPicture)}" alt="Decoration">` : ""}
           <div class="media-row">
             ${printUrls
               .map((url, i) =>
@@ -5126,6 +5455,11 @@ async function loadDetail(id) {
       statusEl.textContent = saveError ? saveError.message : "Notes saved.";
       statusEl.className = saveError ? "status is-error" : "status is-success";
     }
+  });
+  document.getElementById("edit-booking")?.addEventListener("click", () => {
+    openBookingEditor(row).catch((err) => {
+      window.alert(err.message || "Could not open the booking.");
+    });
   });
   document.getElementById("edit-event")?.addEventListener("click", () => {
     const event = payload.event || {};
@@ -5349,7 +5683,12 @@ async function loadInvoice(id) {
   const decor = payload.decor || {};
   const reservation = payload.reservation || {};
   const files = row.files || {};
-  const [cakeUrl, backdropUrl] = await Promise.all([signedUrl(files.cakePhoto), signedUrl(files.backdropPng)]);
+  const [cakeUrl, backdropUrl, decorPhotoUrl] = await Promise.all([
+    signedUrl(files.cakePhoto),
+    signedUrl(files.backdropPng),
+    signedUrl(files.decorPhoto),
+  ]);
+  const decorPicture = decorPhotoUrl || backdropUrl;
   invoiceSelectedTables = new Set(reservation.tableIds || []);
   const guests = payload.party?.guests || [];
   const payment = payload.payment || {};
@@ -5406,8 +5745,9 @@ async function loadInvoice(id) {
                 : "—"
             }</span></li>
           </ul>
-          ${backdropUrl ? `<img class="hero-img" src="${escapeHtml(backdropUrl)}" alt="Backdrop">` : ""}
+          ${decorPicture ? `<img class="hero-img" src="${escapeHtml(decorPicture)}" alt="Decoration">` : ""}
           <label class="field"><span>Decoration notes</span><textarea id="invoice-decor-notes" rows="3">${escapeHtml(decor.notes || "")}</textarea></label>
+          <label class="field"><span>Replace decoration picture</span><input type="file" id="invoice-decor-file" accept="image/jpeg,image/png,image/webp"></label>
           <button class="btn" type="button" id="edit-decoration">Edit decoration</button>
         </section>
         <section>
@@ -5526,6 +5866,8 @@ async function loadInvoice(id) {
     try {
       const cakeFile = document.getElementById("invoice-cake-file")?.files?.[0];
       if (cakeFile) nextFiles.cakePhoto = await uploadStaffFile(row.id, "cake", cakeFile);
+      const decorFile = document.getElementById("invoice-decor-file")?.files?.[0];
+      if (decorFile) nextFiles.decorPhoto = await uploadStaffFile(row.id, "decor", decorFile);
       if (send) {
         const blob = await createInvoicePdfBlob(form, row, {
           decor: nextPayload.decor,
@@ -5798,15 +6140,23 @@ async function renderPromotions() {
 function showMasterSection(section) {
   const home = document.getElementById("master-home");
   const cakes = document.getElementById("master-cakes");
+  const decor = document.getElementById("master-decor");
   const promos = document.getElementById("master-promos");
   const stack = document.querySelector("#master-view .master-stack");
   if (home) home.hidden = Boolean(section);
   if (stack) stack.hidden = !section;
   if (cakes) cakes.hidden = section !== "cakes";
+  if (decor) decor.hidden = section !== "decor";
   if (promos) promos.hidden = section !== "promos";
   if (pageTitle && state.view === "master") {
     pageTitle.textContent =
-      section === "cakes" ? "Cake catalog" : section === "promos" ? "Promotions" : "Master data";
+      section === "cakes"
+        ? "Cake catalog"
+        : section === "decor"
+          ? "Decorations"
+          : section === "promos"
+            ? "Promotions"
+            : "Master data";
   }
 }
 
@@ -5815,7 +6165,129 @@ async function renderMaster() {
   const section = state.masterSection || "";
   showMasterSection(section);
   if (section === "cakes") await renderCakeCatalog();
+  if (section === "decor") await renderDecorCatalog();
   if (section === "promos") await renderPromotions();
+}
+
+function decorPublicUrl(path) {
+  return `${cfg.url}/storage/v1/object/public/decor-catalog/${path}`;
+}
+
+function decorImageSlots(catalog) {
+  const slots = [];
+  (catalog?.decorPackages || []).forEach((item) => {
+    if (!item.image) return;
+    slots.push({ slot: `decor-package:${item.id}`, label: item.name, group: "Packages", image: item.image });
+  });
+  (catalog?.decorThemes || []).forEach((item) => {
+    if (!item.image || item.custom) return;
+    slots.push({ slot: `decor-theme:${item.id}`, label: item.name, group: "Looks", image: item.image });
+  });
+  (catalog?.extras?.decoration || []).forEach((item) => {
+    if (!item.image) return;
+    slots.push({
+      slot: `decor-extra:${item.id}`,
+      label: item.name,
+      group: "Decoration add-ons",
+      image: item.image,
+    });
+  });
+  return slots;
+}
+
+function decorStaticUrl(image) {
+  const path = String(image || "").replace(/^\.\//, "");
+  return `../birthdays/builder/${path}`;
+}
+
+async function renderDecorCatalog() {
+  const list = document.getElementById("decor-catalog-list");
+  if (!list) return;
+  const catalog = await loadPartyCatalog();
+  const { data, error } = await supabase.from("catalog_images").select("slot, label, image_path");
+  if (error) throw error;
+  const overrides = new Map((data || []).map((row) => [row.slot, row]));
+  const groups = [];
+  decorImageSlots(catalog).forEach((item) => {
+    let group = groups.find((entry) => entry.name === item.group);
+    if (!group) {
+      group = { name: item.group, items: [] };
+      groups.push(group);
+    }
+    group.items.push(item);
+  });
+  list.innerHTML = groups
+    .map(
+      (group) => `<section class="decor-group">
+        <h3>${escapeHtml(group.name)}</h3>
+        <div class="cake-catalog">${group.items
+          .map((item) => {
+            const override = overrides.get(item.slot);
+            const src = override?.image_path ? decorPublicUrl(override.image_path) : decorStaticUrl(item.image);
+            return `<article>
+              <img src="${escapeHtml(src)}" alt="${escapeHtml(item.label)}">
+              <div class="cake-catalog__body">
+                <strong>${escapeHtml(item.label)}</strong>
+                <label class="field"><span>New picture</span><input type="file" data-decor-file accept="image/jpeg,image/png,image/webp"></label>
+                <button class="btn" type="button" data-replace-decor="${escapeHtml(item.slot)}" data-decor-label="${escapeHtml(
+                  item.label
+                )}">Replace picture</button>
+                ${
+                  override
+                    ? `<button class="btn btn--outline" type="button" data-reset-decor="${escapeHtml(
+                        item.slot
+                      )}" data-decor-path="${escapeHtml(override.image_path)}">Use original</button>`
+                    : ""
+                }
+              </div>
+            </article>`;
+          })
+          .join("")}</div>
+      </section>`
+    )
+    .join("");
+}
+
+async function replaceDecorImage(slot, label, file) {
+  if (!file) throw new Error("Choose a picture to upload.");
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+    throw new Error("Use a JPG, PNG or WebP picture.");
+  }
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+  const safeSlot = slot.replace(/[^a-z0-9]+/gi, "-");
+  const path = `${safeSlot}/${Date.now()}.${ext}`;
+  const { error: uploadError } = await supabase.storage.from("decor-catalog").upload(path, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+  if (uploadError) throw uploadError;
+  const { data: existing } = await supabase.from("catalog_images").select("image_path").eq("slot", slot).maybeSingle();
+  const { error } = await supabase.from("catalog_images").upsert({
+    slot,
+    label,
+    image_path: path,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) {
+    await supabase.storage.from("decor-catalog").remove([path]);
+    throw error;
+  }
+  if (existing?.image_path && existing.image_path !== path) {
+    await supabase.storage.from("decor-catalog").remove([existing.image_path]);
+  }
+}
+
+async function resetDecorImage(slot, path) {
+  const ok = await confirmAction({
+    title: "Use the original picture?",
+    message: "The uploaded decoration picture will be removed.",
+    confirmLabel: "Use original",
+  });
+  if (!ok) return false;
+  if (path) await supabase.storage.from("decor-catalog").remove([path]);
+  const { error } = await supabase.from("catalog_images").delete().eq("slot", slot);
+  if (error) throw error;
+  return true;
 }
 
 async function saveCakeDetails(id, button) {
@@ -6369,9 +6841,44 @@ document.getElementById("customers-filter-type")?.addEventListener("change", (e)
   if (state.view === "customers") renderCustomers();
 });
 document.getElementById("open-cake-catalog")?.addEventListener("click", () => go("master/cakes"));
+document.getElementById("open-decor-catalog")?.addEventListener("click", () => go("master/decor"));
 document.getElementById("open-promotions")?.addEventListener("click", () => go("master/promos"));
 document.getElementById("master-view")?.addEventListener("click", (event) => {
   if (event.target.closest("[data-master-back]")) go("master");
+});
+
+document.getElementById("booking-edit-form")?.addEventListener("submit", (event) => {
+  saveBookingEdit(event).catch(() => {});
+});
+document.getElementById("booking-edit-cancel")?.addEventListener("click", closeBookingEditor);
+document.getElementById("booking-open-decor")?.addEventListener("click", async () => {
+  const id = document.getElementById("booking-edit-id")?.value || "";
+  const ok = await saveBookingEdit(null, { close: false });
+  if (!ok || !id) return;
+  closeBookingEditor();
+  openDecorBuilder(id);
+});
+document.getElementById("decor-catalog-list")?.addEventListener("click", async (event) => {
+  const replace = event.target.closest("[data-replace-decor]");
+  const reset = event.target.closest("[data-reset-decor]");
+  try {
+    if (replace) {
+      const card = replace.closest("article");
+      const file = card?.querySelector("[data-decor-file]")?.files?.[0];
+      replace.disabled = true;
+      await replaceDecorImage(replace.dataset.replaceDecor, replace.dataset.decorLabel || "", file);
+      setMasterStatus("decor-catalog-status", "Decoration picture replaced.", "is-success");
+      await renderDecorCatalog();
+    } else if (reset) {
+      const restored = await resetDecorImage(reset.dataset.resetDecor, reset.dataset.decorPath || "");
+      if (!restored) return;
+      setMasterStatus("decor-catalog-status", "Original picture restored.", "is-success");
+      await renderDecorCatalog();
+    }
+  } catch (err) {
+    setMasterStatus("decor-catalog-status", err.message || "Could not update the picture.", "is-error");
+    if (replace) replace.disabled = false;
+  }
 });
 
 document.getElementById("cake-upload-form")?.addEventListener("submit", async (event) => {
@@ -6513,6 +7020,7 @@ const DRAWER_CLOSERS = {
   "block-modal": closeBlockModal,
   "promo-drawer": closePromoDrawer,
   "cake-drawer": closeCakeDrawer,
+  "booking-drawer": closeBookingEditor,
 };
 
 function closeDrawer(drawer) {
@@ -6523,7 +7031,7 @@ document.addEventListener("click", (e) => {
   const close = e.target.closest("[data-close-drawer]");
   if (close) closeDrawer(close.closest(".drawer"));
 });
-["promo-drawer", "cake-drawer"].forEach((id) => {
+["promo-drawer", "cake-drawer", "booking-drawer"].forEach((id) => {
   const drawer = document.getElementById(id);
   drawer?.addEventListener("click", (e) => {
     if (e.target === drawer) closeDrawer(drawer);
@@ -6552,7 +7060,7 @@ document.addEventListener("keydown", (e) => {
     closeConfirmModal(false);
     return;
   }
-  const openDrawer = ["event-modal", "block-modal", "promo-drawer", "cake-drawer"]
+  const openDrawer = ["event-modal", "block-modal", "promo-drawer", "cake-drawer", "booking-drawer"]
     .map((id) => document.getElementById(id))
     .find((drawer) => drawer && !drawer.hidden);
   if (openDrawer) {

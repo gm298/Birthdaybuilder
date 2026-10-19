@@ -287,6 +287,10 @@
               <strong>Cake catalog</strong>
               <span>Upload new cake pictures</span>
             </button>
+            <button class="master-choice" type="button" id="open-decor-catalog">
+              <strong>Decorations</strong>
+              <span>Upload and replace decoration pictures</span>
+            </button>
             <button class="master-choice" type="button" id="open-promotions">
               <strong>Promotions</strong>
               <span>Create discounts and promo codes</span>
@@ -304,6 +308,17 @@
               </div>
               <p class="status" id="cake-catalog-status" role="status"></p>
               <div class="cake-catalog" id="cake-catalog-list"></div>
+            </section>
+            <section class="master-panel" id="master-decor" hidden>
+              <button class="btn btn--outline back" type="button" data-master-back>Back</button>
+              <div class="master-panel__head">
+                <div>
+                  <h2>Decorations</h2>
+                  <p class="muted">Upload a picture to replace a decoration. The new photo shows in the birthday builder.</p>
+                </div>
+              </div>
+              <p class="status" id="decor-catalog-status" role="status"></p>
+              <div id="decor-catalog-list"></div>
             </section>
             <section class="master-panel" id="master-promos" hidden>
               <button class="btn btn--outline back" type="button" data-master-back>Back</button>
@@ -551,6 +566,68 @@
         <div class="drawer__foot">
           <button class="btn btn--outline" type="button" id="event-cancel">Cancel</button>
           <button class="btn" type="submit">Save event</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div class="drawer" id="booking-drawer" hidden>
+    <div class="drawer__panel" role="dialog" aria-modal="true" aria-labelledby="booking-drawer-title">
+      <div class="drawer__head">
+        <h2 class="drawer__title" id="booking-drawer-title">Edit booking</h2>
+        <div class="drawer__tools">
+          <button class="drawer__expand" type="button" data-expand-drawer aria-label="Expand to full screen" title="Expand to full screen"><svg class="drawer__icon-grow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg><svg class="drawer__icon-shrink" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7"/></svg></button>
+          <button class="drawer__close" type="button" data-close-drawer aria-label="Close">&#x2715;</button>
+        </div>
+      </div>
+      <form id="booking-edit-form" class="drawer__form">
+        <div class="drawer__body">
+          <input type="hidden" id="booking-edit-id" value="">
+          <p class="muted drawer__intro">Update the party, decoration, cake, add-ons and contact details. Quotation amounts stay on Invoicing.</p>
+          <div class="field-row">
+            <label class="field"><span>Your name</span><input id="booking-parent" autocomplete="name"></label>
+            <label class="field"><span>Child’s name</span><input id="booking-child"></label>
+          </div>
+          <div class="field-row">
+            <label class="field"><span>Age</span><input id="booking-age" inputmode="numeric"></label>
+            <label class="field"><span>Date of birth</span><input type="date" id="booking-birthday"></label>
+          </div>
+          <div class="field-row">
+            <label class="field"><span>Email</span><input type="email" id="booking-email" autocomplete="email"></label>
+            <label class="field"><span>WhatsApp</span><input type="tel" id="booking-phone" autocomplete="tel"></label>
+          </div>
+          <div class="field-row">
+            <label class="field"><span>Date</span><input type="date" id="booking-date"></label>
+            <label class="field"><span>Start time</span><input type="time" id="booking-time"></label>
+          </div>
+          <div class="field-row">
+            <label class="field"><span>Kids</span><input type="number" min="0" id="booking-kids"></label>
+            <label class="field"><span>Adults</span><input type="number" min="0" id="booking-adults"></label>
+          </div>
+          <h3>Decoration</h3>
+          <label class="field"><span>Package</span><select id="booking-decor-package"></select></label>
+          <label class="field"><span>Look</span><select id="booking-decor-theme"></select></label>
+          <label class="field"><span>Decoration notes</span><textarea id="booking-decor-notes" rows="3"></textarea></label>
+          <label class="field"><span>Replace decoration picture</span><input type="file" id="booking-decor-file" accept="image/jpeg,image/png,image/webp"></label>
+          <img class="hero-img" id="booking-decor-preview" alt="Decoration" hidden>
+          <button class="btn btn--outline" type="button" id="booking-open-decor">Open decoration builder</button>
+          <h3>Cake</h3>
+          <label class="field"><span>Size</span><input id="booking-cake-size"></label>
+          <label class="field"><span>Sponge</span><input id="booking-cake-sponges"></label>
+          <label class="field"><span>Design</span><input id="booking-cake-design"></label>
+          <label class="field"><span>Theme</span><input id="booking-cake-theme"></label>
+          <label class="field"><span>Cake notes</span><textarea id="booking-cake-notes" rows="3"></textarea></label>
+          <label class="field"><span>Replace cake picture</span><input type="file" id="booking-cake-file" accept="image/jpeg,image/png,image/webp"></label>
+          <img class="hero-img" id="booking-cake-preview" alt="Cake" hidden>
+          <h3>Add-ons</h3>
+          <div id="booking-addons"></div>
+          <h3>Entertainment</h3>
+          <div id="booking-entertainment"></div>
+          <label class="field"><span>Masterclass</span><select id="booking-masterclass"></select></label>
+          <p class="status" id="booking-edit-status" role="status"></p>
+        </div>
+        <div class="drawer__foot">
+          <button class="btn btn--outline" type="button" id="booking-edit-cancel">Cancel</button>
+          <button class="btn" type="submit">Save booking</button>
         </div>
       </form>
     </div>

@@ -48,6 +48,16 @@ $menu = esc_url(tiny_birthdays_page_url('menu'));
     <p class="section-note" id="selected-package-note" hidden></p>
   </div>
   <div class="details-grid">
+    <div class="details-row details-row--names">
+      <div class="field">
+        <label class="field__label" for="parent-name">Your name <span class="field__req">*</span></label>
+        <input type="text" id="parent-name" name="parent-name" placeholder="e.g. Sarah" required autocomplete="name">
+      </div>
+      <div class="field">
+        <label class="field__label" for="child-name">Child’s name <span class="field__req">*</span></label>
+        <input type="text" id="child-name" name="child-name" placeholder="e.g. Mira" required autocomplete="off">
+      </div>
+    </div>
     <div class="details-row details-row--top">
       <div class="field">
         <label class="field__label" for="party-date">When would you like to celebrate?</label>
