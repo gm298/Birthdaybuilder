@@ -61,7 +61,7 @@ values ('USER_UUID_HERE', 'Tiny bookings');
 
 ## WordPress (Hostinger)
 
-A plugin in [`wordpress/tiny-birthdays/`](wordpress/tiny-birthdays/) serves About Birthdays, the builders, events, reservations and the guest booking page from WordPress, and puts the Tiny header on the theme's existing home page, without changing the cafe theme or the Supabase backend. Install notes: [`wordpress/tiny-birthdays/INSTALL.md`](wordpress/tiny-birthdays/INSTALL.md).
+A full theme in [`wordpress/tiny-cafe/`](wordpress/tiny-cafe/) replaces the cafe WordPress theme with the Tiny site (home, birthdays, builders, events, reservations, booking, location, menu). Pages are created as drafts so you can edit before publishing. Install notes: [`wordpress/tiny-cafe/INSTALL.md`](wordpress/tiny-cafe/INSTALL.md). The older plugin in `wordpress/tiny-birthdays/` is kept as reference only — do not activate it alongside the theme.
 
 Static GitHub Pages preview above is unchanged.
 
@@ -78,6 +78,7 @@ Static GitHub Pages preview above is unchanged.
 | `staff/` | Private request inbox (Supabase Auth) |
 | `shared/` | Chrome, analytics, Supabase client helpers |
 | `supabase/` | Migrations + Edge Functions `submit-request` and `sync-google-calendar` |
-| `wordpress/tiny-birthdays/` | WordPress plugin (block editor + same builders) |
+| `wordpress/tiny-cafe/` | WordPress theme (full site + block editor + builders) |
+| `wordpress/tiny-birthdays/` | Older plugin (reference only; prefer the theme) |
 
 Confirmed bookings can sync to a shared staff Google Calendar. Setup: [`supabase/GOOGLE_CALENDAR.md`](supabase/GOOGLE_CALENDAR.md).

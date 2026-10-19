@@ -85,6 +85,12 @@ npx supabase functions deploy sync-google-calendar --project-ref $env:SUPABASE_P
 Write-Host "Deploying join-event function…"
 npx supabase functions deploy join-event --project-ref $env:SUPABASE_PROJECT_REF --no-verify-jwt
 
+Write-Host "Deploying sync-esb-menu function (stub)…"
+npx supabase functions deploy sync-esb-menu --project-ref $env:SUPABASE_PROJECT_REF --no-verify-jwt
+
+Write-Host "Deploying submit-menu-order function (stub)…"
+npx supabase functions deploy submit-menu-order --project-ref $env:SUPABASE_PROJECT_REF --no-verify-jwt
+
 if ($env:GOOGLE_CALENDAR_ID) {
   npx supabase secrets set "GOOGLE_CALENDAR_ID=$env:GOOGLE_CALENDAR_ID" --project-ref $env:SUPABASE_PROJECT_REF
 }

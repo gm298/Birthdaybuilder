@@ -1,0 +1,25 @@
+/* Simple content pages using the default page.php template. */
+
+body {
+  margin: 0;
+  background: #f7f5ee;
+  color: #33413a;
+  font-family: "Jost", system-ui, sans-serif;
+}
+
+.tiny-page__inner {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 20px 80px;
+}
+
+.tiny-page__inner h1 {
+  font-family: "Tenor Sans", system-ui, sans-serif;
+  font-weight: 400;
+  font-size: clamp(2rem, 4vw, 2.75rem);
+  margin: 0 0 1rem;
+}
+
+.tiny-page__inner p {
+  line-height: 1.6;
+}

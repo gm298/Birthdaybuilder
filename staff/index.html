@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/staff.css?v=20261019d">
+  <link rel="stylesheet" href="css/staff.css?v=20261019e">
 </head>
 <body>
   <div class="staff-layout" id="staff-layout">
@@ -299,6 +299,10 @@
               <strong>Bank details</strong>
               <span>Account details printed on invoices</span>
             </button>
+            <button class="master-choice" type="button" id="open-menu-data">
+              <strong>Menu Data</strong>
+              <span>Edit and publish the digital guest menu</span>
+            </button>
           </div>
           <div class="master-stack" hidden>
             <section class="master-panel" id="master-cakes" hidden>
@@ -367,6 +371,17 @@
                 <button class="btn" type="submit">Save bank details</button>
                 <p class="status" id="bank-status" role="status"></p>
               </form>
+            </section>
+            <section class="master-panel" id="master-menu" hidden>
+              <button class="btn btn--outline back" type="button" data-master-back>Back</button>
+              <div class="master-panel__head">
+                <div>
+                  <h2>Menu Data</h2>
+                  <p class="muted">Edit the draft digital menu, then publish so guests see it on /menu/.</p>
+                </div>
+              </div>
+              <p class="status" id="menu-data-status" role="status"></p>
+              <div id="menu-data-root" class="dm-admin"></div>
             </section>
           </div>
         </div>
@@ -776,6 +791,6 @@
   </div>
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/reserve-tables.js?v=20261006b"></script>
-  <script type="module" src="js/app.js?v=20261019d"></script>
+  <script type="module" src="js/app.js?v=20261019e"></script>
 </body>
 </html>

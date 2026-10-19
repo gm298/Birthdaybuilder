@@ -1,338 +1,378 @@
 (() => {
   "use strict";
 
-  // Pages are pre-rendered images (scripts/render-menu-pages.py) because phones cannot show a PDF inline.
-
-  const FLIP_MS = 700;
-  const DOUBLE_MIN_WIDTH = 700;
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const api = () => window.TinyMenuApi;
+  const cart = () => window.TinyMenuCart;
+  const R = () => window.TinyMenuRender;
 
   function track(eventName, params) {
     try {
       if (typeof window.gtag === "function") window.gtag("event", eventName, params || {});
       else if (Array.isArray(window.dataLayer)) window.dataLayer.push({ event: eventName, ...(params || {}) });
     } catch (_) {
-      /* analytics optional */
+      /* optional */
     }
   }
 
-  function assetUrl(path) {
-    const base = (window.TINY_WP && window.TINY_WP.menuAssetBase) || "";
-    return new URL(base + path, location.href).href;
+  function offerFromUrl() {
+    const q = new URLSearchParams(location.search).get("offer");
+    if (q) return q;
+    const hash = location.hash || "";
+    const m = hash.match(/offer=([^&]+)/);
+    return m ? decodeURIComponent(m[1]) : "";
   }
 
-  function pageUrl(menu, n) {
-    return assetUrl(`pages/${menu}/page-${String(n).padStart(2, "0")}.webp`);
-  }
-
-  // Cover alone on the right, then 2–3, 4–5 … and a lone back page on the left when the count is even.
-  function buildSpreads(count, double) {
-    if (!double) return Array.from({ length: count }, (_, i) => [i + 1]);
-    const spreads = [[null, 1]];
-    for (let p = 2; p <= count; p += 2) spreads.push([p, p + 1 <= count ? p + 1 : null]);
-    return spreads;
-  }
-
-  document.addEventListener("DOMContentLoaded", () => {
-    const tabs = Array.from(document.querySelectorAll(".menu-tab[data-pdf]"));
-    const panel = document.getElementById("menu-panel");
-    const title = document.getElementById("menu-viewer-title");
-    const book = document.getElementById("menu-book");
-    const stage = document.getElementById("menu-stage");
-    const prevBtn = document.getElementById("menu-prev");
-    const nextBtn = document.getElementById("menu-next");
-    const status = document.getElementById("menu-status");
-    const download = document.getElementById("menu-download");
-    const open = document.getElementById("menu-open");
-    if (!tabs.length || !book || !stage) return;
+  document.addEventListener("DOMContentLoaded", async () => {
+    const app = document.getElementById("dm-app");
+    const grid = document.getElementById("dm-grid");
+    const sectionsEl = document.getElementById("dm-sections");
+    const subsEl = document.getElementById("dm-subs");
+    const introEl = document.getElementById("dm-intro");
+    const statusEl = document.getElementById("dm-status");
+    const listBar = document.getElementById("dm-list-bar");
+    const listMeta = document.getElementById("dm-list-meta");
+    const fab = document.getElementById("dm-shop-fab");
+    const pop = document.getElementById("dm-pop");
+    const popBody = document.getElementById("dm-pop-body");
+    const listSheet = document.getElementById("dm-list-sheet");
+    const listBody = document.getElementById("dm-list-body");
+    const listNote = document.getElementById("dm-list-note");
+    const listTotal = document.getElementById("dm-list-total");
+    const waiter = document.getElementById("dm-waiter");
+    if (!app || !grid || !api() || !cart() || !R()) return;
 
     const state = {
-      menu: "",
-      name: "",
-      pages: 0,
-      ratio: 0.75,
-      spreads: [],
-      index: 0,
-      double: true,
-      busy: false,
-      width: 0,
+      menu: null,
+      sectionId: "",
+      sub: "All",
+      sizeSel: {},
+      pop: null,
+      lines: cart().read(),
     };
-    let bookEl = null;
 
-    function makeImg(n) {
-      const img = document.createElement("img");
-      img.src = pageUrl(state.menu, n);
-      img.alt = `${state.name}, page ${n} of ${state.pages}`;
-      img.draggable = false;
-      img.decoding = "async";
-      return img;
+    function dishById(id) {
+      return (state.menu?.dishes || []).find((d) => d.id === id);
     }
 
-    function fill(el, n) {
-      el.replaceChildren();
-      el.classList.toggle("is-empty", !n);
-      if (n) el.appendChild(makeImg(n));
+    function currentSection() {
+      return (state.menu?.sections || []).find((s) => s.id === state.sectionId);
     }
 
-    function slot(side) {
-      const el = document.createElement("div");
-      el.className = `flipbook__page flipbook__page--${side}`;
-      return el;
-    }
-
-    function visiblePages() {
-      return (state.spreads[state.index] || []).filter(Boolean);
-    }
-
-    function preload() {
-      for (let i = state.index - 1; i <= state.index + 2; i += 1) {
-        (state.spreads[i] || []).filter(Boolean).forEach((n) => {
-          new Image().src = pageUrl(state.menu, n);
-        });
+    function refreshBar() {
+      const n = cart().count(state.lines);
+      const { sum, incomplete } = cart().total(state.lines, state.menu);
+      if (listMeta) {
+        listMeta.textContent =
+          n === 0
+            ? "0 items"
+            : `${n} item${n === 1 ? "" : "s"} · ${R().fmtPrice(sum)}${incomplete ? "+" : ""}`;
       }
+      if (listBar) listBar.hidden = n === 0;
+      document.body.classList.toggle("has-list-bar", n > 0);
     }
 
-    function updateControls() {
-      const last = state.spreads.length - 1;
-      if (prevBtn) prevBtn.disabled = state.index <= 0;
-      if (nextBtn) nextBtn.disabled = state.index >= last;
-      if (!status) return;
-      const shown = visiblePages();
-      const range = shown.length > 1 ? `Pages ${shown[0]}–${shown[1]}` : `Page ${shown[0] || 1}`;
-      const hint = state.index === 0 && last > 0 ? " · tap to open" : "";
-      status.textContent = `${range} of ${state.pages}${hint}`;
+    function renderSections() {
+      const sections = R().visibleSections(state.menu);
+      sectionsEl.innerHTML = sections
+        .map(
+          (s) =>
+            `<button type="button" class="dm-chip" role="tab" aria-selected="${
+              s.id === state.sectionId ? "true" : "false"
+            }" data-sec="${R().esc(s.id)}">${R().esc(s.name)}</button>`
+        )
+        .join("");
     }
 
-    function render() {
-      const spread = state.spreads[state.index] || [];
-      const el = document.createElement("div");
-      el.className = `flipbook__book ${state.double ? "is-double" : "is-single"}`;
-      if (state.double) {
-        const left = slot("left");
-        const right = slot("right");
-        fill(left, spread[0]);
-        fill(right, spread[1]);
-        el.classList.toggle("is-cover", !spread[0]);
-        el.classList.toggle("is-back", !spread[1]);
-        el.append(left, right);
-      } else {
-        const single = slot("single");
-        fill(single, spread[0]);
-        el.append(single);
-      }
-      stage.replaceChildren(el);
-      bookEl = el;
-      updateControls();
-      preload();
-    }
-
-    function layout() {
-      const cs = getComputedStyle(stage);
-      const availW = stage.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-      if (availW <= 0 || !state.pages) return;
-      state.width = stage.clientWidth;
-      const double = availW >= DOUBLE_MIN_WIDTH;
-      if (double !== state.double || !state.spreads.length) {
-        const keep = state.spreads.length ? visiblePages()[0] || 1 : 1;
-        state.double = double;
-        state.spreads = buildSpreads(state.pages, double);
-        const found = state.spreads.findIndex((s) => s.includes(keep));
-        state.index = found < 0 ? 0 : found;
-      }
-      const availH = Math.min(window.innerHeight * 0.75, 940);
-      const pageH = Math.floor(Math.min(availH, availW / (double ? 2 : 1) / state.ratio));
-      stage.style.setProperty("--page-h", `${pageH}px`);
-      stage.style.setProperty("--page-w", `${Math.floor(pageH * state.ratio)}px`);
-      render();
-    }
-
-    function go(delta) {
-      if (state.busy || !bookEl) return;
-      const target = state.index + delta;
-      if (target < 0 || target >= state.spreads.length) return;
-      const from = state.spreads[state.index];
-      const to = state.spreads[target];
-
-      if (reduceMotion.matches) {
-        state.index = target;
-        render();
+    function renderSubs() {
+      const sec = currentSection();
+      const subs = ["All", ...((sec && sec.subs) || [])];
+      if (!sec || subs.length <= 1) {
+        subsEl.hidden = true;
+        subsEl.innerHTML = "";
         return;
       }
+      subsEl.hidden = false;
+      subsEl.innerHTML = subs
+        .map(
+          (sub) =>
+            `<button type="button" class="dm-subchip${sub === state.sub ? " is-active" : ""}" data-sub="${R().esc(
+              sub
+            )}">${R().esc(sub)}</button>`
+        )
+        .join("");
+    }
 
-      state.busy = true;
-      const leaf = document.createElement("div");
-      const front = document.createElement("div");
-      const back = document.createElement("div");
-      leaf.className = "flipbook__leaf";
-      front.className = "flipbook__face flipbook__face--front";
-      back.className = "flipbook__face flipbook__face--back";
-      leaf.append(front, back);
-
-      let turnedAtStart = false;
-      if (state.double) {
-        const left = bookEl.querySelector(".flipbook__page--left");
-        const right = bookEl.querySelector(".flipbook__page--right");
-        if (delta > 0) {
-          leaf.classList.add("is-right");
-          fill(front, from[1]);
-          fill(back, to[0]);
-          fill(right, to[1]);
+    function renderGrid() {
+      const sec = currentSection();
+      const layout = (sec && sec.layout) || "cards";
+      grid.className = `dm-grid is-${layout}`;
+      if (introEl) {
+        if (sec && sec.intro) {
+          introEl.hidden = false;
+          introEl.textContent = sec.intro;
         } else {
-          leaf.classList.add("is-left");
-          fill(front, from[0]);
-          fill(back, to[1]);
-          fill(left, to[0]);
-        }
-        bookEl.classList.toggle("is-cover", !to[0]);
-        bookEl.classList.toggle("is-back", !to[1]);
-      } else {
-        const single = bookEl.querySelector(".flipbook__page--single");
-        leaf.classList.add("is-right");
-        fill(back, null);
-        if (delta > 0) {
-          fill(front, from[0]);
-          fill(single, to[0]);
-        } else {
-          fill(front, to[0]);
-          leaf.classList.add("is-turned");
-          turnedAtStart = true;
+          introEl.hidden = true;
+          introEl.textContent = "";
         }
       }
+      const dishes = R().sectionDishes(state.menu, sec, state.sub);
+      if (!dishes.length) {
+        grid.innerHTML = `<p class="dm-status">Nothing in this section right now.</p>`;
+        return;
+      }
+      if (layout === "cards") {
+        grid.innerHTML = dishes
+          .map((d) => {
+            const size = state.sizeSel[d.id] || (d.sizes && d.sizes[0] && d.sizes[0].l) || "Adult";
+            return R().cardHtml(d, size, api());
+          })
+          .join("");
+      } else {
+        grid.innerHTML = dishes.map((d) => R().rowHtml(d, api())).join("");
+      }
+    }
 
-      bookEl.appendChild(leaf);
-      void leaf.offsetWidth;
+    function renderAll() {
+      renderSections();
+      renderSubs();
+      renderGrid();
+      refreshBar();
+    }
 
-      let done = false;
-      const finish = () => {
-        if (done) return;
-        done = true;
-        state.index = target;
-        state.busy = false;
-        render();
+    function openPop(dish, opts) {
+      if (!dish || dish.soldOut) return;
+      const defaultSize =
+        (dish.sizes && dish.sizes[0] && dish.sizes[0].l) ||
+        state.sizeSel[dish.id] ||
+        "Adult";
+      const defaultOpts = {};
+      (dish.groups || []).forEach((gid) => {
+        const g = (state.menu.groups || []).find((x) => x.id === gid);
+        if (!g) return;
+        if (g.type === "many") defaultOpts[gid] = [];
+        else if (g.opts && g.opts[0]) defaultOpts[gid] = g.opts[0].id;
+      });
+      state.pop = {
+        id: dish.id,
+        size: opts?.size || defaultSize,
+        opts: opts?.opts || defaultOpts,
+        qty: 1,
       };
-      leaf.addEventListener("transitionend", (e) => {
-        if (e.target === leaf && e.propertyName === "transform") finish();
-      });
-      window.setTimeout(finish, FLIP_MS + 200);
-
-      requestAnimationFrame(() => {
-        if (turnedAtStart) leaf.classList.remove("is-turned");
-        else leaf.classList.add("is-turning");
-      });
+      popBody.innerHTML = R().popHtml(state.menu, dish, state.pop, api());
+      pop.hidden = false;
+      track("menu_customise_open", { dish_id: dish.id });
     }
 
-    let swipeX = null;
-    let swiped = false;
+    function closePop() {
+      pop.hidden = true;
+      state.pop = null;
+    }
 
-    stage.addEventListener("click", (e) => {
-      if (swiped) {
-        swiped = false;
+    function syncPop() {
+      if (!state.pop) return;
+      const dish = dishById(state.pop.id);
+      if (!dish) return;
+      popBody.innerHTML = R().popHtml(state.menu, dish, state.pop, api());
+    }
+
+    function addCurrentPop() {
+      if (!state.pop) return;
+      const dish = dishById(state.pop.id);
+      if (!dish || dish.soldOut) return;
+      const labels = R().optLabels(state.menu, state.pop.opts);
+      const unit = R().unitPriceFor(state.menu, dish, state.pop.size, state.pop.opts);
+      state.lines = cart().add({
+        id: dish.id,
+        l: state.pop.size,
+        opts: state.pop.opts,
+        qty: state.pop.qty || 1,
+        esbMenuId: dish.esbMenuId || null,
+        unitPrice: unit,
+        name: dish.name,
+        optLabels: labels,
+      });
+      track("menu_add_to_list", { dish_id: dish.id });
+      closePop();
+      refreshBar();
+    }
+
+    function openList() {
+      const note = state.menu?.settings?.listNote || "";
+      if (listNote) listNote.textContent = note;
+      listBody.innerHTML = R().listHtml(state.menu, state.lines);
+      const { sum, incomplete } = cart().total(state.lines, state.menu);
+      if (listTotal) {
+        listTotal.textContent = state.lines.length
+          ? `Estimate ${R().fmtPrice(sum)}${incomplete ? "+" : ""}`
+          : "";
+      }
+      listSheet.hidden = false;
+    }
+
+    function closeList() {
+      listSheet.hidden = true;
+    }
+
+    function showWaiter() {
+      if (!state.lines.length) return;
+      // Future hook: cart().toOrderPayload(state.lines, state.menu, "waiter_show")
+      const now = new Date();
+      const time = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      document.getElementById("dm-waiter-time").textContent = time;
+      document.getElementById("dm-waiter-body").innerHTML = R().waiterHtml(state.lines);
+      const { sum, incomplete } = cart().total(state.lines, state.menu);
+      document.getElementById("dm-waiter-total").textContent = `Estimate ${R().fmtPrice(sum)}${
+        incomplete ? "+" : ""
+      }`;
+      closeList();
+      waiter.hidden = false;
+      track("menu_show_waiter", { items: cart().count(state.lines) });
+    }
+
+    sectionsEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-sec]");
+      if (!btn) return;
+      state.sectionId = btn.getAttribute("data-sec");
+      state.sub = "All";
+      renderAll();
+    });
+
+    subsEl.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-sub]");
+      if (!btn) return;
+      state.sub = btn.getAttribute("data-sub");
+      renderSubs();
+      renderGrid();
+    });
+
+    grid.addEventListener("click", (e) => {
+      const sizeBtn = e.target.closest("[data-size-for]");
+      if (sizeBtn) {
+        state.sizeSel[sizeBtn.getAttribute("data-size-for")] = sizeBtn.getAttribute("data-size");
+        renderGrid();
         return;
       }
-      if (!bookEl) return;
-      if (state.double) {
-        if (e.target.closest(".flipbook__page--left:not(.is-empty)")) go(-1);
-        else if (e.target.closest(".flipbook__page--right:not(.is-empty)")) go(1);
+      const customise = e.target.closest("[data-customise]");
+      if (customise) {
+        openPop(dishById(customise.getAttribute("data-customise")));
         return;
       }
-      const rect = bookEl.getBoundingClientRect();
-      if (e.clientX < rect.left + rect.width * 0.35) go(-1);
-      else go(1);
-    });
-
-    stage.addEventListener("pointerdown", (e) => {
-      swipeX = e.pointerType === "mouse" ? null : e.clientX;
-    });
-    stage.addEventListener("pointerup", (e) => {
-      if (swipeX === null) return;
-      const dx = e.clientX - swipeX;
-      swipeX = null;
-      if (Math.abs(dx) < 40) return;
-      swiped = true;
-      go(dx < 0 ? 1 : -1);
-    });
-
-    book.addEventListener("keydown", (e) => {
-      if (e.target.closest("button")) return;
-      const keys = { ArrowRight: 1, PageDown: 1, ArrowLeft: -1, PageUp: -1 };
-      if (e.key in keys) {
-        e.preventDefault();
-        go(keys[e.key]);
-      } else if (e.key === "Home" || e.key === "End") {
-        e.preventDefault();
-        state.index = e.key === "Home" ? 0 : state.spreads.length - 1;
-        render();
+      const more = e.target.closest("[data-more]");
+      if (more) {
+        openPop(dishById(more.getAttribute("data-more")));
+        return;
+      }
+      const quick = e.target.closest("[data-quick-add]");
+      if (quick) {
+        const dish = dishById(quick.getAttribute("data-quick-add"));
+        if (!dish || dish.soldOut) return;
+        const size = quick.getAttribute("data-size") || state.sizeSel[dish.id] || dish.sizes?.[0]?.l;
+        const unit = R().unitPriceFor(state.menu, dish, size, {});
+        state.lines = cart().add({
+          id: dish.id,
+          l: size,
+          opts: {},
+          qty: 1,
+          esbMenuId: dish.esbMenuId || null,
+          unitPrice: unit,
+          name: dish.name,
+          optLabels: [],
+        });
+        track("menu_quick_add", { dish_id: dish.id });
+        refreshBar();
       }
     });
 
-    prevBtn?.addEventListener("click", () => go(-1));
-    nextBtn?.addEventListener("click", () => go(1));
-
-    if (window.ResizeObserver) {
-      new ResizeObserver(() => {
-        if (stage.clientWidth !== state.width && !state.busy) layout();
-      }).observe(stage);
-    } else {
-      window.addEventListener("resize", () => {
-        if (!state.busy) layout();
-      });
-    }
-
-    function select(tab, { updateHash = true } = {}) {
-      const [width, height] = (tab.dataset.size || "1200x1600").split("x").map(Number);
-      const name = tab.dataset.title || tab.textContent.trim();
-      const url = assetUrl(tab.dataset.pdf);
-      tabs.forEach((t) => {
-        const active = t === tab;
-        t.classList.toggle("is-active", active);
-        t.setAttribute("aria-selected", active ? "true" : "false");
-      });
-      panel?.setAttribute("aria-labelledby", tab.id);
-      if (title) title.textContent = name;
-
-      state.menu = tab.dataset.menu;
-      state.name = name;
-      state.pages = Number(tab.dataset.pages) || 0;
-      state.ratio = width && height ? width / height : 0.75;
-      state.spreads = [];
-      state.index = 0;
-      state.busy = false;
-      layout();
-
-      if (download) {
-        download.href = url;
-        download.setAttribute("download", tab.dataset.pdf.split("/").pop());
+    pop.addEventListener("click", (e) => {
+      if (e.target.closest("[data-close-pop]")) {
+        closePop();
+        return;
       }
-      if (open) open.href = url;
-      if (updateHash && history.replaceState) history.replaceState(null, "", `#${tab.dataset.menu}`);
+      if (!state.pop) return;
+      const size = e.target.closest("[data-pop-size]");
+      if (size) {
+        state.pop.size = size.getAttribute("data-pop-size");
+        syncPop();
+        return;
+      }
+      const opt = e.target.closest("[data-pop-opt]");
+      if (opt) {
+        const gid = opt.getAttribute("data-pop-opt-group");
+        const oid = opt.getAttribute("data-pop-opt");
+        const type = opt.getAttribute("data-pop-opt-type");
+        if (type === "many") {
+          const cur = Array.isArray(state.pop.opts[gid]) ? state.pop.opts[gid].slice() : [];
+          const i = cur.indexOf(oid);
+          if (i >= 0) cur.splice(i, 1);
+          else cur.push(oid);
+          state.pop.opts[gid] = cur;
+        } else {
+          state.pop.opts[gid] = oid;
+        }
+        syncPop();
+        return;
+      }
+      const qty = e.target.closest("[data-pop-qty]");
+      if (qty) {
+        const delta = Number(qty.getAttribute("data-pop-qty")) || 0;
+        state.pop.qty = Math.max(1, (state.pop.qty || 1) + delta);
+        syncPop();
+        return;
+      }
+      if (e.target.closest("#dm-pop-add")) addCurrentPop();
+    });
+
+    document.getElementById("dm-open-list")?.addEventListener("click", openList);
+    listSheet.addEventListener("click", (e) => {
+      if (e.target.closest("[data-close-list]")) {
+        closeList();
+        return;
+      }
+      const row = e.target.closest("[data-line-key]");
+      const qtyBtn = e.target.closest("[data-line-qty]");
+      if (row && qtyBtn) {
+        const key = row.getAttribute("data-line-key");
+        const line = state.lines.find((x) => x.key === key);
+        if (!line) return;
+        const next = (line.qty || 1) + (Number(qtyBtn.getAttribute("data-line-qty")) || 0);
+        state.lines = cart().setQty(key, next);
+        openList();
+        refreshBar();
+      }
+    });
+    document.getElementById("dm-show-waiter")?.addEventListener("click", showWaiter);
+    document.getElementById("dm-waiter-done")?.addEventListener("click", () => {
+      waiter.hidden = true;
+    });
+
+    try {
+      const loaded = await api().loadMenu();
+      state.menu = loaded.menu;
+      const sections = R().visibleSections(state.menu);
+      state.sectionId = sections[0]?.id || "breakfast";
+      if (fab) fab.href = api().shopUrl(state.menu);
+      if (listNote) listNote.textContent = state.menu?.settings?.listNote || "";
+      if (statusEl) statusEl.hidden = true;
+      app.setAttribute("aria-busy", "false");
+      renderAll();
+
+      const offer = offerFromUrl();
+      if (offer) {
+        const dish = dishById(offer);
+        if (dish) {
+          state.sectionId = dish.sec === "kids" ? "kids" : dish.sec;
+          state.sub = dish.sub || "All";
+          renderAll();
+          openPop(dish);
+        }
+      }
+      track("menu_digital_view", { source: loaded.source, version: loaded.version });
+    } catch (err) {
+      if (statusEl) {
+        statusEl.hidden = false;
+        statusEl.textContent = err.message || "Could not load the menu.";
+      }
+      app.setAttribute("aria-busy", "false");
     }
-
-    function fromHash() {
-      const key = location.hash.replace(/^#/, "");
-      return tabs.find((t) => t.dataset.menu === key);
-    }
-
-    tabs.forEach((tab) => tab.addEventListener("click", () => select(tab)));
-
-    tabs.forEach((tab, i) => {
-      tab.addEventListener("keydown", (e) => {
-        if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
-        e.preventDefault();
-        const next = tabs[(i + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length];
-        next.focus();
-        select(next);
-      });
-    });
-
-    download?.addEventListener("click", () => {
-      const active = tabs.find((t) => t.classList.contains("is-active"));
-      track("menu_download", { menu: active?.dataset.menu || "" });
-    });
-
-    select(fromHash() || tabs.find((t) => t.classList.contains("is-active")) || tabs[0], { updateHash: false });
-    window.addEventListener("hashchange", () => {
-      const tab = fromHash();
-      if (tab) select(tab, { updateHash: false });
-    });
   });
 })();

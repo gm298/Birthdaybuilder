@@ -18,7 +18,6 @@
   }
   const CAFE = {
     home: (window.TINY_WP && window.TINY_WP.homeUrl) || "https://tinyhealthycafe.com/",
-    about: "https://tinyhealthycafe.com/about-us/",
     shop: "https://esborder.qs.esb.co.id/TYKB/THFC/mode",
     events: "https://tinyhealthycafe.com/events/",
   };

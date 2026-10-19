@@ -1,0 +1,97 @@
+<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+
+function tiny_cafe_render_home($attrs = []) {
+    $img = trailingslashit(tiny_birthdays_asset('home/img'));
+    $location = esc_url(tiny_birthdays_page_url('location'));
+    $menu = esc_url(tiny_birthdays_page_url('menu'));
+    $events = esc_url(tiny_birthdays_page_url('events'));
+    $birthdays = esc_url(tiny_birthdays_page_url('landing'));
+    $reserve = esc_url(tiny_birthdays_page_url('reserve'));
+    ob_start();
+    ?>
+<section class="home-hero" aria-labelledby="home-title">
+  <img class="home-hero__bg" src="<?php echo esc_url($img . 'hero.jpg'); ?>" alt="" width="1536" height="1536">
+  <div class="home-hero__inner">
+    <img class="home-hero__logo" src="<?php echo esc_url($img . 'logo-white.png'); ?>" alt="Tiny" width="63" height="134">
+    <h1 id="home-title">Healthy &amp; Delicious</h1>
+    <p>Welcome to <strong>Tiny Healthy Cafe</strong> — Bali’s healthy family hangout. Cafe food and drinks are made without refined sugar, with no deep-frying and no bad oils. A birthday cake can use a sugar-added sponge when you ask for one.</p>
+    <div class="home-hero__actions">
+      <a class="home-btn home-btn--outline" href="<?php echo $location; ?>">Our location</a>
+      <a class="home-btn" href="<?php echo $menu; ?>">See our menu</a>
+    </div>
+  </div>
+</section>
+
+<section class="home-world" aria-labelledby="world-title">
+  <div class="home-wrap">
+    <h2 id="world-title">Step into our Tiny World</h2>
+    <div class="home-world__grid">
+      <article class="home-card">
+        <img src="<?php echo esc_url($img . 'food.png'); ?>" alt="Healthy food at Tiny" width="768" height="1024" loading="lazy">
+        <h3>Healthy Food</h3>
+        <p>Wholesome comfort food made fresh from scratch every day, using ancient grains, whole wheats, healthy oils, and clean proteins. Balanced, sustainable, and 90% locally sourced.</p>
+        <a class="home-card__link" href="<?php echo $menu; ?>#food">→ See our Food Menu</a>
+      </article>
+      <article class="home-card">
+        <img src="<?php echo esc_url($img . 'drinks.png'); ?>" alt="Colourful natural drinks at Tiny" width="768" height="1024" loading="lazy">
+        <h3>Refreshing Drinks</h3>
+        <p><strong>Bright, wholesome, and naturally refreshing.</strong><br>Each shade is crafted from nature — from butterfly pea and berries to turmeric, sweet potato, and black sesame.<br>No artificial sweeteners, no refined sugar, only Tiny Natural Sweeteners made from real ingredients.</p>
+        <a class="home-card__link" href="<?php echo $menu; ?>#drinks">→ See our Drink Menu</a>
+      </article>
+      <article class="home-card">
+        <img src="<?php echo esc_url($img . 'play.png'); ?>" alt="Kids playing in the Tiny play area" width="768" height="1024" loading="lazy">
+        <h3>Play, Learn &amp; Grow</h3>
+        <p>Safe, Montessori-inspired play designed for curious little explorers, with clean, soft spaces made for calm movement and imagination.<br>No screens, no clutter, no overstimulation — ever.<br>Thoughtful, family-friendly, and created for happy, stress-free play.</p>
+        <a class="home-card__link" href="<?php echo $location; ?>">→ Visit us</a>
+      </article>
+      <article class="home-card">
+        <img src="<?php echo esc_url($img . 'classes.png'); ?>" alt="Kids cooking class at Tiny" width="768" height="1024" loading="lazy">
+        <h3>Master Classes</h3>
+        <p>Interactive classes that blend healthy cooking with mindful arts, crafts, and sensory experiments inspired by Montessori and Reggio Emilia.<br>Natural learning and creativity.<br>A fun, enriching way for kids to explore, discover, and grow.</p>
+        <a class="home-card__link" href="<?php echo $events; ?>">→ Book Now</a>
+      </article>
+      <article class="home-card">
+        <img src="<?php echo esc_url($img . 'events.png'); ?>" alt="Birthday party setup at Tiny" width="768" height="1024" loading="lazy">
+        <h3>Tailored Events</h3>
+        <p>Beautifully curated birthday experiences filled with creativity, exploration, playful discovery, and immersive activities.<br>Beautiful moments, engaging play, stunning setups, and unforgettable celebrations crafted with care.</p>
+        <a class="home-card__link" href="<?php echo $birthdays; ?>">→ See Our Packages</a>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="home-spot" aria-label="The best family spot">
+  <img class="home-spot__bg" src="<?php echo esc_url($img . 'family-spot.jpg'); ?>" alt="" width="1536" height="1024" loading="lazy">
+  <p class="home-spot__text">The best<br>family spot</p>
+</section>
+
+<section class="home-open" id="openinghours" aria-labelledby="open-title">
+  <div class="home-wrap home-open__inner">
+    <div>
+      <p class="home-open__eyebrow">Open every day</p>
+      <h2 id="open-title">8:30am til 8pm</h2>
+      <p>The cafe is open every day from 8:30am to 8pm. Online Reservations last for 2 hours and we will hold your table for 15 minutes. Full booking conditions are shown before you confirm.</p>
+      <div class="home-open__actions">
+        <a class="home-btn" href="<?php echo $reserve; ?>">Book Now!</a>
+        <a class="home-btn" href="https://wa.me/6282266484226" target="_blank" rel="noopener noreferrer" data-wa="home_contact">Contact Us!</a>
+      </div>
+    </div>
+    <img class="home-open__img" src="<?php echo esc_url($img . 'open.jpg'); ?>" alt="Inside Tiny Healthy Cafe" width="1024" height="1024" loading="lazy">
+  </div>
+</section>
+
+<section class="home-reviews" aria-label="Google reviews">
+  <div class="home-wrap home-reviews__inner">
+    <div>
+      <p class="home-reviews__rating">Excellent <span aria-hidden="true">★★★★★</span></p>
+      <p class="home-reviews__count">Based on 948 Google reviews</p>
+    </div>
+    <a class="home-btn home-btn--outline-dark" href="https://www.google.com/maps/place/Tiny+Healthy+Family+Cafe+0%2B/@-8.6582218,115.138745,17z/data=!4m8!3m7!1s0x2dd2479a5ea6accd:0xcba276931809d05c!8m2!3d-8.6582218!4d115.138745!9m1!1b1" target="_blank" rel="noopener noreferrer">Read our reviews</a>
+  </div>
+</section>
+    <?php
+    return ob_get_clean();
+}

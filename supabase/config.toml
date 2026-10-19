@@ -19,3 +19,13 @@ entrypoint = "./functions/sync-google-calendar/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/join-event/index.ts"
+
+[functions.sync-esb-menu]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/sync-esb-menu/index.ts"
+
+[functions.submit-menu-order]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/submit-menu-order/index.ts"

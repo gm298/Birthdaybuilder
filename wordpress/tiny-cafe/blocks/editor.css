@@ -1,0 +1,38 @@
+.editor-styles-wrapper .tiny-block-note {
+  font-family: Jost, system-ui, sans-serif;
+  background: #f7f5ee;
+  border: 1px dashed #647c6e;
+  color: #3d4f45;
+  padding: 16px 20px;
+  margin: 12px 0;
+}
+
+.editor-styles-wrapper .tiny-block-note strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.editor-styles-wrapper .tiny-repeat {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+.editor-styles-wrapper .tiny-repeat__row {
+  border: 1px solid rgba(100, 124, 110, 0.25);
+  padding: 10px;
+  background: #fff;
+}
+
+.editor-styles-wrapper .hero,
+.editor-styles-wrapper .included,
+.editor-styles-wrapper .packages,
+.editor-styles-wrapper .faq,
+.editor-styles-wrapper .closing,
+.editor-styles-wrapper .reviews {
+  pointer-events: none;
+}
+
+.editor-styles-wrapper .tiny-edit-panel {
+  pointer-events: auto;
+}

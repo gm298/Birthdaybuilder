@@ -1,7 +1,12 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { createMenuDataController } from "./menu-data.js";
 
 const cfg = window.TINY_SUPABASE || {};
 const supabase = createClient(cfg.url || "", cfg.anonKey || "");
+const menuData = createMenuDataController({
+  supabase,
+  setStatus: (id, message, kind) => setMasterStatus(id, message, kind),
+});
 const TZ = "Asia/Makassar";
 const BIRTHDAY_SOURCES = ["party_builder", "cake", "pdf_quote"];
 const ALL_STATUSES = ["new", "contacted", "quoted", "booked", "cancelled", "noshow", "rejected", "closed"];
@@ -6584,6 +6589,7 @@ function showMasterSection(section) {
   const decor = document.getElementById("master-decor");
   const promos = document.getElementById("master-promos");
   const bank = document.getElementById("master-bank");
+  const menu = document.getElementById("master-menu");
   const stack = document.querySelector("#master-view .master-stack");
   if (home) home.hidden = Boolean(section);
   if (stack) stack.hidden = !section;
@@ -6591,6 +6597,7 @@ function showMasterSection(section) {
   if (decor) decor.hidden = section !== "decor";
   if (promos) promos.hidden = section !== "promos";
   if (bank) bank.hidden = section !== "bank";
+  if (menu) menu.hidden = section !== "menu";
   if (pageTitle && state.view === "master") {
     pageTitle.textContent =
       section === "cakes"
@@ -6601,7 +6608,9 @@ function showMasterSection(section) {
             ? "Promotions"
             : section === "bank"
               ? "Bank details"
-              : "Master data";
+              : section === "menu"
+                ? "Menu Data"
+                : "Master data";
   }
 }
 
@@ -6641,6 +6650,7 @@ async function renderMaster() {
   if (section === "decor") await renderDecorCatalog();
   if (section === "promos") await renderPromotions();
   if (section === "bank") await renderBankDetails();
+  if (section === "menu") await menuData.renderMenuData();
 }
 
 function decorPublicUrl(path) {
@@ -7359,6 +7369,7 @@ document.getElementById("open-cake-catalog")?.addEventListener("click", () => go
 document.getElementById("open-decor-catalog")?.addEventListener("click", () => go("master/decor"));
 document.getElementById("open-promotions")?.addEventListener("click", () => go("master/promos"));
 document.getElementById("open-bank-details")?.addEventListener("click", () => go("master/bank"));
+document.getElementById("open-menu-data")?.addEventListener("click", () => go("master/menu"));
 document.getElementById("bank-form")?.addEventListener("submit", (event) => {
   saveBankDetails(event).catch((err) => setMasterStatus("bank-status", err.message || "Could not save bank details.", "is-error"));
 });

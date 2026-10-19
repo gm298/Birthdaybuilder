@@ -1,0 +1,32 @@
+/* Isolate Tiny canvas pages from the cafe WordPress theme. */
+
+body.tiny-canvas {
+  margin: 0;
+}
+
+body.tiny-canvas main > .wp-block-tiny-about-birthdays,
+body.tiny-canvas main > .wp-block-tiny-reserve,
+body.tiny-canvas main > .wp-block-tiny-booking,
+body.tiny-canvas main > .wp-block-tiny-sticky-bar,
+body.tiny-canvas main > .wp-block-tiny-party-builder,
+body.tiny-canvas main > .wp-block-tiny-cakes-hero,
+body.tiny-canvas main > .wp-block-tiny-cakes-facts,
+body.tiny-canvas main > .wp-block-tiny-cake-app {
+  margin: 0;
+  max-width: none;
+}
+
+html.admin-bar .site-header {
+  top: 32px;
+}
+
+@media screen and (max-width: 782px) {
+  html.admin-bar .site-header {
+    top: 46px;
+  }
+}
+
+body.tiny-canvas .skip-link,
+body.tiny-canvas .wp-block-spacer {
+  display: none;
+}
