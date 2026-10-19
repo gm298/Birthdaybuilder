@@ -28,7 +28,7 @@ function tiny_birthdays_page_styles($type) {
 }
 
 function tiny_cafe_menu_fonts_url() {
-    return 'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&display=swap';
+    return 'https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&family=Tenor+Sans&display=swap';
 }
 
 function tiny_birthdays_enqueue_front() {

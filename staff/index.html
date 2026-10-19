@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/staff.css?v=20261019g">
+  <link rel="stylesheet" href="css/staff.css?v=20261019j">
 </head>
 <body>
   <div class="staff-layout" id="staff-layout">
@@ -300,8 +300,8 @@
               <span>Account details printed on invoices</span>
             </button>
             <button class="master-choice" type="button" id="open-menu-data">
-              <strong>Menu Data</strong>
-              <span>Edit and publish the digital guest menu</span>
+              <strong>Menu Desk</strong>
+              <span>Items, sections, options and categories</span>
             </button>
           </div>
           <div class="master-stack" hidden>
@@ -372,14 +372,8 @@
                 <p class="status" id="bank-status" role="status"></p>
               </form>
             </section>
-            <section class="master-panel" id="master-menu" hidden>
-              <button class="btn btn--outline back" type="button" data-master-back>Back</button>
-              <div class="master-panel__head">
-                <div>
-                  <h2>Menu Data</h2>
-                  <p class="muted">Edit the draft digital menu, then publish so guests see it on /menu/.</p>
-                </div>
-              </div>
+            <section class="master-panel master-panel--flush" id="master-menu" hidden>
+              <button class="btn btn--outline back" type="button" id="menu-desk-back">Back</button>
               <p class="status" id="menu-data-status" role="status"></p>
               <div id="menu-data-root" class="dm-admin"></div>
             </section>
@@ -765,6 +759,24 @@
       </form>
     </div>
   </div>
+  <div class="drawer" id="menu-item-drawer" hidden>
+    <div class="drawer__panel" role="dialog" aria-modal="true" aria-labelledby="menu-item-drawer-title">
+      <div class="drawer__head">
+        <h2 class="drawer__title" id="menu-item-drawer-title">Edit item</h2>
+        <div class="drawer__tools">
+          <button class="drawer__expand" type="button" data-expand-drawer aria-label="Expand to full screen" title="Expand to full screen"><svg class="drawer__icon-grow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg><svg class="drawer__icon-shrink" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7"/></svg></button>
+          <button class="drawer__close" type="button" data-menu-drawer-close aria-label="Close">&#x2715;</button>
+        </div>
+      </div>
+      <div class="drawer__form">
+        <div class="drawer__body" id="menu-item-drawer-body"></div>
+        <div class="drawer__foot dm-drawer-foot">
+          <button class="btn btn--text" type="button" data-menu-drawer-delete>Delete item</button>
+          <button class="btn" type="button" data-menu-drawer-done>Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="modal event-time-modal" id="event-time-modal" hidden>
     <div class="modal__card event-time-modal__panel" role="dialog" aria-modal="true" aria-labelledby="event-time-modal-title">
       <div class="event-time-modal__head">
@@ -791,6 +803,6 @@
   </div>
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/reserve-tables.js?v=20261006b"></script>
-  <script type="module" src="js/app.js?v=20261019f"></script>
+  <script type="module" src="js/app.js?v=20261019j"></script>
 </body>
 </html>

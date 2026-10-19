@@ -116,6 +116,20 @@
         .join("");
     }
 
+    function markClippedCards() {
+      grid.querySelectorAll(".dm-card").forEach((card) => {
+        const clip = card.querySelector(".dm-card__clip");
+        const more = card.querySelector(".dm-card__more");
+        if (!clip) return;
+        const overflow = clip.scrollHeight > clip.clientHeight + 2;
+        card.classList.toggle("is-clipped", overflow);
+        if (more) {
+          more.hidden = !overflow;
+          more.textContent = "See more";
+        }
+      });
+    }
+
     function renderGrid() {
       const sec = currentSection();
       const layout = (sec && sec.layout) || "cards";
@@ -141,6 +155,7 @@
             return R().cardHtml(state.menu, d, size, optsFor(d), api());
           })
           .join("");
+        requestAnimationFrame(markClippedCards);
       } else {
         grid.innerHTML = dishes.map((d) => R().rowHtml(state.menu, d, optsFor(d), api())).join("");
       }
@@ -291,6 +306,12 @@
       }
     });
 
+    let clipResizeTimer = 0;
+    window.addEventListener("resize", () => {
+      window.clearTimeout(clipResizeTimer);
+      clipResizeTimer = window.setTimeout(markClippedCards, 120);
+    });
+
     try {
       const loaded = await api().loadMenu();
       state.menu = loaded.menu;
@@ -307,7 +328,7 @@
           const sec =
             (state.menu.sections || []).find((s) => s.id === (dish.sec === "kids" ? "kids" : dish.sec)) ||
             null;
-          selectFamily(R().sectionFamily(sec), sec?.id || dish.sec);
+          selectFamily(R().dishCat(state.menu, dish), sec?.id || dish.sec);
           state.sub = dish.sub || "All";
           renderAll();
           openDetail(dish);

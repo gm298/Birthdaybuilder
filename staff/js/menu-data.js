@@ -1,4 +1,4 @@
-/** Staff Master → Menu Data (draft edit + publish). */
+/** Staff Master → Menu Desk (live updates, hub sections, image upload). */
 
 function deepClone(v) {
   return JSON.parse(JSON.stringify(v));
@@ -12,33 +12,25 @@ function esc(s) {
     .replace(/"/g, "&quot;");
 }
 
-function fmtPrice(p) {
-  if (p == null || p === "") return "Ask us";
-  const n = Number(p);
-  if (!Number.isFinite(n)) return "Ask us";
-  return n >= 1000 ? `Rp ${n / 1000} mln` : `Rp ${n}k`;
-}
-
-function diffCount(a, b) {
-  try {
-    return JSON.stringify(a) === JSON.stringify(b) ? 0 : 1;
-  } catch (_) {
-    return 1;
-  }
-}
+const DIET_TAGS = ["GF", "VG", "V", "DF", "NF"];
+const MENU_BUCKET = "menu-images";
 
 export function createMenuDataController({ supabase, setStatus }) {
   const state = {
-    draft: null,
-    live: null,
-    draftId: null,
+    menu: null,
     liveId: null,
     liveVersion: 1,
-    tab: "items",
+    tab: "",
     query: "",
     filter: "all",
+    catFilter: "all",
     editId: null,
   };
+
+  let bound = false;
+  let drawerBound = false;
+  let loaded = false;
+  let saveTimer = null;
 
   async function loadSeedPayload() {
     const url = new URL("../menu/data/menu-seed.json", location.href).href;
@@ -47,40 +39,89 @@ export function createMenuDataController({ supabase, setStatus }) {
     return res.json();
   }
 
-  async function ensureSnapshots(seedPayload) {
-    const note = "Seeded from menu-seed.json";
-    const { data: liveRow, error: liveErr } = await supabase
-      .from("menu_snapshots")
-      .insert({
-        status: "live",
-        version: 1,
-        payload: seedPayload,
-        published_at: new Date().toISOString(),
-        note,
+  function ensureMenus(payload) {
+    if (!payload.settings) payload.settings = {};
+    if (!Array.isArray(payload.settings.menus) || !payload.settings.menus.length) {
+      payload.settings.menus = [
+        { id: "food", name: "Food Menu" },
+        { id: "drink", name: "Drink Menu" },
+        { id: "special", name: "Special Menu" },
+      ];
+    }
+    return payload;
+  }
+
+  function entityCat(obj, fallback = "food") {
+    return obj?.cat || obj?.family || fallback;
+  }
+
+  /** Backfill cat/family on dishes, sections, groups, sizes. Returns true if anything changed. */
+  function normalizeCategories(payload) {
+    ensureMenus(payload);
+    let changed = false;
+    const secCat = Object.fromEntries(
+      (payload.sections || []).map((s) => {
+        const next = entityCat(s, "food");
+        if (s.family !== next || s.cat !== next) {
+          s.family = next;
+          s.cat = next;
+          changed = true;
+        }
+        return [s.id, next];
       })
-      .select("id, status, version, payload, published_at, note, updated_at")
-      .single();
-    if (liveErr) throw liveErr;
-    const { data: draftRow, error: draftErr } = await supabase
-      .from("menu_snapshots")
-      .insert({
-        status: "draft",
-        version: 1,
-        payload: seedPayload,
-        published_at: null,
-        note,
-      })
-      .select("id, status, version, payload, published_at, note, updated_at")
-      .single();
-    if (draftErr) throw draftErr;
-    return [liveRow, draftRow];
+    );
+    for (const d of payload.dishes || []) {
+      const next = d.cat || secCat[d.sec] || "food";
+      if (d.cat !== next) {
+        d.cat = next;
+        changed = true;
+      }
+    }
+    for (const g of payload.groups || []) {
+      const next = entityCat(g, "food");
+      if (g.family !== next || g.cat !== next) {
+        g.family = next;
+        g.cat = next;
+        changed = true;
+      }
+    }
+    for (const s of payload.sizes || []) {
+      const next = entityCat(s, "food");
+      if (s.family !== next || s.cat !== next) {
+        s.family = next;
+        s.cat = next;
+        changed = true;
+      }
+    }
+    return changed;
+  }
+
+  function catFilterChips() {
+    const cats = categories();
+    return `<div class="dm-admin-filters dm-admin-filters--cats" role="tablist" aria-label="Category">
+      <button type="button" class="dm-admin-chip${state.catFilter === "all" ? " is-active" : ""}" data-cat-filter="all">All categories</button>
+      ${cats
+        .map(
+          (c) =>
+            `<button type="button" class="dm-admin-chip${state.catFilter === c.id ? " is-active" : ""}" data-cat-filter="${esc(
+              c.id
+            )}">${esc(c.name)}</button>`
+        )
+        .join("")}
+    </div>`;
+  }
+
+  function dishCat(d) {
+    if (d?.cat) return d.cat;
+    const sec = (state.menu?.sections || []).find((s) => s.id === d?.sec);
+    return entityCat(sec, "food");
   }
 
   async function load() {
     const { data, error } = await supabase
       .from("menu_snapshots")
       .select("id, status, version, payload, published_at, note, updated_at")
-      .in("status", ["draft", "live"]);
+      .in("status", ["live", "draft"]);
     if (error) {
       throw new Error(
         error.message.includes("menu_snapshots") || error.code === "42P01" || error.code === "PGRST205"
@@ -88,31 +129,56 @@ export function createMenuDataController({ supabase, setStatus }) {
           : error.message
       );
     }
-    let rows = data || [];
-    let draft = rows.find((r) => r.status === "draft");
+    const rows = data || [];
     let live = rows.find((r) => r.status === "live");
-    if (!draft && !live) {
-      const seed = await loadSeedPayload();
-      rows = await ensureSnapshots(seed);
-      draft = rows.find((r) => r.status === "draft");
-      live = rows.find((r) => r.status === "live");
+    const draft = rows.find((r) => r.status === "draft");
+    if (!live && draft) {
+      // Promote existing draft to live (publish tab removed).
+      const { error: upErr } = await supabase
+        .from("menu_snapshots")
+        .update({
+          status: "live",
+          published_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          note: "Promoted draft to live",
+        })
+        .eq("id", draft.id);
+      if (upErr) throw upErr;
+      live = { ...draft, status: "live" };
     }
-    if (!draft && !live) throw new Error("No menu snapshots yet. Run the menu migration/seed first.");
-    state.draft = deepClone(draft?.payload || live.payload);
-    state.live = deepClone(live?.payload || draft.payload);
-    state.draftId = draft?.id || null;
-    state.liveId = live?.id || null;
-    state.liveVersion = live?.version || 1;
+    if (!live) {
+      const seed = ensureMenus(await loadSeedPayload());
+      const { data: inserted, error: insertErr } = await supabase
+        .from("menu_snapshots")
+        .insert({
+          status: "live",
+          version: 1,
+          payload: seed,
+          published_at: new Date().toISOString(),
+          note: "Seeded from menu-seed.json",
+        })
+        .select("id, status, version, payload, published_at, note, updated_at")
+        .single();
+      if (insertErr) throw insertErr;
+      live = inserted;
+    }
+    state.menu = ensureMenus(deepClone(live.payload));
+    state.liveId = live.id;
+    state.liveVersion = live.version || 1;
     state.editId = null;
+    if (normalizeCategories(state.menu)) {
+      await saveLive("Backfill categories (food / drink / special)");
+    }
   }
 
   function dishes() {
-    return state.draft?.dishes || [];
+    return state.menu?.dishes || [];
   }
 
   function filteredDishes() {
     const q = state.query.trim().toLowerCase();
     return dishes().filter((d) => {
+      if (state.catFilter !== "all" && dishCat(d) !== state.catFilter) return false;
       if (state.filter === "kids") return (d.sizes || []).some((s) => s.l === "Tiny");
       if (state.filter !== "all" && d.sec !== state.filter) return false;
       if (!q) return true;
@@ -120,62 +186,166 @@ export function createMenuDataController({ supabase, setStatus }) {
     });
   }
 
-  function renderTabs() {
-    const tabs = [
-      ["items", "Items"],
-      ["sections", "Sections"],
-      ["options", "Options"],
-      ["publish", "Publish"],
-    ];
-    return tabs
-      .map(
-        ([id, label]) =>
-          `<button type="button" class="dm-admin-tab${state.tab === id ? " is-active" : ""}" data-menu-tab="${id}">${label}</button>`
-      )
-      .join("");
-  }
-
   function sectionLabel(secId) {
-    const s = (state.draft?.sections || []).find((x) => x.id === secId);
+    const s = (state.menu?.sections || []).find((x) => x.id === secId);
     return s?.name || secId || "—";
   }
 
+  function categories() {
+    return state.menu?.settings?.menus || [];
+  }
+
+  function menuPublicUrl(path) {
+    if (!path) return "";
+    const { data } = supabase.storage.from(MENU_BUCKET).getPublicUrl(path);
+    return data?.publicUrl || "";
+  }
+
+  function imgSrc(path) {
+    if (!path) return "";
+    if (path.startsWith("http") || path.startsWith("data:") || path.startsWith("/")) return path;
+    if (path.startsWith("dishes/") || path.startsWith("menu/")) return menuPublicUrl(path);
+    return `../menu/${path.replace(/^\.?\/?/, "")}`;
+  }
+
+  function storagePathFromImg(img) {
+    if (!img || typeof img !== "string") return "";
+    const marker = `/object/public/${MENU_BUCKET}/`;
+    const i = img.indexOf(marker);
+    if (i >= 0) return img.slice(i + marker.length);
+    if (img.startsWith("dishes/")) return img;
+    return "";
+  }
+
   function imgThumb(d) {
-    const path = d.img || "";
-    if (!path) return `<span class="dm-desk-thumb dm-desk-thumb--empty"></span>`;
-    const src = path.startsWith("http") || path.startsWith("/") ? path : `../menu/${path.replace(/^\.?\/?/, "")}`;
-    return `<span class="dm-desk-thumb"><img src="${esc(src)}" alt="" loading="lazy"></span>`;
+    const src = imgSrc(d.img || "");
+    if (!src) return `<span class="dm-desk-thumb dm-desk-thumb--empty"><span>PHOTO</span></span>`;
+    const fit = d.fit === "contain" ? "object-fit:contain" : "object-fit:cover";
+    return `<span class="dm-desk-thumb"><img src="${esc(src)}" alt="" loading="lazy" style="${fit}"></span>`;
+  }
+
+  function toggleHtml(on, attrs) {
+    return `<button type="button" class="dm-switch${on ? " is-on" : ""}" ${attrs} aria-pressed="${on}"><span class="dm-switch__knob"></span></button>`;
+  }
+
+  async function saveLive(note) {
+    if (!state.menu) return;
+    const payload = {
+      status: "live",
+      version: state.liveVersion || 1,
+      payload: state.menu,
+      note: note || "Staff edit",
+      updated_at: new Date().toISOString(),
+      published_at: new Date().toISOString(),
+    };
+    if (state.liveId) {
+      const { error } = await supabase.from("menu_snapshots").update(payload).eq("id", state.liveId);
+      if (error) throw error;
+    } else {
+      const { data, error } = await supabase.from("menu_snapshots").insert(payload).select("id").single();
+      if (error) throw error;
+      state.liveId = data.id;
+    }
+  }
+
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try {
+        await saveLive();
+        setStatus("menu-data-status", "Saved · live on /menu/", "is-success");
+      } catch (err) {
+        setStatus("menu-data-status", err.message || "Could not save.", "is-error");
+      }
+    }, 450);
+  }
+
+  async function uploadDishImage(dishId, file) {
+    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const path = `dishes/${dishId}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from(MENU_BUCKET).upload(path, file, {
+      upsert: true,
+      contentType: file.type || "image/jpeg",
+    });
+    if (error) throw error;
+    return menuPublicUrl(path);
+  }
+
+  async function removeStoredImage(img) {
+    const path = storagePathFromImg(img);
+    if (!path) return;
+    try {
+      await supabase.storage.from(MENU_BUCKET).remove([path]);
+    } catch (_) {
+      /* best effort */
+    }
+  }
+
+  function renderHub() {
+    const nItems = dishes().length;
+    const nSec = (state.menu?.sections || []).filter((s) => !s.fixed).length;
+    const nGroups = (state.menu?.groups || []).length;
+    const nCats = categories().length;
+    return `<div class="dm-desk-head dm-desk-head--page">
+        <div>
+          <h2 class="dm-desk-title">Menu Desk</h2>
+          <p class="muted">Changes save straight to the guest menu.</p>
+        </div>
+      </div>
+      <div class="master-home dm-menu-hub">
+        <button class="master-choice" type="button" data-menu-go="items">
+          <strong>Menu items</strong>
+          <span>${nItems} dishes · edit photos, prices and options</span>
+        </button>
+        <button class="master-choice" type="button" data-menu-go="sections">
+          <strong>Sections</strong>
+          <span>${nSec} tabs guests see on the menu</span>
+        </button>
+        <button class="master-choice" type="button" data-menu-go="options">
+          <strong>Sizes &amp; options</strong>
+          <span>${nGroups} customise groups and portion presets</span>
+        </button>
+        <button class="master-choice" type="button" data-menu-go="categories">
+          <strong>Categories</strong>
+          <span>${nCats} top menus · Food, Drink, Special</span>
+        </button>
+      </div>`;
   }
 
   function renderItems() {
-    const sections = state.draft?.sections || [];
+    const sections = (state.menu?.sections || []).filter((s) => {
+      if (s.fixed || s.id === "play") return false;
+      if (state.catFilter !== "all" && entityCat(s) !== state.catFilter) return false;
+      return true;
+    });
     const filters = [
-      ["all", "All"],
-      ...sections.filter((s) => !s.fixed).map((s) => [s.id, s.name]),
+      ["all", "All sections"],
+      ...sections.map((s) => [s.id, s.name]),
       ["kids", "Kids sizes"],
     ];
     const list = filteredDishes();
+    const catName = (id) => categories().find((c) => c.id === id)?.name || id;
     const rows = list
       .map((d) => {
-        const price = (d.sizes || []).map((s) => `${s.l} ${s.p}`).join(" · ") || "—";
+        const price = (d.sizes || []).map((s) => `${s.l} ${s.p == null || s.p === "" ? "—" : s.p}`).join(" · ") || "—";
         const customise = (d.groups || []).length ? `<span class="dm-desk-badge">CUSTOMISE</span>` : "";
+        const sold = d.soldOut ? `<span class="dm-desk-badge dm-desk-badge--sold">SOLD OUT</span>` : "";
         const onMenu = !d.hidden;
+        const cat = dishCat(d);
         return `<div class="dm-desk-row${state.editId === d.id ? " is-editing" : ""}" data-row-dish="${esc(d.id)}">
           <div class="dm-desk-cell dm-desk-cell--item">
             ${imgThumb(d)}
             <div class="dm-desk-item-text">
-              <div class="dm-desk-name">${esc(d.name)}${customise}</div>
+              <div class="dm-desk-name">${esc(d.name)}${customise}${sold}</div>
               <div class="dm-desk-desc">${esc(d.short || d.desc || "")}</div>
             </div>
           </div>
-          <div class="dm-desk-cell dm-desk-cell--sec">${esc(sectionLabel(d.sec))}${
+          <div class="dm-desk-cell dm-desk-cell--sec">${esc(catName(cat))} · ${esc(sectionLabel(d.sec))}${
           d.sub ? ` · ${esc(d.sub)}` : ""
         }</div>
           <div class="dm-desk-cell dm-desk-cell--price">${esc(price)}</div>
           <div class="dm-desk-cell dm-desk-cell--on">
-            <button type="button" class="dm-desk-toggle${onMenu ? " is-on" : ""}" data-toggle-on="${esc(
-              d.id
-            )}" aria-pressed="${onMenu}" title="On menu">${onMenu ? "On" : "Off"}</button>
+            ${toggleHtml(onMenu, `data-toggle-on="${esc(d.id)}" title="On menu"`)}
           </div>
           <div class="dm-desk-cell dm-desk-cell--act">
             <button type="button" class="dm-desk-edit" data-edit-dish="${esc(d.id)}">Edit</button>
@@ -184,206 +354,575 @@ export function createMenuDataController({ supabase, setStatus }) {
       })
       .join("");
 
-    const edit = state.editId ? dishes().find((d) => d.id === state.editId) : null;
-    const editor = edit
-      ? `<div class="dm-admin-editor" id="menu-data-editor">
-          <div class="master-panel__head">
-            <h3>Edit · ${esc(edit.name)}</h3>
-            <button type="button" class="btn btn--outline" data-close-dish>Close</button>
-          </div>
-          <label class="field"><span>Name</span><input data-dish-field="name" value="${esc(edit.name)}"></label>
-          <label class="field"><span>Short</span><input data-dish-field="short" value="${esc(edit.short || "")}"></label>
-          <label class="field"><span>Description</span><textarea data-dish-field="desc" rows="3">${esc(
-            edit.desc || ""
-          )}</textarea></label>
-          <label class="field"><span>Image path</span><input data-dish-field="img" value="${esc(
-            edit.img || ""
-          )}" placeholder="img/dishes/id.jpg"></label>
-          <label class="field"><span>Section id</span><input data-dish-field="sec" value="${esc(edit.sec || "")}"></label>
-          <label class="field"><span>Subcategory</span><input data-dish-field="sub" value="${esc(edit.sub || "")}"></label>
-          <label class="field"><span>Tags (comma)</span><input data-dish-field="tags" value="${esc(
-            (edit.tags || []).join(", ")
-          )}"></label>
-          <label class="field"><span>Sizes JSON</span><textarea data-dish-field="sizesJson" rows="3">${esc(
-            JSON.stringify(edit.sizes || [])
-          )}</textarea></label>
-          <label class="field"><span>Groups (comma ids)</span><input data-dish-field="groups" value="${esc(
-            (edit.groups || []).join(", ")
-          )}"></label>
-          <label class="check"><input type="checkbox" data-dish-flag="hidden" ${
-            edit.hidden ? "checked" : ""
-          }> Hidden (off menu)</label>
-          <label class="check"><input type="checkbox" data-dish-flag="soldOut" ${
-            edit.soldOut ? "checked" : ""
-          }> Sold out today</label>
-          <div class="dm-admin-editor__actions">
-            <button type="button" class="btn" data-save-dish>Save item</button>
-            <button type="button" class="btn btn--outline" data-close-dish>Cancel</button>
-          </div>
-        </div>`
-      : `<p class="muted dm-desk-hint">Click a row or Edit to change an item. Toggle On to show it on the guest menu.</p>`;
+    const kidsNote =
+      state.filter === "kids"
+        ? `<div class="dm-desk-note">Kids is filled automatically: every item with a Tiny size shows here, plus Kids’ own items.</div>`
+        : "";
 
     return `<div class="dm-desk-head">
         <div>
-          <h3 class="dm-desk-title">Menu items</h3>
-          <p class="muted">${list.length} of ${dishes().length} items · click Edit to change</p>
+          <h2 class="dm-desk-title">Menu items</h2>
+          <p class="muted">${list.length} of ${dishes().length} items · click a row to edit</p>
         </div>
-        <button type="button" class="btn" data-new-dish>+ New item</button>
+        <div class="dm-desk-head__tools">
+          <input type="search" id="menu-data-query" placeholder="Search dishes" value="${esc(state.query)}">
+          <button type="button" class="btn" data-new-dish>+ New item</button>
+        </div>
       </div>
-      <div class="dm-admin-toolbar">
-        <input type="search" id="menu-data-query" placeholder="Search dishes" value="${esc(state.query)}">
-        <div class="dm-admin-filters">${filters
-          .map(
-            ([id, label]) =>
-              `<button type="button" class="dm-admin-chip${state.filter === id ? " is-active" : ""}" data-menu-filter="${esc(
-                id
-              )}">${esc(label)}</button>`
-          )
-          .join("")}</div>
-      </div>
+      ${catFilterChips()}
+      <div class="dm-admin-filters">${filters
+        .map(
+          ([id, label]) =>
+            `<button type="button" class="dm-admin-chip${state.filter === id ? " is-active" : ""}" data-menu-filter="${esc(
+              id
+            )}">${esc(label)}</button>`
+        )
+        .join("")}</div>
+      ${kidsNote}
       <div class="dm-desk-table" role="table">
         <div class="dm-desk-row dm-desk-row--head" role="row">
           <div class="dm-desk-cell">Item</div>
-          <div class="dm-desk-cell">Section</div>
+          <div class="dm-desk-cell">Category · Section</div>
           <div class="dm-desk-cell">Price ('000)</div>
           <div class="dm-desk-cell">On menu</div>
           <div class="dm-desk-cell"></div>
         </div>
         ${rows || `<p class="muted" style="padding:1rem">No dishes match.</p>`}
-      </div>
-      ${editor}`;
+      </div>`;
   }
 
   function renderSections() {
-    return (state.draft?.sections || [])
-      .map((s) => {
-        return `<div class="dm-admin-card" data-section-id="${esc(s.id)}">
-          <strong>${esc(s.name)}</strong>
-          <label class="check"><input type="checkbox" data-sec-field="visible" ${
-            s.visible !== false ? "checked" : ""
-          }> Visible</label>
-          <label class="field"><span>Layout</span>
-            <select data-sec-field="layout">
-              ${["cards", "list", "prices"]
-                .map((l) => `<option value="${l}" ${s.layout === l ? "selected" : ""}>${l}</option>`)
+    const allSections = state.menu?.sections || [];
+    const sections = allSections.filter((s) => {
+      if (state.catFilter !== "all" && entityCat(s) !== state.catFilter) return false;
+      return true;
+    });
+    const cats = categories();
+    const cards = sections
+      .map((s, idx) => {
+        const absIdx = allSections.findIndex((x) => x.id === s.id);
+        const count = dishes().filter(
+          (d) => d.sec === s.id || (s.auto && (d.sizes || []).some((x) => x.l === "Tiny"))
+        ).length;
+        const subs = (s.subs || [])
+          .map(
+            (sub) =>
+              `<span class="dm-chip-tag">${esc(sub)}<button type="button" data-sec-remove-sub="${esc(
+                s.id
+              )}" data-sub="${esc(sub)}" aria-label="Remove">✕</button></span>`
+          )
+          .join("");
+        const layout =
+          s.layout === "prices"
+            ? `<span class="dm-pill-note">Price table</span>`
+            : `<select data-sec-field="layout" data-section-id="${esc(s.id)}">
+                <option value="cards" ${s.layout === "cards" ? "selected" : ""}>Photo cards</option>
+                <option value="list" ${s.layout === "list" ? "selected" : ""}>Compact list</option>
+              </select>`;
+        const family = entityCat(s);
+        return `<div class="dm-sec-card${s.visible === false ? " is-off" : ""}" data-section-id="${esc(s.id)}">
+          <div class="dm-sec-card__top">
+            <div class="dm-sec-card__move">
+              <button type="button" data-sec-move="up" data-section-id="${esc(s.id)}" ${
+          absIdx <= 0 ? "disabled" : ""
+        } aria-label="Move up">↑</button>
+              <button type="button" data-sec-move="down" data-section-id="${esc(s.id)}" ${
+          absIdx < 0 || absIdx >= allSections.length - 1 ? "disabled" : ""
+        } aria-label="Move down">↓</button>
+            </div>
+            <input class="dm-sec-card__name" data-sec-field="name" data-section-id="${esc(s.id)}" value="${esc(
+          s.name
+        )}">
+            ${layout}
+            <select data-sec-field="family" data-section-id="${esc(s.id)}" title="Category">
+              ${cats
+                .map(
+                  (c) =>
+                    `<option value="${esc(c.id)}" ${c.id === family ? "selected" : ""}>${esc(c.name)}</option>`
+                )
                 .join("")}
             </select>
-          </label>
-          <label class="field"><span>Intro</span><input data-sec-field="intro" value="${esc(s.intro || "")}"></label>
-          <label class="field"><span>Subs (comma)</span><input data-sec-field="subs" value="${esc(
-            (s.subs || []).join(", ")
-          )}"></label>
+            <span class="muted dm-sec-card__count">${count} item${count === 1 ? "" : "s"}</span>
+            <label class="dm-sec-card__on">On menu ${toggleHtml(s.visible !== false, `data-sec-toggle="${esc(
+              s.id
+            )}"`)}</label>
+          </div>
+          <input class="dm-sec-card__intro" data-sec-field="intro" data-section-id="${esc(
+            s.id
+          )}" placeholder="Intro line under the tabs (optional)" value="${esc(s.intro || "")}">
+          ${
+            s.fixed
+              ? ""
+              : `<div class="dm-sec-card__subs">${subs}<input class="dm-sec-card__add-sub" data-sec-add-sub="${esc(
+                  s.id
+                )}" placeholder="+ Sub-section, Enter"></div>`
+          }
         </div>`;
       })
       .join("");
+
+    return `<div class="dm-desk-head">
+        <div>
+          <h2 class="dm-desk-title">Sections</h2>
+          <p class="muted">The tabs guests see, in this order. Sub-sections become the second row of chips.</p>
+        </div>
+        <button type="button" class="btn" data-add-section>+ Section</button>
+      </div>
+      ${catFilterChips()}
+      <div class="dm-sec-list">${cards || `<p class="muted">No sections in this category.</p>`}</div>`;
   }
 
   function renderOptions() {
-    return (state.draft?.groups || [])
-      .map((g) => {
-        return `<div class="dm-admin-card" data-group-id="${esc(g.id)}">
-          <strong>${esc(g.name)}</strong> <span class="muted">(${esc(g.type)})</span>
-          <label class="field"><span>Options JSON</span>
-            <textarea data-group-opts rows="5">${esc(JSON.stringify(g.opts || [], null, 2))}</textarea>
-          </label>
-          <button type="button" class="btn btn--outline" data-save-group>Save options</button>
+    const cats = categories();
+    const sizeRows = (state.menu?.sizes || [])
+      .map((s, i) => {
+        if (state.catFilter !== "all" && entityCat(s) !== state.catFilter) return "";
+        return `<div class="dm-size-row">
+          <input data-preset-size="${i}" data-field="label" value="${esc(s.label || "")}" placeholder="Label">
+          <input data-preset-size="${i}" data-field="note" value="${esc(s.note || "")}" placeholder="Note">
+          <select data-preset-size="${i}" data-field="family" title="Category">
+            ${cats
+              .map(
+                (c) =>
+                  `<option value="${esc(c.id)}" ${c.id === entityCat(s) ? "selected" : ""}>${esc(c.name)}</option>`
+              )
+              .join("")}
+          </select>
         </div>`;
       })
       .join("");
+
+    const groups = (state.menu?.groups || [])
+      .filter((g) => state.catFilter === "all" || entityCat(g) === state.catFilter)
+      .map((g) => {
+        const used = dishes().filter((d) => (d.groups || []).includes(g.id)).length;
+        const opts = (g.opts || [])
+          .map((o, oi) => {
+            const media = o.img
+              ? `<img src="${esc(imgSrc(o.img))}" alt="">`
+              : `<span style="background:${esc(o.dot || "#dcd2be")}"></span>`;
+            return `<div class="dm-opt-row${o.off ? " is-off" : ""}" data-group-id="${esc(g.id)}" data-opt-i="${oi}">
+              <span class="dm-opt-row__swatch">${media}</span>
+              <input data-opt-field="l" value="${esc(o.l || "")}">
+              <input data-opt-field="p" value="${o.p == null ? "" : esc(o.p)}" placeholder="+0">
+              ${toggleHtml(!o.off, `data-opt-toggle="${esc(g.id)}" data-opt-i="${oi}"`)}
+              <button type="button" data-opt-remove="${esc(g.id)}" data-opt-i="${oi}" aria-label="Remove">✕</button>
+            </div>`;
+          })
+          .join("");
+        return `<div class="dm-group-card" data-group-id="${esc(g.id)}">
+          <div class="dm-group-card__head">
+            <input data-group-field="name" value="${esc(g.name)}">
+            <select data-group-field="family" title="Category">
+              ${cats
+                .map(
+                  (c) =>
+                    `<option value="${esc(c.id)}" ${c.id === entityCat(g) ? "selected" : ""}>${esc(c.name)}</option>`
+                )
+                .join("")}
+            </select>
+            <button type="button" class="dm-group-type" data-group-type="${esc(g.id)}">${
+          g.type === "many" ? "Add-ons" : "Pick one"
+        }</button>
+          </div>
+          <p class="muted">Used on ${used} item${used === 1 ? "" : "s"}</p>
+          ${opts}
+          <input class="dm-group-add" data-group-add="${esc(g.id)}" placeholder="+ Add option, Enter">
+        </div>`;
+      })
+      .join("");
+
+    return `<div class="dm-desk-head">
+        <div>
+          <h2 class="dm-desk-title">Sizes &amp; options</h2>
+          <p class="muted">Presets you attach to items. Change an option here and every item using it updates.</p>
+        </div>
+      </div>
+      ${catFilterChips()}
+      <div class="dm-options-block">
+        <div class="dm-options-card">
+          <div class="dm-options-label">Portion size presets</div>
+          ${sizeRows || `<p class="muted">No presets in this category.</p>`}
+          <p class="muted" style="margin:0.5rem 0 0">Any item with a “Tiny” size is listed in Kids automatically.</p>
+        </div>
+        <div class="dm-options-groups-head">
+          <span class="dm-options-label">Customise groups</span>
+          <button type="button" class="btn" data-add-group>+ New group</button>
+        </div>
+        <div class="dm-group-grid">${groups || `<p class="muted">No groups in this category.</p>`}</div>
+      </div>`;
   }
 
-  function renderPublish() {
-    const changed = diffCount(state.draft, state.live);
-    const note = state.draft?.settings?.listNote || "";
-    const baseUrl = state.draft?.settings?.baseUrl || "";
-    return `<div class="dm-admin-card">
-      <p>Live version: <strong>v${state.liveVersion}</strong></p>
-      <p class="muted">${changed ? "Draft has unpublished changes." : "Draft matches live."}</p>
-      <label class="field"><span>Guest list note</span>
-        <input id="menu-list-note" value="${esc(note)}">
-      </label>
-      <label class="field"><span>Base URL</span>
-        <input id="menu-base-url" value="${esc(baseUrl)}">
-      </label>
-      <div class="contact-actions">
-        <button type="button" class="btn" id="menu-save-draft">Save draft</button>
-        <button type="button" class="btn btn--outline" id="menu-publish" ${changed ? "" : "disabled"}>Publish to live</button>
+  function renderCategories() {
+    const cats = categories();
+    const cards = cats
+      .map((c, idx) => {
+        const n = (state.menu?.sections || []).filter((s) => entityCat(s) === c.id && !s.fixed).length;
+        return `<div class="dm-cat-card" data-cat-id="${esc(c.id)}">
+          <div class="dm-cat-card__top">
+            <div class="dm-sec-card__move">
+              <button type="button" data-cat-move="up" data-cat-id="${esc(c.id)}" ${
+          idx === 0 ? "disabled" : ""
+        } aria-label="Move up">↑</button>
+              <button type="button" data-cat-move="down" data-cat-id="${esc(c.id)}" ${
+          idx === cats.length - 1 ? "disabled" : ""
+        } aria-label="Move down">↓</button>
+            </div>
+            <input class="dm-sec-card__name" data-cat-field="name" data-cat-id="${esc(c.id)}" value="${esc(
+          c.name
+        )}">
+            <span class="muted">${n} section${n === 1 ? "" : "s"}</span>
+            <button type="button" class="btn btn--text" data-cat-delete="${esc(c.id)}">Delete</button>
+          </div>
+          <p class="muted" style="margin:0">Id: <code>${esc(c.id)}</code> · used by sections on the guest Food / Drink / Special switcher</p>
+        </div>`;
+      })
+      .join("");
+
+    return `<div class="dm-desk-head">
+        <div>
+          <h2 class="dm-desk-title">Categories</h2>
+          <p class="muted">Top menus guests switch between. Assign sections to a category under Sections.</p>
+        </div>
+        <button type="button" class="btn" data-add-category>+ Category</button>
       </div>
-    </div>`;
+      <div class="dm-sec-list">${cards || `<p class="muted">No categories yet.</p>`}</div>`;
   }
 
   function render() {
     const root = document.getElementById("menu-data-root");
     if (!root) return;
-    root.innerHTML = `
-      <div class="dm-admin-tabs">${renderTabs()}</div>
-      <div class="dm-admin-body">
-        ${
-          state.tab === "items"
-            ? renderItems()
-            : state.tab === "sections"
-              ? renderSections()
-              : state.tab === "options"
-                ? renderOptions()
-                : renderPublish()
-        }
+    if (!state.tab) root.innerHTML = renderHub();
+    else if (state.tab === "items") root.innerHTML = renderItems();
+    else if (state.tab === "sections") root.innerHTML = renderSections();
+    else if (state.tab === "options") root.innerHTML = renderOptions();
+    else if (state.tab === "categories") root.innerHTML = renderCategories();
+    else root.innerHTML = renderHub();
+  }
+
+  function editingDish() {
+    return dishes().find((d) => d.id === state.editId) || null;
+  }
+
+  function fillDrawer() {
+    const drawer = document.getElementById("menu-item-drawer");
+    const body = document.getElementById("menu-item-drawer-body");
+    const title = document.getElementById("menu-item-drawer-title");
+    if (!drawer || !body) return;
+    const dish = editingDish();
+    if (!dish) {
+      drawer.hidden = true;
+      return;
+    }
+    drawer.hidden = false;
+    if (title) title.textContent = dish.name || "Edit item";
+
+    const dishCategory = dishCat(dish);
+    const sections = (state.menu?.sections || []).filter((s) => {
+      if (s.fixed && s.id !== dish.sec) return false;
+      return entityCat(s) === dishCategory || s.id === dish.sec;
+    });
+    const sec = sections.find((s) => s.id === dish.sec);
+    const subOpts = ["", ...((sec && sec.subs) || [])];
+    const src = imgSrc(dish.img || "");
+    const sizes = (dish.sizes || [])
+      .map(
+        (z, i) => `<div class="dm-drawer-size" data-size-i="${i}">
+          <input data-drawer-size-l value="${esc(z.l || "")}">
+          <input data-drawer-size-p value="${z.p == null ? "" : esc(z.p)}" placeholder="Ask us">
+          <button type="button" data-drawer-size-remove="${i}" aria-label="Remove">✕</button>
+        </div>`
+      )
+      .join("");
+    const sizeAdds = (state.menu?.sizes || [])
+      .filter((p) => entityCat(p) === dishCategory)
+      .map((p) => p.label)
+      .filter((l) => l && !(dish.sizes || []).some((z) => z.l === l))
+      .map((l) => `<button type="button" class="dm-dash-chip" data-drawer-add-size="${esc(l)}">+ ${esc(l)}</button>`)
+      .join("");
+    const tags = DIET_TAGS.map((t) => {
+      const on = (dish.tags || []).includes(t);
+      return `<button type="button" class="dm-tag-chip${on ? " is-on" : ""}" data-drawer-tag="${t}">${t}</button>`;
+    }).join("");
+    const groups = (state.menu?.groups || [])
+      .filter((g) => entityCat(g) === dishCategory || (dish.groups || []).includes(g.id))
+      .map((g) => {
+        const on = (dish.groups || []).includes(g.id);
+        return `<button type="button" class="dm-tag-chip${on ? " is-on" : ""}" data-drawer-group="${esc(
+          g.id
+        )}">${esc(g.name)}</button>`;
+      })
+      .join("");
+    const catOpts = categories()
+      .map(
+        (c) =>
+          `<option value="${esc(c.id)}" ${c.id === dishCategory ? "selected" : ""}>${esc(c.name)}</option>`
+      )
+      .join("");
+
+    body.innerHTML = `
+      <div class="dm-drawer-photo">
+        <div class="dm-drawer-photo__frame">${
+          src
+            ? `<img src="${esc(src)}" alt="" style="object-fit:${dish.fit === "contain" ? "contain" : "cover"}">`
+            : `<span class="dm-drawer-photo__empty">No photo yet</span>`
+        }</div>
+        <div class="dm-drawer-photo__actions">
+          <label class="btn">Upload photo<input type="file" accept="image/jpeg,image/png,image/webp" data-drawer-upload hidden></label>
+          ${
+            src
+              ? `<button type="button" class="btn btn--outline" data-drawer-fit>${
+                  dish.fit === "contain" ? "Fit: contain" : "Fit: cover"
+                }</button><button type="button" class="btn btn--text" data-drawer-remove-img>Remove</button>`
+              : ""
+          }
+        </div>
+        <p class="muted">Upload a picture like Events. It shows on the card and in the guest pop-up.</p>
+      </div>
+      <label class="field"><span>Name</span><input data-drawer-field="name" value="${esc(dish.name || "")}"></label>
+      <label class="field"><span>Card line</span><input data-drawer-field="short" value="${esc(
+        dish.short || ""
+      )}"></label>
+      <label class="field"><span>Description · pop-up</span><textarea data-drawer-field="desc" rows="4">${esc(
+        dish.desc || ""
+      )}</textarea></label>
+      <label class="field"><span>Category</span>
+        <select data-drawer-field="cat">${catOpts}</select>
+      </label>
+      <div class="field-row">
+        <label class="field"><span>Section</span>
+          <select data-drawer-field="sec">${sections
+            .map((s) => `<option value="${esc(s.id)}" ${s.id === dish.sec ? "selected" : ""}>${esc(s.name)}</option>`)
+            .join("")}</select>
+        </label>
+        <label class="field"><span>Sub-section</span>
+          <select data-drawer-field="sub">${subOpts
+            .map(
+              (sub) =>
+                `<option value="${esc(sub)}" ${sub === (dish.sub || "") ? "selected" : ""}>${esc(
+                  sub || "—"
+                )}</option>`
+            )
+            .join("")}</select>
+        </label>
+      </div>
+      <div class="dm-drawer-block">
+        <span class="dm-drawer-label">Dietary</span>
+        <div class="dm-chip-row">${tags}</div>
+      </div>
+      <div class="dm-drawer-block">
+        <span class="dm-drawer-label">Sizes &amp; prices · ’000 IDR</span>
+        ${sizes}
+        <div class="dm-chip-row">${sizeAdds}<button type="button" class="dm-dash-chip" data-drawer-add-size="">+ Custom</button></div>
+        <p class="muted">Items with a Tiny size also appear under Kids.</p>
+      </div>
+      <div class="dm-drawer-block">
+        <span class="dm-drawer-label">Customise in pop-up</span>
+        <div class="dm-chip-row">${groups || `<span class="muted">No groups yet — add some under Sizes &amp; options.</span>`}</div>
+      </div>
+      <div class="dm-drawer-flags">
+        <div class="dm-drawer-flag"><span>Show on menu</span>${toggleHtml(!dish.hidden, `data-drawer-flag="hidden"`)}</div>
+        <div class="dm-drawer-flag"><span>Sold out today</span>${toggleHtml(!!dish.soldOut, `data-drawer-flag="soldOut"`)}</div>
       </div>`;
   }
 
-  async function saveDraft(note) {
-    if (!state.draft) return;
-    if (!state.draft.settings) state.draft.settings = {};
-    const listNote = document.getElementById("menu-list-note");
-    const baseUrl = document.getElementById("menu-base-url");
-    if (listNote) state.draft.settings.listNote = listNote.value.trim();
-    if (baseUrl) state.draft.settings.baseUrl = baseUrl.value.trim();
-
-    const payload = {
-      status: "draft",
-      version: state.liveVersion,
-      payload: state.draft,
-      note: note || "Staff edit",
-      updated_at: new Date().toISOString(),
-      published_at: null,
-    };
-    if (state.draftId) {
-      const { error } = await supabase.from("menu_snapshots").update(payload).eq("id", state.draftId);
-      if (error) throw error;
-    } else {
-      const { data, error } = await supabase.from("menu_snapshots").insert(payload).select("id").single();
-      if (error) throw error;
-      state.draftId = data.id;
+  async function closeItemDrawer({ save = true } = {}) {
+    if (save && state.editId) {
+      try {
+        clearTimeout(saveTimer);
+        await saveLive();
+        setStatus("menu-data-status", "Saved · live on /menu/", "is-success");
+      } catch (err) {
+        setStatus("menu-data-status", err.message || "Could not save.", "is-error");
+      }
     }
+    state.editId = null;
+    const drawer = document.getElementById("menu-item-drawer");
+    if (drawer) drawer.hidden = true;
+    render();
   }
 
-  async function publish() {
-    await saveDraft("Published");
-    const nextVersion = (state.liveVersion || 1) + 1;
-    const livePayload = {
-      status: "live",
-      version: nextVersion,
-      payload: state.draft,
-      note: "Published from staff Menu Data",
-      published_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    if (state.liveId) {
-      const { error } = await supabase.from("menu_snapshots").update(livePayload).eq("id", state.liveId);
-      if (error) throw error;
-    } else {
-      const { data, error } = await supabase.from("menu_snapshots").insert(livePayload).select("id").single();
-      if (error) throw error;
-      state.liveId = data.id;
-    }
-    state.live = deepClone(state.draft);
-    state.liveVersion = nextVersion;
+  function openItem(id) {
+    state.editId = id;
+    state.tab = "items";
+    fillDrawer();
+    render();
+  }
+
+  function bindDrawer() {
+    if (drawerBound) return;
+    drawerBound = true;
+    const drawer = document.getElementById("menu-item-drawer");
+    if (!drawer) return;
+
+    drawer.addEventListener("click", async (e) => {
+      if (e.target.closest("[data-menu-drawer-close]") || e.target.closest("[data-menu-drawer-done]")) {
+        await closeItemDrawer({ save: true });
+        return;
+      }
+      if (e.target.closest("[data-menu-drawer-delete]")) {
+        const dish = editingDish();
+        if (!dish) return;
+        if (!confirm(`Delete “${dish.name}”?`)) return;
+        await removeStoredImage(dish.img);
+        state.menu.dishes = dishes().filter((d) => d.id !== dish.id);
+        state.editId = null;
+        drawer.hidden = true;
+        scheduleSave();
+        render();
+        return;
+      }
+      const dish = editingDish();
+      if (!dish) return;
+
+      if (e.target.closest("[data-drawer-fit]")) {
+        dish.fit = dish.fit === "contain" ? "cover" : "contain";
+        fillDrawer();
+        scheduleSave();
+        return;
+      }
+      if (e.target.closest("[data-drawer-remove-img]")) {
+        await removeStoredImage(dish.img);
+        dish.img = "";
+        fillDrawer();
+        scheduleSave();
+        return;
+      }
+      const tag = e.target.closest("[data-drawer-tag]");
+      if (tag) {
+        const t = tag.getAttribute("data-drawer-tag");
+        const cur = new Set(dish.tags || []);
+        if (cur.has(t)) cur.delete(t);
+        else cur.add(t);
+        dish.tags = [...cur];
+        fillDrawer();
+        scheduleSave();
+        return;
+      }
+      const grp = e.target.closest("[data-drawer-group]");
+      if (grp) {
+        const gid = grp.getAttribute("data-drawer-group");
+        const cur = new Set(dish.groups || []);
+        if (cur.has(gid)) cur.delete(gid);
+        else cur.add(gid);
+        dish.groups = [...cur];
+        fillDrawer();
+        scheduleSave();
+        return;
+      }
+      const addSize = e.target.closest("[data-drawer-add-size]");
+      if (addSize) {
+        const label = addSize.getAttribute("data-drawer-add-size") || "Custom";
+        if (!dish.sizes) dish.sizes = [];
+        dish.sizes.push({ l: label || "Custom", p: null });
+        fillDrawer();
+        scheduleSave();
+        return;
+      }
+      const remSize = e.target.closest("[data-drawer-size-remove]");
+      if (remSize) {
+        const i = Number(remSize.getAttribute("data-drawer-size-remove"));
+        dish.sizes.splice(i, 1);
+        fillDrawer();
+        scheduleSave();
+        return;
+      }
+      const flag = e.target.closest("[data-drawer-flag]");
+      if (flag) {
+        const f = flag.getAttribute("data-drawer-flag");
+        if (f === "hidden") dish.hidden = !dish.hidden;
+        if (f === "soldOut") dish.soldOut = !dish.soldOut;
+        fillDrawer();
+        scheduleSave();
+      }
+    });
+
+    drawer.addEventListener("change", async (e) => {
+      const dish = editingDish();
+      if (!dish) return;
+      const fileInput = e.target.closest("[data-drawer-upload]");
+      if (fileInput && fileInput.files?.[0]) {
+        try {
+          setStatus("menu-data-status", "Uploading photo…");
+          const prev = dish.img;
+          dish.img = await uploadDishImage(dish.id, fileInput.files[0]);
+          if (prev && prev !== dish.img) await removeStoredImage(prev);
+          fillDrawer();
+          scheduleSave();
+          setStatus("menu-data-status", "Photo uploaded.", "is-success");
+        } catch (err) {
+          setStatus("menu-data-status", err.message || "Upload failed. Run the menu-images migration.", "is-error");
+        }
+        return;
+      }
+      const field = e.target.closest("[data-drawer-field]");
+      if (field) {
+        const key = field.getAttribute("data-drawer-field");
+        dish[key] = field.value;
+        if (key === "cat") {
+          const firstSec = (state.menu?.sections || []).find(
+            (s) => !s.fixed && entityCat(s) === dish.cat
+          );
+          if (firstSec) {
+            dish.sec = firstSec.id;
+            dish.sub = firstSec.subs?.[0] || "";
+          } else {
+            dish.sub = "";
+          }
+          fillDrawer();
+        } else if (key === "sec") {
+          dish.sub = "";
+          const sec = (state.menu?.sections || []).find((s) => s.id === dish.sec);
+          if (sec) dish.cat = entityCat(sec);
+          fillDrawer();
+        } else if (key === "name") {
+          const t = document.getElementById("menu-item-drawer-title");
+          if (t) t.textContent = dish.name || "Edit item";
+        }
+        scheduleSave();
+      }
+    });
+
+    drawer.addEventListener("input", (e) => {
+      const dish = editingDish();
+      if (!dish) return;
+      const sizeRow = e.target.closest("[data-size-i]");
+      if (sizeRow) {
+        const i = Number(sizeRow.getAttribute("data-size-i"));
+        if (!dish.sizes[i]) return;
+        if (e.target.matches("[data-drawer-size-l]")) dish.sizes[i].l = e.target.value;
+        if (e.target.matches("[data-drawer-size-p]")) {
+          const v = e.target.value.trim();
+          dish.sizes[i].p = v === "" ? null : Number(v);
+        }
+        scheduleSave();
+        return;
+      }
+      const field = e.target.closest("[data-drawer-field]");
+      if (field && field.tagName !== "SELECT") {
+        const key = field.getAttribute("data-drawer-field");
+        dish[key] = field.value;
+        if (key === "name") {
+          const t = document.getElementById("menu-item-drawer-title");
+          if (t) t.textContent = dish.name || "Edit item";
+        }
+        scheduleSave();
+      }
+    });
   }
 
   function bind(root) {
     root.addEventListener("click", async (e) => {
-      const tab = e.target.closest("[data-menu-tab]");
-      if (tab) {
-        state.tab = tab.getAttribute("data-menu-tab");
+      const goTab = e.target.closest("[data-menu-go]");
+      if (goTab) {
+        location.hash = `#/master/menu/${goTab.getAttribute("data-menu-go")}`;
+        return;
+      }
+
+      const catFilter = e.target.closest("[data-cat-filter]");
+      if (catFilter) {
+        state.catFilter = catFilter.getAttribute("data-cat-filter") || "all";
+        state.filter = "all";
         render();
         return;
       }
@@ -395,145 +934,221 @@ export function createMenuDataController({ supabase, setStatus }) {
       }
       const toggleOn = e.target.closest("[data-toggle-on]");
       if (toggleOn) {
+        e.stopPropagation();
         const id = toggleOn.getAttribute("data-toggle-on");
         const dish = dishes().find((d) => d.id === id);
         if (!dish) return;
         dish.hidden = !dish.hidden;
-        saveDraft()
-          .then(() => {
-            setStatus("menu-data-status", dish.hidden ? "Hidden from guest menu." : "Shown on guest menu.", "is-success");
-            render();
-          })
-          .catch((err) => setStatus("menu-data-status", err.message || "Could not update.", "is-error"));
+        scheduleSave();
+        render();
         return;
       }
       if (e.target.closest("[data-new-dish]")) {
         const id = `dish_${Date.now().toString(36)}`;
+        const cat =
+          state.catFilter !== "all" ? state.catFilter : categories()[0]?.id || "food";
+        const secId =
+          state.filter !== "all" && state.filter !== "kids"
+            ? state.filter
+            : (state.menu?.sections || []).find((s) => !s.fixed && entityCat(s) === cat)?.id ||
+              (state.menu?.sections || []).find((s) => !s.fixed)?.id ||
+              "breakfast";
+        const sec = (state.menu?.sections || []).find((s) => s.id === secId);
         const dish = {
           id,
-          name: "New dish",
+          name: "New item",
           short: "",
           desc: "",
           img: "",
-          sec: (state.draft?.sections || []).find((s) => !s.fixed)?.id || "breakfast",
-          sub: "",
+          fit: "cover",
+          cat: entityCat(sec, cat),
+          sec: secId,
+          sub: sec?.subs?.[0] || "",
           tags: [],
-          sizes: [{ l: "Regular", p: 0 }],
+          sizes: [{ l: "Adult", p: null }],
           groups: [],
-          hidden: true,
+          hidden: false,
           soldOut: false,
         };
-        if (!state.draft.dishes) state.draft.dishes = [];
-        state.draft.dishes.unshift(dish);
-        state.editId = id;
-        state.filter = "all";
+        if (!state.menu.dishes) state.menu.dishes = [];
+        state.menu.dishes.unshift(dish);
         state.query = "";
-        render();
-        requestAnimationFrame(() => {
-          document.getElementById("menu-data-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
+        openItem(id);
+        scheduleSave();
         return;
       }
       const edit = e.target.closest("[data-edit-dish]");
       if (edit) {
-        state.editId = edit.getAttribute("data-edit-dish");
-        render();
-        requestAnimationFrame(() => {
-          document.getElementById("menu-data-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
-        });
+        e.stopPropagation();
+        openItem(edit.getAttribute("data-edit-dish"));
         return;
       }
       const row = e.target.closest("[data-row-dish]");
       if (row && !e.target.closest("[data-toggle-on]")) {
-        state.editId = row.getAttribute("data-row-dish");
+        openItem(row.getAttribute("data-row-dish"));
+        return;
+      }
+
+      const move = e.target.closest("[data-sec-move]");
+      if (move) {
+        const id = move.getAttribute("data-section-id");
+        const dir = move.getAttribute("data-sec-move");
+        const list = state.menu.sections;
+        const i = list.findIndex((s) => s.id === id);
+        const j = dir === "up" ? i - 1 : i + 1;
+        if (i < 0 || j < 0 || j >= list.length) return;
+        const [rowSec] = list.splice(i, 1);
+        list.splice(j, 0, rowSec);
+        scheduleSave();
         render();
-        requestAnimationFrame(() => {
-          document.getElementById("menu-data-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        return;
+      }
+      const secToggle = e.target.closest("[data-sec-toggle]");
+      if (secToggle) {
+        const sec = (state.menu.sections || []).find((s) => s.id === secToggle.getAttribute("data-sec-toggle"));
+        if (!sec) return;
+        sec.visible = !(sec.visible !== false);
+        scheduleSave();
+        render();
+        return;
+      }
+      const remSub = e.target.closest("[data-sec-remove-sub]");
+      if (remSub) {
+        const sec = (state.menu.sections || []).find((s) => s.id === remSub.getAttribute("data-sec-remove-sub"));
+        const sub = remSub.getAttribute("data-sub");
+        if (!sec) return;
+        sec.subs = (sec.subs || []).filter((x) => x !== sub);
+        scheduleSave();
+        render();
+        return;
+      }
+      if (e.target.closest("[data-add-section]")) {
+        const id = `s_${Date.now().toString(36)}`;
+        const list = state.menu.sections || [];
+        const playIdx = list.findIndex((s) => s.id === "play");
+        const cat = state.catFilter !== "all" ? state.catFilter : categories()[0]?.id || "food";
+        const rowSec = {
+          id,
+          name: "New section",
+          layout: "cards",
+          visible: false,
+          intro: "",
+          subs: [],
+          family: cat,
+          cat,
+        };
+        if (playIdx >= 0) list.splice(playIdx, 0, rowSec);
+        else list.push(rowSec);
+        scheduleSave();
+        render();
+        return;
+      }
+
+      if (e.target.closest("[data-add-group]")) {
+        if (!state.menu.groups) state.menu.groups = [];
+        const cat = state.catFilter !== "all" ? state.catFilter : categories()[0]?.id || "food";
+        state.menu.groups.push({
+          id: `g_${Date.now().toString(36)}`,
+          name: "New group",
+          type: "one",
+          opts: [],
+          family: cat,
+          cat,
         });
-        return;
-      }
-      if (e.target.closest("[data-close-dish]")) {
-        state.editId = null;
+        scheduleSave();
         render();
         return;
       }
-      if (e.target.closest("[data-save-dish]")) {
-        const dish = dishes().find((d) => d.id === state.editId);
-        if (!dish) return;
-        const editor = root.querySelector(".dm-admin-editor");
-        dish.name = editor.querySelector('[data-dish-field="name"]').value.trim();
-        dish.short = editor.querySelector('[data-dish-field="short"]').value.trim();
-        dish.desc = editor.querySelector('[data-dish-field="desc"]').value.trim();
-        dish.img = editor.querySelector('[data-dish-field="img"]').value.trim();
-        dish.sec = editor.querySelector('[data-dish-field="sec"]').value.trim();
-        dish.sub = editor.querySelector('[data-dish-field="sub"]').value.trim();
-        dish.tags = editor
-          .querySelector('[data-dish-field="tags"]')
-          .value.split(",")
-          .map((x) => x.trim())
-          .filter(Boolean);
-        dish.groups = editor
-          .querySelector('[data-dish-field="groups"]')
-          .value.split(",")
-          .map((x) => x.trim())
-          .filter(Boolean);
-        try {
-          dish.sizes = JSON.parse(editor.querySelector('[data-dish-field="sizesJson"]').value);
-        } catch (_) {
-          setStatus("menu-data-status", "Sizes must be valid JSON.", "is-error");
-          return;
-        }
-        dish.hidden = editor.querySelector('[data-dish-flag="hidden"]').checked;
-        dish.soldOut = editor.querySelector('[data-dish-flag="soldOut"]').checked;
-        try {
-          await saveDraft();
-          setStatus("menu-data-status", "Item saved to draft.", "is-success");
-          state.editId = null;
-          render();
-        } catch (err) {
-          setStatus("menu-data-status", err.message || "Save failed.", "is-error");
-        }
+      const typeBtn = e.target.closest("[data-group-type]");
+      if (typeBtn) {
+        const g = (state.menu.groups || []).find((x) => x.id === typeBtn.getAttribute("data-group-type"));
+        if (!g) return;
+        g.type = g.type === "many" ? "one" : "many";
+        scheduleSave();
+        render();
         return;
       }
-      if (e.target.closest("[data-save-group]")) {
-        const card = e.target.closest("[data-group-id]");
-        const gid = card?.getAttribute("data-group-id");
-        const group = (state.draft.groups || []).find((g) => g.id === gid);
-        if (!group) return;
-        try {
-          group.opts = JSON.parse(card.querySelector("[data-group-opts]").value);
-          await saveDraft();
-          setStatus("menu-data-status", "Options saved to draft.", "is-success");
-        } catch (err) {
-          setStatus("menu-data-status", err.message || "Invalid options JSON.", "is-error");
-        }
+      const optToggle = e.target.closest("[data-opt-toggle]");
+      if (optToggle) {
+        const g = (state.menu.groups || []).find((x) => x.id === optToggle.getAttribute("data-opt-toggle"));
+        const i = Number(optToggle.getAttribute("data-opt-i"));
+        if (!g?.opts?.[i]) return;
+        g.opts[i].off = !g.opts[i].off;
+        scheduleSave();
+        render();
         return;
       }
-      if (e.target.closest("#menu-save-draft")) {
-        try {
-          await saveDraft();
-          setStatus("menu-data-status", "Draft saved.", "is-success");
-          render();
-        } catch (err) {
-          setStatus("menu-data-status", err.message || "Could not save draft.", "is-error");
-        }
+      const optRem = e.target.closest("[data-opt-remove]");
+      if (optRem) {
+        const g = (state.menu.groups || []).find((x) => x.id === optRem.getAttribute("data-opt-remove"));
+        const i = Number(optRem.getAttribute("data-opt-i"));
+        if (!g?.opts) return;
+        g.opts.splice(i, 1);
+        scheduleSave();
+        render();
         return;
       }
-      if (e.target.closest("#menu-publish")) {
-        try {
-          await publish();
-          setStatus("menu-data-status", `Published live v${state.liveVersion}.`, "is-success");
-          render();
-        } catch (err) {
-          setStatus("menu-data-status", err.message || "Publish failed.", "is-error");
-        }
+
+      /* Categories */
+      if (e.target.closest("[data-add-category]")) {
+        const id = `cat_${Date.now().toString(36)}`;
+        if (!state.menu.settings) state.menu.settings = {};
+        if (!state.menu.settings.menus) state.menu.settings.menus = [];
+        state.menu.settings.menus.push({ id, name: "New category" });
+        scheduleSave();
+        render();
+        return;
+      }
+      const catMove = e.target.closest("[data-cat-move]");
+      if (catMove) {
+        const id = catMove.getAttribute("data-cat-id");
+        const dir = catMove.getAttribute("data-cat-move");
+        const list = state.menu.settings.menus;
+        const i = list.findIndex((c) => c.id === id);
+        const j = dir === "up" ? i - 1 : i + 1;
+        if (i < 0 || j < 0 || j >= list.length) return;
+        const [row] = list.splice(i, 1);
+        list.splice(j, 0, row);
+        scheduleSave();
+        render();
+        return;
+      }
+      const catDel = e.target.closest("[data-cat-delete]");
+      if (catDel) {
+        const id = catDel.getAttribute("data-cat-delete");
+        const used = (state.menu.sections || []).filter((s) => entityCat(s) === id).length;
+        if (used && !confirm(`Delete this category? ${used} section(s) use it — they will move to Food.`)) return;
+        const fallback = categories().find((c) => c.id !== id)?.id || "food";
+        (state.menu.sections || []).forEach((s) => {
+          if (entityCat(s) === id) {
+            s.family = fallback;
+            s.cat = fallback;
+          }
+        });
+        (state.menu.dishes || []).forEach((d) => {
+          if (d.cat === id) d.cat = fallback;
+        });
+        (state.menu.groups || []).forEach((g) => {
+          if (entityCat(g) === id) {
+            g.family = fallback;
+            g.cat = fallback;
+          }
+        });
+        (state.menu.sizes || []).forEach((s) => {
+          if (entityCat(s) === id) {
+            s.family = fallback;
+            s.cat = fallback;
+          }
+        });
+        state.menu.settings.menus = categories().filter((c) => c.id !== id);
+        scheduleSave();
+        render();
       }
     });
 
     root.addEventListener("input", (e) => {
       if (e.target.id === "menu-data-query") {
         state.query = e.target.value || "";
-        state.tab = "items";
         render();
         const q = root.querySelector("#menu-data-query");
         if (q) {
@@ -543,52 +1158,152 @@ export function createMenuDataController({ supabase, setStatus }) {
         }
         return;
       }
-      const secCard = e.target.closest("[data-section-id]");
-      if (secCard && e.target.matches("[data-sec-field]")) {
-        const sid = secCard.getAttribute("data-section-id");
-        const sec = (state.draft.sections || []).find((s) => s.id === sid);
+      const secField = e.target.closest("[data-sec-field]");
+      if (secField) {
+        const sid = secField.getAttribute("data-section-id");
+        const sec = (state.menu.sections || []).find((s) => s.id === sid);
         if (!sec) return;
-        const field = e.target.getAttribute("data-sec-field");
-        if (field === "visible") sec.visible = e.target.checked;
-        else if (field === "layout") sec.layout = e.target.value;
-        else if (field === "intro") sec.intro = e.target.value;
-        else if (field === "subs")
-          sec.subs = e.target.value
-            .split(",")
-            .map((x) => x.trim())
-            .filter(Boolean);
+        const field = secField.getAttribute("data-sec-field");
+        if (field === "name" || field === "intro") sec[field] = secField.value;
+        scheduleSave();
+        return;
+      }
+      const catField = e.target.closest("[data-cat-field]");
+      if (catField) {
+        const cat = categories().find((c) => c.id === catField.getAttribute("data-cat-id"));
+        if (!cat) return;
+        cat[catField.getAttribute("data-cat-field")] = catField.value;
+        scheduleSave();
+        return;
+      }
+      const preset = e.target.closest("[data-preset-size]");
+      if (preset) {
+        const i = Number(preset.getAttribute("data-preset-size"));
+        const field = preset.getAttribute("data-field");
+        if (!state.menu.sizes) state.menu.sizes = [];
+        if (!state.menu.sizes[i]) state.menu.sizes[i] = { label: "", note: "", family: "food", cat: "food" };
+        state.menu.sizes[i][field] = preset.value;
+        if (field === "family") state.menu.sizes[i].cat = preset.value;
+        scheduleSave();
+        return;
+      }
+      const gName = e.target.closest("[data-group-field]");
+      if (gName) {
+        const card = gName.closest("[data-group-id]");
+        const g = (state.menu.groups || []).find((x) => x.id === card?.getAttribute("data-group-id"));
+        if (!g) return;
+        const field = gName.getAttribute("data-group-field");
+        g[field] = gName.value;
+        if (field === "family") g.cat = gName.value;
+        scheduleSave();
+        return;
+      }
+      const optField = e.target.closest("[data-opt-field]");
+      if (optField) {
+        const row = optField.closest("[data-opt-i]");
+        const g = (state.menu.groups || []).find((x) => x.id === row?.getAttribute("data-group-id"));
+        const i = Number(row?.getAttribute("data-opt-i"));
+        if (!g?.opts?.[i]) return;
+        const f = optField.getAttribute("data-opt-field");
+        if (f === "p") {
+          const v = optField.value.trim();
+          g.opts[i].p = v === "" ? null : Number(v);
+        } else g.opts[i][f] = optField.value;
+        scheduleSave();
       }
     });
 
-    root.addEventListener("change", async (e) => {
-      if (e.target.closest("[data-section-id]")) {
-        try {
-          await saveDraft();
-          setStatus("menu-data-status", "Section updated in draft.", "is-success");
-        } catch (err) {
-          setStatus("menu-data-status", err.message || "Could not save section.", "is-error");
+    root.addEventListener("change", (e) => {
+      const secField = e.target.closest("[data-sec-field]");
+      if (secField) {
+        const field = secField.getAttribute("data-sec-field");
+        if (field === "layout" || field === "family") {
+          const sid = secField.getAttribute("data-section-id");
+          const sec = (state.menu.sections || []).find((s) => s.id === sid);
+          if (!sec) return;
+          sec[field] = secField.value;
+          if (field === "family") sec.cat = secField.value;
+          scheduleSave();
+          if (field === "family") render();
         }
+      }
+      const preset = e.target.closest("[data-preset-size]");
+      if (preset && preset.getAttribute("data-field") === "family") {
+        const i = Number(preset.getAttribute("data-preset-size"));
+        if (state.menu.sizes?.[i]) {
+          state.menu.sizes[i].family = preset.value;
+          state.menu.sizes[i].cat = preset.value;
+          scheduleSave();
+          render();
+        }
+        return;
+      }
+      const gField = e.target.closest("[data-group-field]");
+      if (gField && gField.getAttribute("data-group-field") === "family") {
+        const card = gField.closest("[data-group-id]");
+        const g = (state.menu.groups || []).find((x) => x.id === card?.getAttribute("data-group-id"));
+        if (!g) return;
+        g.family = gField.value;
+        g.cat = gField.value;
+        scheduleSave();
+        render();
+      }
+    });
+
+    root.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      const addSub = e.target.closest("[data-sec-add-sub]");
+      if (addSub) {
+        e.preventDefault();
+        const sec = (state.menu.sections || []).find((s) => s.id === addSub.getAttribute("data-sec-add-sub"));
+        const val = addSub.value.trim();
+        if (!sec || !val) return;
+        if (!sec.subs) sec.subs = [];
+        if (!sec.subs.includes(val)) sec.subs.push(val);
+        addSub.value = "";
+        scheduleSave();
+        render();
+        return;
+      }
+      const addOpt = e.target.closest("[data-group-add]");
+      if (addOpt) {
+        e.preventDefault();
+        const g = (state.menu.groups || []).find((x) => x.id === addOpt.getAttribute("data-group-add"));
+        const val = addOpt.value.trim();
+        if (!g || !val) return;
+        if (!g.opts) g.opts = [];
+        g.opts.push({ id: `o_${Date.now().toString(36)}`, l: val, p: null });
+        addOpt.value = "";
+        scheduleSave();
+        render();
       }
     });
   }
 
-  let bound = false;
-  let loaded = false;
-
-  async function renderMenuData() {
+  async function renderMenuData(tab) {
     const root = document.getElementById("menu-data-root");
-    if (!loaded || !state.draft) {
+    state.tab = tab || "";
+    if (!loaded || !state.menu) {
       setStatus("menu-data-status", "Loading menu…");
       await load();
       loaded = true;
     }
     render();
+    if (state.editId && state.tab === "items") fillDrawer();
+    else {
+      const drawer = document.getElementById("menu-item-drawer");
+      if (drawer && state.tab !== "items") {
+        drawer.hidden = true;
+        state.editId = null;
+      }
+    }
     if (root && !bound) {
       bind(root);
       bound = true;
     }
-    setStatus("menu-data-status", `Draft ready · live v${state.liveVersion}`);
+    bindDrawer();
+    setStatus("menu-data-status", state.tab ? "Saved changes go live on /menu/" : "");
   }
 
-  return { renderMenuData };
+  return { renderMenuData, closeItemDrawer };
 }

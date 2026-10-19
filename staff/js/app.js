@@ -1,5 +1,5 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-import { createMenuDataController } from "./menu-data.js?v=20261019g";
+import { createMenuDataController } from "./menu-data.js?v=20261019j";
 
 const cfg = window.TINY_SUPABASE || {};
 const supabase = createClient(cfg.url || "", cfg.anonKey || "");
@@ -70,6 +70,7 @@ const state = {
   customerFilters: { name: "", country: "", phone: "", email: "", type: "all" },
   customersShowArchived: false,
   masterSection: "",
+  menuTab: "",
   paymentFilter: "all",
   listSearch: { overview: "", events: "", payments: "" },
   editingEventId: null,
@@ -686,14 +687,12 @@ function parseHash() {
   if (day) return { view: "day", date: day[1] };
   const parts = hash.split("/").filter(Boolean);
   if (parts[0] === "master") {
+    if (parts[1] === "menu") {
+      const menuTab = ["items", "sections", "options", "categories"].includes(parts[2]) ? parts[2] : "";
+      return { view: "master", section: "menu", menuTab };
+    }
     const section =
-      parts[1] === "cakes" ||
-      parts[1] === "promos" ||
-      parts[1] === "decor" ||
-      parts[1] === "bank" ||
-      parts[1] === "menu"
-        ? parts[1]
-        : "";
+      parts[1] === "cakes" || parts[1] === "promos" || parts[1] === "decor" || parts[1] === "bank" ? parts[1] : "";
     return { view: "master", section };
   }
   if (parts[0] === "reservations" || parts[0] === "birthdays") {
@@ -6606,6 +6605,12 @@ function showMasterSection(section) {
   if (bank) bank.hidden = section !== "bank";
   if (menu) menu.hidden = section !== "menu";
   if (pageTitle && state.view === "master") {
+    const menuTitles = {
+      items: "Menu items",
+      sections: "Sections",
+      options: "Sizes & options",
+      categories: "Categories",
+    };
     pageTitle.textContent =
       section === "cakes"
         ? "Cake catalog"
@@ -6616,7 +6621,7 @@ function showMasterSection(section) {
             : section === "bank"
               ? "Bank details"
               : section === "menu"
-                ? "Menu Data"
+                ? menuTitles[state.menuTab] || "Menu Desk"
                 : "Master data";
   }
 }
@@ -6657,7 +6662,7 @@ async function renderMaster() {
   if (section === "decor") await renderDecorCatalog();
   if (section === "promos") await renderPromotions();
   if (section === "bank") await renderBankDetails();
-  if (section === "menu") await menuData.renderMenuData();
+  if (section === "menu") await menuData.renderMenuData(state.menuTab || "");
 }
 
 function decorPublicUrl(path) {
@@ -7029,6 +7034,7 @@ async function route() {
     return;
   }
   state.masterSection = parsed.section || "";
+  state.menuTab = parsed.menuTab || "";
   try {
     await loadRows();
     showInbox(parsed.view || "overview");
@@ -7377,11 +7383,18 @@ document.getElementById("open-decor-catalog")?.addEventListener("click", () => g
 document.getElementById("open-promotions")?.addEventListener("click", () => go("master/promos"));
 document.getElementById("open-bank-details")?.addEventListener("click", () => go("master/bank"));
 document.getElementById("open-menu-data")?.addEventListener("click", () => go("master/menu"));
+document.getElementById("menu-desk-back")?.addEventListener("click", () => {
+  if (state.menuTab) go("master/menu");
+  else go("master");
+});
 document.getElementById("bank-form")?.addEventListener("submit", (event) => {
   saveBankDetails(event).catch((err) => setMasterStatus("bank-status", err.message || "Could not save bank details.", "is-error"));
 });
 document.getElementById("master-view")?.addEventListener("click", (event) => {
-  if (event.target.closest("[data-master-back]")) go("master");
+  if (event.target.closest("[data-master-back]")) {
+    if (state.masterSection === "menu" && state.menuTab) go("master/menu");
+    else go("master");
+  }
 });
 
 document.getElementById("booking-edit-form")?.addEventListener("submit", (event) => {
@@ -7558,6 +7571,7 @@ const DRAWER_CLOSERS = {
   "promo-drawer": closePromoDrawer,
   "cake-drawer": closeCakeDrawer,
   "booking-drawer": closeBookingEditor,
+  "menu-item-drawer": () => menuData.closeItemDrawer?.(),
 };
 
 function closeDrawer(drawer) {
@@ -7568,7 +7582,7 @@ document.addEventListener("click", (e) => {
   const close = e.target.closest("[data-close-drawer]");
   if (close) closeDrawer(close.closest(".drawer"));
 });
-["promo-drawer", "cake-drawer", "booking-drawer"].forEach((id) => {
+["promo-drawer", "cake-drawer", "booking-drawer", "menu-item-drawer"].forEach((id) => {
   const drawer = document.getElementById(id);
   drawer?.addEventListener("click", (e) => {
     if (e.target === drawer) closeDrawer(drawer);
@@ -7597,7 +7611,7 @@ document.addEventListener("keydown", (e) => {
     closeConfirmModal(false);
     return;
   }
-  const openDrawer = ["event-modal", "block-modal", "promo-drawer", "cake-drawer", "booking-drawer"]
+  const openDrawer = ["event-modal", "block-modal", "promo-drawer", "cake-drawer", "booking-drawer", "menu-item-drawer"]
     .map((id) => document.getElementById(id))
     .find((drawer) => drawer && !drawer.hidden);
   if (openDrawer) {

@@ -2,11 +2,15 @@
   "sizes": [
     {
       "label": "Tiny",
-      "note": "0–6 yrs"
+      "note": "0–6 yrs",
+      "family": "food",
+      "cat": "food"
     },
     {
       "label": "Adult",
-      "note": "6+ yrs"
+      "note": "6+ yrs",
+      "family": "food",
+      "cat": "food"
     }
   ],
   "settings": {
@@ -62,7 +66,8 @@
         "Bowls & porridge",
         "Toast & eggs"
       ],
-      "family": "food"
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "lunch",
@@ -76,7 +81,8 @@
         "Pasta",
         "Mains"
       ],
-      "family": "food"
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "kids",
@@ -88,7 +94,8 @@
       "subs": [
         "Tiny tummies"
       ],
-      "family": "food"
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "sweet",
@@ -97,7 +104,8 @@
       "visible": true,
       "intro": "No added sugar.",
       "subs": [],
-      "family": "food"
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "confect",
@@ -110,7 +118,8 @@
         "Cookies",
         "Cupcakes"
       ],
-      "family": "food"
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "cakes",
@@ -119,7 +128,8 @@
       "visible": true,
       "intro": "No added sugar. Pre-order 2 days ahead.",
       "subs": [],
-      "family": "food"
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "extras",
@@ -131,7 +141,8 @@
         "Sides",
         "Sauces & dips"
       ],
-      "family": "food"
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "offers",
@@ -140,7 +151,8 @@
       "visible": true,
       "intro": "",
       "subs": [],
-      "family": "special"
+      "family": "special",
+      "cat": "special"
     },
     {
       "id": "drinks",
@@ -153,7 +165,8 @@
         "Coffee & tea",
         "Juices",
         "Smoothies & shakes"
-      ]
+      ],
+      "cat": "drink"
     },
     {
       "id": "play",
@@ -163,7 +176,8 @@
       "fixed": true,
       "intro": "",
       "subs": [],
-      "family": "food"
+      "family": "food",
+      "cat": "food"
     }
   ],
   "groups": [
@@ -197,7 +211,9 @@
           "shape": "spaghetti",
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "pcolour",
@@ -225,7 +241,9 @@
           "dot": "#E5B54C",
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "pextra",
@@ -238,7 +256,9 @@
           "p": 15,
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "wcolour",
@@ -280,7 +300,9 @@
           "img": "img/options/wcolour-black.jpg",
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "pizzaadd",
@@ -311,7 +333,9 @@
           "p": 15,
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "yog",
@@ -330,7 +354,9 @@
           "p": 25,
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "riceadd",
@@ -349,7 +375,9 @@
           "p": 60,
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "eggadd",
@@ -362,7 +390,9 @@
           "p": 25,
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "patty",
@@ -379,7 +409,9 @@
           "l": "Falafel",
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "flavour",
@@ -403,7 +435,9 @@
           "sub": "Vegan",
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "iceadd",
@@ -416,7 +450,9 @@
           "p": 35,
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "cbase",
@@ -441,7 +477,9 @@
           "sub": "Flourless, gluten free",
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "cfrost",
@@ -469,7 +507,9 @@
           "l": "Blue spirulina",
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     },
     {
       "id": "ctheme",
@@ -496,7 +536,9 @@
           "l": "By request",
           "esbOptionId": null
         }
-      ]
+      ],
+      "family": "food",
+      "cat": "food"
     }
   ],
   "dishes": [
@@ -528,7 +570,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "pizzaw",
@@ -555,7 +598,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "salmonw",
@@ -579,7 +623,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "grilled",
@@ -607,7 +652,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "fruity",
@@ -635,7 +681,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "syrniki",
@@ -663,7 +710,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "pinkbeach",
@@ -691,7 +739,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "banana",
@@ -719,7 +768,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "fruitbowl",
@@ -747,7 +797,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "oat",
@@ -773,7 +824,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "buck",
@@ -801,7 +853,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "chia",
@@ -826,7 +879,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "gravtoast",
@@ -848,7 +902,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "berrytoast",
@@ -870,7 +925,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "avotoast",
@@ -892,7 +948,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "choctoast",
@@ -914,7 +971,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "dippy",
@@ -936,7 +994,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "omelette",
@@ -958,7 +1017,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "tburgers",
@@ -984,7 +1044,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "rolls",
@@ -1013,7 +1074,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "dip",
@@ -1038,7 +1100,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "yogchicken",
@@ -1066,7 +1129,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "polenta",
@@ -1094,7 +1158,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "soup",
@@ -1120,7 +1185,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "rainbowsalad",
@@ -1145,7 +1211,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "gravsalad",
@@ -1169,7 +1236,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "caesar",
@@ -1191,7 +1259,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "burrata",
@@ -1216,7 +1285,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "vpoke",
@@ -1241,7 +1311,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "spoke",
@@ -1265,7 +1336,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "pesto",
@@ -1297,7 +1369,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "tomato",
@@ -1329,7 +1402,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "meatballs",
@@ -1359,7 +1433,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "alfredo",
@@ -1389,7 +1464,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "bolognese",
@@ -1419,7 +1495,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "noodles",
@@ -1449,7 +1526,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "nasi",
@@ -1479,7 +1557,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "risotto",
@@ -1510,7 +1589,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "burger",
@@ -1534,7 +1614,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "chicken",
@@ -1556,7 +1637,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "salmon",
@@ -1580,7 +1662,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "puree",
@@ -1602,7 +1685,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "ppuree",
@@ -1624,7 +1708,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "chocwaffle",
@@ -1650,7 +1735,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "cheesecake",
@@ -1674,7 +1760,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "sponge",
@@ -1698,7 +1785,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "zucchini",
@@ -1724,7 +1812,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "mousse",
@@ -1748,7 +1837,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "scoop",
@@ -1773,7 +1863,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "split",
@@ -1795,7 +1886,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "coconut",
@@ -1817,7 +1909,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "blueearth",
@@ -1839,7 +1932,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "spacerock",
@@ -1861,7 +1955,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "balionaire",
@@ -1883,7 +1978,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "energy",
@@ -1905,7 +2001,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "cookies",
@@ -1927,7 +2024,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "bluecup",
@@ -1949,7 +2047,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "almondcup",
@@ -1971,7 +2070,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "unicorncup",
@@ -1993,7 +2093,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "bdaycake",
@@ -2027,7 +2128,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "bread",
@@ -2049,7 +2151,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "wholewaffle",
@@ -2077,7 +2180,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "avocado",
@@ -2099,7 +2203,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "sidesalmon",
@@ -2121,7 +2226,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "egg",
@@ -2143,7 +2249,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "csausage",
@@ -2165,7 +2272,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "vsausage",
@@ -2187,7 +2295,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "breast",
@@ -2209,7 +2318,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "greek",
@@ -2231,7 +2341,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "cocoyog",
@@ -2253,7 +2364,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "honey",
@@ -2275,7 +2387,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "bluerice",
@@ -2297,7 +2410,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "meatball",
@@ -2319,7 +2433,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "wedges",
@@ -2341,7 +2456,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "stomato",
@@ -2363,7 +2479,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "sdill",
@@ -2385,7 +2502,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "stzatziki",
@@ -2407,7 +2525,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "sedamame",
@@ -2429,7 +2548,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "sbeet",
@@ -2451,7 +2571,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "sberry",
@@ -2473,7 +2594,8 @@
       "hidden": false,
       "soldOut": false,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "food"
     },
     {
       "id": "o-party",
@@ -2496,7 +2618,8 @@
       "soldOut": false,
       "sample": true,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "special"
     },
     {
       "id": "o-duo",
@@ -2519,7 +2642,8 @@
       "soldOut": false,
       "sample": true,
       "esbMenuId": null,
-      "esbMenuCode": null
+      "esbMenuCode": null,
+      "cat": "special"
     }
   ],
   "playground": {

@@ -61,11 +61,18 @@
   }
 
   function sectionFamily(section) {
+    if (section?.cat) return section.cat;
     if (section?.family) return section.family;
     const id = section?.id || "";
     if (id === "drinks" || id === "drink") return "drink";
     if (id === "offers" || id === "special") return "special";
     return "food";
+  }
+
+  function dishCat(menu, dish) {
+    if (dish?.cat) return dish.cat;
+    const sec = (menu?.sections || []).find((s) => s.id === dish?.sec);
+    return sectionFamily(sec);
   }
 
   function visibleSections(menu, familyId) {
@@ -209,17 +216,17 @@
         ${mediaInner}
       </button>
       <div class="dm-card__body">
-        <button type="button" class="dm-card__open" data-open-dish="${esc(dish.id)}">
-          <h3 class="dm-card__name">${esc(dish.name)}</h3>
-          <p class="dm-card__short">${esc(dish.short || "")}</p>
-        </button>
-        ${sold}
-        ${(dish.sizes || []).length > 1 ? `<div class="dm-card__sizes">${sizes}</div>` : ""}
-        <div class="dm-card__price">${esc(fmtPrice(size.p))}</div>
-        ${oneGroups}
-        <div class="dm-card__foot">
-          <button type="button" class="dm-card__more" data-open-dish="${esc(dish.id)}">More</button>
+        <div class="dm-card__clip">
+          <button type="button" class="dm-card__open" data-open-dish="${esc(dish.id)}">
+            <h3 class="dm-card__name">${esc(dish.name)}</h3>
+            <p class="dm-card__short">${esc(dish.short || "")}</p>
+          </button>
+          ${sold}
+          ${(dish.sizes || []).length > 1 ? `<div class="dm-card__sizes">${sizes}</div>` : ""}
+          <div class="dm-card__price">${esc(fmtPrice(size.p))}</div>
+          ${oneGroups}
         </div>
+        <button type="button" class="dm-card__more" data-open-dish="${esc(dish.id)}" hidden>See more</button>
       </div>
     </article>`;
   }
@@ -287,6 +294,7 @@
     sectionDishes,
     menuFamilies,
     sectionFamily,
+    dishCat,
     visibleSections,
     kidsDishes,
     pastaShapeSrc,

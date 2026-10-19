@@ -5,17 +5,15 @@ if (!defined('ABSPATH')) {
 ?>
   <div class="dm" id="dm-app" aria-busy="true">
     <header class="dm-hero">
-      <div class="dm-hero__inner">
-        <p class="dm-eyebrow">Tiny Healthy Cafe · Berawa</p>
-        <h1 class="dm-title">Our menu</h1>
-        <p class="dm-sub">Browse dishes and options. Order online anytime.</p>
-        <div class="dm-hero__actions">
-          <a class="dm-btn dm-btn--ghost" href="pdf/tiny-food-menu.pdf" download>Download PDF</a>
-          <a class="dm-btn dm-btn--ghost" href="../reserve/">Reserve a table</a>
-        </div>
+      <p class="dm-eyebrow">Tiny Healthy Cafe · Berawa</p>
+      <h1 class="dm-title">Our menu</h1>
+      <p class="dm-sub">Browse dishes and options. Order online anytime.</p>
+      <div class="dm-hero__actions">
+        <a class="dm-btn dm-btn--ghost" href="../reserve/">Reserve a table</a>
       </div>
     </header>
 
+    <div class="dm-menus" id="dm-menus" role="tablist" aria-label="Menu type"></div>
     <div class="dm-toolbar" id="dm-sections" role="tablist" aria-label="Menu sections"></div>
     <div class="dm-subs" id="dm-subs" hidden></div>
     <p class="dm-intro" id="dm-intro" hidden></p>
