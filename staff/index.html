@@ -295,6 +295,10 @@
               <strong>Promotions</strong>
               <span>Create discounts and promo codes</span>
             </button>
+            <button class="master-choice" type="button" id="open-bank-details">
+              <strong>Bank details</strong>
+              <span>Account details printed on invoices</span>
+            </button>
           </div>
           <div class="master-stack" hidden>
             <section class="master-panel" id="master-cakes" hidden>
@@ -347,6 +351,22 @@
                   <tbody id="promo-list"></tbody>
                 </table>
               </div>
+            </section>
+            <section class="master-panel" id="master-bank" hidden>
+              <button class="btn btn--outline back" type="button" data-master-back>Back</button>
+              <div class="master-panel__head">
+                <div>
+                  <h2>Bank details</h2>
+                  <p class="muted">These details are printed on birthday invoices.</p>
+                </div>
+              </div>
+              <form id="bank-form" class="master-form">
+                <label class="field"><span>Bank</span><input id="bank-name" required maxlength="80" autocomplete="organization"></label>
+                <label class="field"><span>Account name</span><input id="bank-account-name" required maxlength="120" autocomplete="name"></label>
+                <label class="field"><span>Account number</span><input id="bank-account-number" required maxlength="40" inputmode="numeric" autocomplete="off"></label>
+                <button class="btn" type="submit">Save bank details</button>
+                <p class="status" id="bank-status" role="status"></p>
+              </form>
             </section>
           </div>
         </div>
@@ -744,6 +764,6 @@
   </div>
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/reserve-tables.js?v=20261006b"></script>
-  <script type="module" src="js/app.js?v=20261014f"></script>
+  <script type="module" src="js/app.js?v=20261019a"></script>
 </body>
 </html>

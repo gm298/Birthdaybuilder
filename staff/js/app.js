@@ -9,7 +9,7 @@ const EVENT_STATUSES = ["booked", "cancelled", "closed"];
 const PENDING_STATUSES = ["new", "contacted", "quoted"];
 const INACTIVE_STATUSES = ["cancelled", "rejected", "closed", "noshow"];
 const REQUEST_SELECT =
-  "id, created_at, source, status, public_code, email, phone, contact_name, child_name, child_age, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload, files, google_event_id, google_event_ids, archived_at, archived_by";
+  "id, created_at, source, status, public_code, manage_token, email, phone, contact_name, child_name, child_age, party_date, party_time, package_name, guest_adults, guest_kids, quote_total_idr, payload, files, google_event_id, google_event_ids, archived_at, archived_by";
 
 const loginCard = document.getElementById("login-card");
 const app = document.getElementById("app");
@@ -36,6 +36,7 @@ const BANK = {
   accountName: "Tiny Healthy Cafe",
   accountNumber: "",
 };
+let bankDetails = { ...BANK };
 const PAYMENT_METHODS = ["Permata EDC", "Permata QRIS", "Bank Transfer", "Cash"];
 const RESERVE_PURPOSES = ["Family meal", "Friends", "Reunion", "Birthday", "Business", "Other"];
 let invoiceSelectedTables = new Set();
@@ -676,7 +677,7 @@ function parseHash() {
   if (day) return { view: "day", date: day[1] };
   const parts = hash.split("/").filter(Boolean);
   if (parts[0] === "master") {
-    const section = parts[1] === "cakes" || parts[1] === "promos" || parts[1] === "decor" ? parts[1] : "";
+    const section = parts[1] === "cakes" || parts[1] === "promos" || parts[1] === "decor" || parts[1] === "bank" ? parts[1] : "";
     return { view: "master", section };
   }
   if (parts[0] === "reservations" || parts[0] === "birthdays") {
@@ -992,6 +993,11 @@ function bookingCard(row, opts = {}) {
   if (showNoShow) {
     actionBtns.push(
       `<button class="btn btn--outline" type="button" data-noshow="${escapeHtml(row.id)}">No-show</button>`
+    );
+  }
+  if (showActions && (eventType(row) === "birthday" || eventType(row) === "event")) {
+    actionBtns.push(
+      `<button class="btn btn--outline" type="button" data-copy-link="${eventType(row) === "event" ? "event" : "booking"}" data-request-id="${escapeHtml(row.id)}">Copy link</button>`
     );
   }
   if (showActions && archived) {
@@ -2590,10 +2596,13 @@ function guestRequestCard(item) {
       } · ${escapeHtml(item.payment === "paid" ? "Paid" : "Pay onsite")}</div>
     </div>
   </button>`;
+  const copyGuest = `<button class="btn btn--outline" type="button" data-copy-link="guest" data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Copy link</button>`;
   const actions = item.archived
-    ? `<button class="btn btn--outline" type="button" data-restore-guest data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Restore</button>
+    ? `${copyGuest}
+       <button class="btn btn--outline" type="button" data-restore-guest data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Restore</button>
        <button class="btn btn--outline" type="button" data-delete-guest data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Delete</button>`
-    : `<button class="btn btn--outline" type="button" data-archive-guest data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Archive</button>
+    : `${copyGuest}
+       <button class="btn btn--outline" type="button" data-archive-guest data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Archive</button>
        <button class="btn btn--outline" type="button" data-delete-guest data-event-id="${escapeHtml(item.eventId)}" data-guest-id="${escapeHtml(item.guestId)}">Delete</button>`;
   return `<div class="booking-card-wrap">${card}<div class="booking-card-actions">${actions}</div></div>`;
 }
@@ -3622,6 +3631,114 @@ function feedbackUrl(row) {
   return "";
 }
 
+function publicSiteBase() {
+  const path = String(window.location.pathname || "");
+  const nested = path.match(/^(.*?\/Birthdaybuilder)(?:\/|$)/i);
+  if (nested) return `${window.location.origin}${nested[1]}`;
+  const staff = path.match(/^(.*)\/staff(?:\/|$)/i);
+  if (staff) return `${window.location.origin}${staff[1]}`;
+  return window.location.origin;
+}
+
+function publicPageUrl(page, params) {
+  const base = publicSiteBase().replace(/\/$/, "");
+  const url = new URL(`${base}/${String(page).replace(/^\/|\/$/g, "")}/`);
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value != null && String(value) !== "") url.searchParams.set(key, String(value));
+  });
+  return url.href;
+}
+
+async function copyText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return;
+  } catch {
+    /* fall through */
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.left = "-9999px";
+  document.body.appendChild(area);
+  area.select();
+  document.execCommand("copy");
+  area.remove();
+}
+
+async function ensureManageToken(row) {
+  if (row?.manage_token) return row.manage_token;
+  const token = globalThis.crypto.randomUUID();
+  const { error } = await supabase.from("requests").update({ manage_token: token }).eq("id", row.id);
+  if (error) throw error;
+  row.manage_token = token;
+  const cached = state.rows.find((item) => item.id === row.id);
+  if (cached && cached !== row) cached.manage_token = token;
+  return token;
+}
+
+async function ensureGuestToken(eventId, guestId) {
+  const found = findGuestOnEvent(eventId, guestId);
+  if (!found) throw new Error("Could not find that guest.");
+  let token = found.guests[found.index].token;
+  if (!token) {
+    token = globalThis.crypto.randomUUID();
+    found.guests[found.index] = { ...found.guests[found.index], token };
+    await saveEventGuests(found.row, found.guests);
+  }
+  return token;
+}
+
+async function copyStaffLink(button) {
+  const kind = button.dataset.copyLink;
+  const requestId = button.dataset.requestId || "";
+  let url = "";
+  if (kind === "guest") {
+    const token = await ensureGuestToken(button.dataset.eventId, button.dataset.guestId);
+    url = publicPageUrl("events", { g: token });
+  } else {
+    let row = state.rows.find((item) => item.id === requestId);
+    if (!row) {
+      const { data, error } = await supabase.from("requests").select("*").eq("id", requestId).maybeSingle();
+      if (error || !data) throw error || new Error("Could not find that booking.");
+      row = rememberRow(data);
+    }
+    if (kind === "event") {
+      if (!row.public_code) throw new Error("This event has no public page yet.");
+      url = publicPageUrl("events", { e: row.public_code });
+    } else {
+      url = publicPageUrl("booking", { t: await ensureManageToken(row) });
+    }
+  }
+  await copyText(url);
+  const previous = button.textContent;
+  button.textContent = "Copied";
+  window.setTimeout(() => {
+    if (button.isConnected) button.textContent = previous;
+  }, 1600);
+}
+
+function bankFromValue(value) {
+  return {
+    bank: String(value?.bank || "").trim() || BANK.bank,
+    accountName: String(value?.accountName || "").trim() || BANK.accountName,
+    accountNumber: String(value?.accountNumber || "").trim(),
+  };
+}
+
+async function loadBankDetails() {
+  const { data, error } = await supabase.from("site_settings").select("value").eq("key", "bank").maybeSingle();
+  if (!error && data?.value) bankDetails = bankFromValue(data.value);
+  return bankDetails;
+}
+
+function invoiceBank(quote) {
+  const saved = quote?.bank || {};
+  if (String(saved.accountNumber || "").trim()) return bankFromValue(saved);
+  return bankDetails;
+}
+
 function quoteLineValue(line) {
   if (line?.note) return 0;
   const qty = Number(line.qty) || 1;
@@ -3785,9 +3902,9 @@ function readQuoteEditor() {
     .filter((line) => line.label || line.value);
   const totals = quoteTotalsFromLines(lines);
   const bank = {
-    bank: document.getElementById("invoice-bank")?.value.trim() || BANK.bank,
-    accountName: document.getElementById("invoice-account-name")?.value.trim() || BANK.accountName,
-    accountNumber: document.getElementById("invoice-account-number")?.value.trim() || BANK.accountNumber,
+    bank: document.getElementById("invoice-bank")?.value.trim() || bankDetails.bank,
+    accountName: document.getElementById("invoice-account-name")?.value.trim() || bankDetails.accountName,
+    accountNumber: document.getElementById("invoice-account-number")?.value.trim() || bankDetails.accountNumber,
   };
   return { lines, ...totals, currency: "IDR", bank };
 }
@@ -4269,14 +4386,16 @@ function invoicePdfMarkup(form, row, extras) {
     </div>
     <img class="qp-flowers qp-flowers--right" src="${flowers2}" alt="">
   </div>`];
-  if (extras.backdropUrl) {
+  const decorSrc = extras.decorPhotoUrl || extras.backdropUrl;
+  if (decorSrc) {
     const colours = (extras.decor?.balloonColours || [])
       .map((colour) => colour.label || colour.hex)
       .filter(Boolean)
       .join(", ");
+    const title = extras.decorPhotoUrl ? "Decoration" : "Backdrop mockup";
     pages.push(`<div class="qp-page">${header}${meta}
-      <h2 class="qp-rules-title">Backdrop mockup</h2>
-      <img class="qp-mockup" src="${escapeHtml(extras.backdropUrl)}" alt="Backdrop">
+      <h2 class="qp-rules-title">${title}</h2>
+      <img class="qp-mockup" src="${escapeHtml(decorSrc)}" alt="${title}">
       <p class="qp-estimate">${escapeHtml([extras.decor?.backdropName ? `Name: ${extras.decor.backdropName}` : "", colours ? `Balloon colours: ${colours}` : "", form.decor?.notes || ""].filter(Boolean).join(". "))}</p>
     </div>`);
   }
@@ -4542,6 +4661,9 @@ function slotGuestCardHtml(entry, slots, eventRow, focusGuestId, number) {
       ${slotMoveField(guest, slots, eventId, guestId)}
     </div>
     <div class="slot-guest__actions">
+      <button class="slot-guest__link" type="button" data-copy-link="guest" data-event-id="${escapeHtml(
+        eventId
+      )}" data-guest-id="${escapeHtml(guestId)}">Copy link</button>
       <button class="slot-guest__link" type="button" data-archive-guest data-event-id="${escapeHtml(
         eventId
       )}" data-guest-id="${escapeHtml(guestId)}">Archive</button>
@@ -4879,11 +5001,11 @@ async function openBookingEditor(row) {
   if (entertainHost) entertainHost.innerHTML = choiceListHtml(choices.entertainment, picked);
 
   const files = row.files || {};
-  const [decorUrl, cakeUrl] = await Promise.all([
-    signedUrl(files.decorPhoto || files.backdropPng),
+  const [decorResolved, cakeUrl] = await Promise.all([
+    staffDecorReplacementUrl(decor, files),
     signedUrl(files.cakePhoto),
   ]);
-  setPreview("booking-decor-preview", decorUrl);
+  setPreview("booking-decor-preview", decorResolved.url);
   setPreview("booking-cake-preview", cakeUrl);
   const status = document.getElementById("booking-edit-status");
   if (status) {
@@ -5079,13 +5201,12 @@ async function loadDetail(id) {
   const isReservation = type === "reservation";
   const isEvent = type === "event";
   const statuses = isEvent ? EVENT_STATUSES : ALL_STATUSES;
-  const [pdfUrl, backdropUrl, cakeUrl, decorPhotoUrl] = await Promise.all([
+  const [pdfUrl, cakeUrl, decorResolved] = await Promise.all([
     signedUrl(files.quotePdf),
-    signedUrl(files.backdropPng),
     signedUrl(files.cakePhoto),
-    signedUrl(files.decorPhoto),
+    staffDecorReplacementUrl(decor, files),
   ]);
-  const decorPicture = decorPhotoUrl || backdropUrl;
+  const decorPicture = decorResolved.url;
   const eventPhotoPaths = files.eventPhotos || [];
   const eventPhotoUrls = await Promise.all(eventPhotoPaths.map((path) => signedUrl(path)));
   const galleryUrls = eventGalleryFrom(payload.event || {});
@@ -5129,7 +5250,8 @@ async function loadDetail(id) {
         <div class="staff-top__meta">
           ${
             type === "birthday"
-              ? `<button class="btn" type="button" id="edit-booking">Edit booking</button>`
+              ? `<button class="btn" type="button" id="edit-booking">Edit booking</button>
+                 <button class="btn btn--outline" type="button" data-copy-link="booking" data-request-id="${escapeHtml(row.id)}">Copy link</button>`
               : ""
           }
           <label class="field" style="margin:0;min-width:160px">
@@ -5161,7 +5283,12 @@ async function loadDetail(id) {
             ? `<a class="btn" href="${escapeHtml(feedbackUrl(row))}" target="_blank" rel="noopener">Ask for guest feedback</a>`
             : ""
         }
-        ${isEvent ? `<button class="btn" type="button" id="edit-event">Edit event</button>` : ""}
+        ${
+          isEvent
+            ? `<button class="btn" type="button" id="edit-event">Edit event</button>
+               <button class="btn btn--outline" type="button" data-copy-link="event" data-request-id="${escapeHtml(row.id)}">Copy link</button>`
+            : ""
+        }
         ${
           isArchived(row)
             ? `<button class="btn btn--outline" type="button" id="restore-request">Restore</button>`
@@ -5683,17 +5810,18 @@ async function loadInvoice(id) {
   const decor = payload.decor || {};
   const reservation = payload.reservation || {};
   const files = row.files || {};
-  const [cakeUrl, backdropUrl, decorPhotoUrl] = await Promise.all([
+  const [cakeUrl, decorResolved] = await Promise.all([
     signedUrl(files.cakePhoto),
-    signedUrl(files.backdropPng),
-    signedUrl(files.decorPhoto),
+    staffDecorReplacementUrl(decor, files),
+    loadBankDetails(),
   ]);
-  const decorPicture = decorPhotoUrl || backdropUrl;
+  const decorPicture = decorResolved.url;
   invoiceSelectedTables = new Set(reservation.tableIds || []);
   const guests = payload.party?.guests || [];
   const payment = payload.payment || {};
   const amounts = paymentAmounts(row, quote);
   const catalog = await loadPartyCatalog().catch(() => null);
+  const bank = invoiceBank(quote);
   pageTitle.textContent = `Invoice · ${row.public_code}`;
   detailView.innerHTML = `
     <button class="btn btn--outline back" type="button" id="back-list">Back</button>
@@ -5722,9 +5850,10 @@ async function loadInvoice(id) {
           <button class="btn btn--outline" type="button" id="quote-add-line">Add item</button>
           ${quoteAddPanelHtml(catalog, row.guest_kids || 1)}
           <div id="quote-totals"></div>
-          <label class="field"><span>Bank</span><input id="invoice-bank" value="${escapeHtml(quote.bank?.bank || BANK.bank)}"></label>
-          <label class="field"><span>Account name</span><input id="invoice-account-name" value="${escapeHtml(quote.bank?.accountName || BANK.accountName)}"></label>
-          <label class="field"><span>Account number</span><input id="invoice-account-number" value="${escapeHtml(quote.bank?.accountNumber || BANK.accountNumber)}"></label>
+          <label class="field"><span>Bank</span><input id="invoice-bank" value="${escapeHtml(bank.bank)}"></label>
+          <label class="field"><span>Account name</span><input id="invoice-account-name" value="${escapeHtml(bank.accountName)}"></label>
+          <label class="field"><span>Account number</span><input id="invoice-account-number" value="${escapeHtml(bank.accountNumber)}"></label>
+          <p class="muted">Taken from Master data. Change them here only for this invoice.</p>
         </section>
         <section>
           <h3>Decoration</h3>
@@ -5745,7 +5874,7 @@ async function loadInvoice(id) {
                 : "—"
             }</span></li>
           </ul>
-          ${decorPicture ? `<img class="hero-img" src="${escapeHtml(decorPicture)}" alt="Decoration">` : ""}
+          ${decorPicture ? `<img class="hero-img" id="invoice-decor-preview" src="${escapeHtml(decorPicture)}" alt="Decoration">` : `<img class="hero-img" id="invoice-decor-preview" alt="Decoration" hidden>`}
           <label class="field"><span>Decoration notes</span><textarea id="invoice-decor-notes" rows="3">${escapeHtml(decor.notes || "")}</textarea></label>
           <label class="field"><span>Replace decoration picture</span><input type="file" id="invoice-decor-file" accept="image/jpeg,image/png,image/webp"></label>
           <button class="btn" type="button" id="edit-decoration">Edit decoration</button>
@@ -5828,6 +5957,11 @@ async function loadInvoice(id) {
     document.getElementById("custom-item-qty").value = "1";
     document.getElementById("quote-add-panel").hidden = true;
   });
+  document.getElementById("invoice-decor-file")?.addEventListener("change", async () => {
+    const file = document.getElementById("invoice-decor-file")?.files?.[0];
+    if (!file) return;
+    setPreview("invoice-decor-preview", await fileToDataUrl(file));
+  });
   document.getElementById("edit-decoration")?.addEventListener("click", async () => {
     const ok = await persistInvoice(false);
     if (ok) openDecorBuilder(row.id);
@@ -5868,11 +6002,13 @@ async function loadInvoice(id) {
       if (cakeFile) nextFiles.cakePhoto = await uploadStaffFile(row.id, "cake", cakeFile);
       const decorFile = document.getElementById("invoice-decor-file")?.files?.[0];
       if (decorFile) nextFiles.decorPhoto = await uploadStaffFile(row.id, "decor", decorFile);
+      const decorForInvoice = await invoiceDecorPicture(nextPayload.decor, nextFiles);
       if (send) {
         const blob = await createInvoicePdfBlob(form, row, {
           decor: nextPayload.decor,
           cakeUrl,
-          backdropUrl,
+          decorPhotoUrl: decorForInvoice.replaced ? decorForInvoice.url : "",
+          backdropUrl: decorForInvoice.replaced ? "" : decorForInvoice.url,
           payment: nextPayload.payment,
         });
         const path = `${row.id}/invoice.pdf`;
@@ -5934,10 +6070,12 @@ async function loadInvoice(id) {
     }
     try {
       const form = readInvoiceForm(row);
+      const decorForInvoice = await invoiceDecorPicture({ ...decor, notes: form.decor.notes }, files);
       const blob = await createInvoicePdfBlob(form, row, {
         decor: { ...decor, notes: form.decor.notes },
         cakeUrl,
-        backdropUrl,
+        decorPhotoUrl: decorForInvoice.replaced ? decorForInvoice.url : "",
+        backdropUrl: decorForInvoice.replaced ? "" : decorForInvoice.url,
         payment: readPaymentForm(form.quote.dp30, Math.max(0, form.quote.total - form.quote.dp30)),
       });
       downloadBlob(blob, `${row.public_code || "invoice"}-invoice.pdf`);
@@ -6142,12 +6280,14 @@ function showMasterSection(section) {
   const cakes = document.getElementById("master-cakes");
   const decor = document.getElementById("master-decor");
   const promos = document.getElementById("master-promos");
+  const bank = document.getElementById("master-bank");
   const stack = document.querySelector("#master-view .master-stack");
   if (home) home.hidden = Boolean(section);
   if (stack) stack.hidden = !section;
   if (cakes) cakes.hidden = section !== "cakes";
   if (decor) decor.hidden = section !== "decor";
   if (promos) promos.hidden = section !== "promos";
+  if (bank) bank.hidden = section !== "bank";
   if (pageTitle && state.view === "master") {
     pageTitle.textContent =
       section === "cakes"
@@ -6156,8 +6296,38 @@ function showMasterSection(section) {
           ? "Decorations"
           : section === "promos"
             ? "Promotions"
-            : "Master data";
+            : section === "bank"
+              ? "Bank details"
+              : "Master data";
   }
+}
+
+async function renderBankDetails() {
+  const bank = await loadBankDetails();
+  const name = document.getElementById("bank-name");
+  const accountName = document.getElementById("bank-account-name");
+  const accountNumber = document.getElementById("bank-account-number");
+  if (name) name.value = bank.bank || "";
+  if (accountName) accountName.value = bank.accountName || "";
+  if (accountNumber) accountNumber.value = bank.accountNumber || "";
+}
+
+async function saveBankDetails(event) {
+  event.preventDefault();
+  const bank = document.getElementById("bank-name")?.value.trim() || "";
+  const accountName = document.getElementById("bank-account-name")?.value.trim() || "";
+  const accountNumber = document.getElementById("bank-account-number")?.value.trim() || "";
+  if (!bank || !accountName || !accountNumber) throw new Error("Bank, account name, and account number are required.");
+  setMasterStatus("bank-status", "Saving…");
+  const value = { bank, accountName, accountNumber };
+  const { error } = await supabase.from("site_settings").upsert({
+    key: "bank",
+    value,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+  bankDetails = bankFromValue(value);
+  setMasterStatus("bank-status", "Bank details saved. New invoices will use them.", "is-success");
 }
 
 async function renderMaster() {
@@ -6167,10 +6337,45 @@ async function renderMaster() {
   if (section === "cakes") await renderCakeCatalog();
   if (section === "decor") await renderDecorCatalog();
   if (section === "promos") await renderPromotions();
+  if (section === "bank") await renderBankDetails();
 }
 
 function decorPublicUrl(path) {
   return `${cfg.url}/storage/v1/object/public/decor-catalog/${path}`;
+}
+
+function fileToDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(reader.error || new Error("Could not read the picture."));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function staffDecorReplacementUrl(decor, files) {
+  if (files?.decorPhoto) {
+    const uploaded = await signedUrl(files.decorPhoto);
+    if (uploaded) return { url: uploaded, replaced: true };
+  }
+  const slots = [];
+  if (decor?.themeId && decor.themeId !== "custom") slots.push(`decor-theme:${decor.themeId}`);
+  if (decor?.packageId) slots.push(`decor-package:${decor.packageId}`);
+  if (slots.length) {
+    const { data, error } = await supabase.from("catalog_images").select("slot, image_path").in("slot", slots);
+    if (!error && data?.length) {
+      const bySlot = new Map(data.map((row) => [row.slot, row.image_path]));
+      const path = slots.map((slot) => bySlot.get(slot)).find(Boolean);
+      if (path) return { url: decorPublicUrl(path), replaced: true };
+    }
+  }
+  return { url: (await signedUrl(files?.backdropPng)) || "", replaced: false };
+}
+
+async function invoiceDecorPicture(decor, files) {
+  const picked = document.getElementById("invoice-decor-file")?.files?.[0];
+  if (picked) return { url: await fileToDataUrl(picked), replaced: true };
+  return staffDecorReplacementUrl(decor, files);
 }
 
 function decorImageSlots(catalog) {
@@ -6599,6 +6804,13 @@ document.getElementById("app")?.addEventListener("change", (e) => {
 });
 
 document.getElementById("app")?.addEventListener("click", (e) => {
+  const copyBtn = e.target.closest("[data-copy-link]");
+  if (copyBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    copyStaffLink(copyBtn).catch((err) => window.alert(err.message || "Could not copy the link."));
+    return;
+  }
   const archiveGuestBtn = e.target.closest("[data-archive-guest]");
   if (archiveGuestBtn) {
     e.preventDefault();
@@ -6843,6 +7055,10 @@ document.getElementById("customers-filter-type")?.addEventListener("change", (e)
 document.getElementById("open-cake-catalog")?.addEventListener("click", () => go("master/cakes"));
 document.getElementById("open-decor-catalog")?.addEventListener("click", () => go("master/decor"));
 document.getElementById("open-promotions")?.addEventListener("click", () => go("master/promos"));
+document.getElementById("open-bank-details")?.addEventListener("click", () => go("master/bank"));
+document.getElementById("bank-form")?.addEventListener("submit", (event) => {
+  saveBankDetails(event).catch((err) => setMasterStatus("bank-status", err.message || "Could not save bank details.", "is-error"));
+});
 document.getElementById("master-view")?.addEventListener("click", (event) => {
   if (event.target.closest("[data-master-back]")) go("master");
 });

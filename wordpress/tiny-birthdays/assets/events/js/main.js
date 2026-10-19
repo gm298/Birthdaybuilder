@@ -647,28 +647,209 @@
       `;
   }
 
-  function guestHtml(guest, message) {
-    if (!guest) {
-      return `<div class="guest-card"><h1>Guest list</h1><p>${escapeHtml(message || "We couldn’t find that request.")}</p><p><a href="${escapeHtml(window.location.pathname)}">See events</a></p></div>`;
+  const guestView = {
+    token: "",
+    guest: null,
+    error: "",
+    mode: "view",
+    email: "",
+    phone: "",
+    message: "",
+    messageKind: "",
+  };
+
+  function guestVerifyKey(token) {
+    return `tiny-guest-verified-${token}`;
+  }
+
+  function loadGuestVerified(token) {
+    try {
+      const raw = sessionStorage.getItem(guestVerifyKey(token));
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
     }
-    const status =
-      guest.status === "confirmed"
-        ? "Confirmed"
-        : guest.status === "contacted"
-          ? "Contacted"
-          : guest.status === "rejected"
-            ? "Not confirmed"
-            : "Waiting for Tiny to confirm";
-    return `<div class="guest-card">
-      <p class="muted">${escapeHtml(guest.publicCode || "")}</p>
+  }
+
+  function saveGuestVerified(token, email, phone) {
+    try {
+      sessionStorage.setItem(guestVerifyKey(token), JSON.stringify({ email, phone }));
+    } catch (_) {
+      /* ignore */
+    }
+  }
+
+  function guestStatusLabel(status) {
+    if (status === "confirmed") return "Confirmed";
+    if (status === "contacted") return "Contacted";
+    if (status === "rejected") return "Not confirmed";
+    return "Waiting for Tiny to confirm";
+  }
+
+  function guestDetailsHtml(guest) {
+    return `<p class="muted">${escapeHtml(guest.publicCode || "")}</p>
       <h1>${escapeHtml(guest.eventName || "Event")}</h1>
       <p>${escapeHtml(prettyDate(guest.partyDate))}${guest.startTime ? ` · ${escapeHtml(guest.startTime)}` : ""}</p>
       <p>${escapeHtml(guest.name)} · ${escapeHtml(guest.pax)} ${Number(guest.pax) === 1 ? "guest" : "guests"}</p>
       ${guest.priceLabel ? `<p>${escapeHtml(guest.priceLabel)}</p>` : ""}
-      <p><strong>${escapeHtml(status)}</strong></p>
-      <p>${escapeHtml(guest.payment === "paid" ? "Paid" : "Pay on site")}</p>
+      <p><strong>${escapeHtml(guestStatusLabel(guest.status))}</strong></p>
+      <p>${escapeHtml(guest.payment === "paid" ? "Paid" : "Pay on site")}</p>`;
+  }
+
+  function guestHtml() {
+    const guest = guestView.guest;
+    if (!guest) {
+      return `<div class="guest-card"><h1>Guest list</h1><p>${escapeHtml(guestView.error || "We couldn’t find that request.")}</p><p><a href="${escapeHtml(window.location.pathname)}">See events</a></p></div>`;
+    }
+    const message = guestView.message
+      ? `<p class="status${guestView.messageKind === "ok" ? " is-ok" : ""}" role="status">${escapeHtml(guestView.message)}</p>`
+      : `<p class="status" role="status"></p>`;
+    if (guestView.mode === "verify") {
+      return `<div class="guest-card">
+        ${guestDetailsHtml(guest)}
+        <form id="guest-verify">
+          <h2>Confirm it’s you</h2>
+          <p class="muted">Enter the details used for this request before you can edit it.</p>
+          ${
+            guest.hasEmail
+              ? `<label class="field"><span>Email</span><input type="email" name="email" required autocomplete="email" value="${escapeHtml(guestView.email)}"></label>`
+              : ""
+          }
+          ${
+            guest.hasPhone
+              ? `<label class="field"><span>WhatsApp</span><input type="tel" name="phone" required autocomplete="tel" placeholder="+62 812 3456 7890" value="${escapeHtml(guestView.phone)}"></label>`
+              : ""
+          }
+          <button class="btn" type="submit">Confirm</button>
+          <p><button class="btn" type="button" data-guest-back style="width:auto;background:transparent;color:var(--sage)">Back to details</button></p>
+          ${message}
+        </form>
+      </div>`;
+    }
+    if (guestView.mode === "edit") {
+      return `<div class="guest-card">
+        <p class="muted">${escapeHtml(guest.publicCode || "")}</p>
+        <h1>Edit guest list</h1>
+        <p>${escapeHtml(guest.eventName || "Event")}${guest.startTime ? ` · ${escapeHtml(guest.startTime)}` : ""}</p>
+        <form id="guest-edit">
+          <label class="field"><span>Name</span><input name="name" required autocomplete="name" value="${escapeHtml(guest.name || "")}"></label>
+          <label class="field"><span>Tickets</span><input type="number" name="pax" min="1" max="40" required value="${escapeHtml(guest.pax || 1)}"></label>
+          <label class="field"><span>Notes</span><textarea name="notes" maxlength="400" rows="3">${escapeHtml(guest.notes || "")}</textarea></label>
+          <button class="btn" type="submit">Save</button>
+          <p><button class="btn" type="button" data-guest-back style="width:auto;background:transparent;color:var(--sage)">Back to details</button></p>
+          ${message}
+        </form>
+      </div>`;
+    }
+    return `<div class="guest-card">
+      ${guestDetailsHtml(guest)}
+      ${
+        guest.editable === true
+          ? `<p><button class="btn" type="button" id="guest-edit-open">Edit details</button></p>`
+          : guest.editable === false
+            ? `<p class="muted">This request can’t be changed from the link. WhatsApp Tiny if something needs updating.</p>`
+            : ""
+      }
+      ${message}
       <p><a href="${escapeHtml(window.location.pathname)}">See all events</a></p>
     </div>`;
+  }
+
+  async function postGuest(body) {
+    const cfg = config();
+    const res = await fetch(cfg.joinEventUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: cfg.anonKey,
+        Authorization: `Bearer ${cfg.anonKey}`,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) throw new Error(data.error || "Could not update the guest list.");
+    return data;
+  }
+
+  function paintGuest() {
+    app.innerHTML = guestHtml();
+    document.getElementById("guest-edit-open")?.addEventListener("click", () => {
+      guestView.message = "";
+      if (guestView.email || guestView.phone) {
+        openGuestEdit().catch((err) => {
+          guestView.mode = "verify";
+          guestView.message = err.message || "Enter the details used for this request.";
+          paintGuest();
+        });
+        return;
+      }
+      guestView.mode = "verify";
+      paintGuest();
+    });
+    document.querySelector("[data-guest-back]")?.addEventListener("click", () => {
+      guestView.mode = "view";
+      guestView.message = "";
+      paintGuest();
+    });
+    document.getElementById("guest-verify")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      guestView.email = String(form.querySelector('[name="email"]')?.value || guestView.email || "").trim();
+      guestView.phone = String(form.querySelector('[name="phone"]')?.value || guestView.phone || "").trim();
+      const button = form.querySelector('button[type="submit"]');
+      if (button) button.disabled = true;
+      try {
+        await openGuestEdit();
+      } catch (err) {
+        guestView.message = err.message || "Those details don’t match this request.";
+        guestView.messageKind = "";
+        paintGuest();
+      }
+    });
+    document.getElementById("guest-edit")?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = form.querySelector('button[type="submit"]');
+      if (button) button.disabled = true;
+      guestView.message = "Saving…";
+      guestView.messageKind = "";
+      const status = form.querySelector(".status");
+      if (status) status.textContent = "Saving…";
+      try {
+        const data = await postGuest({
+          action: "update",
+          token: guestView.token,
+          email: guestView.email,
+          phone: guestView.phone,
+          name: String(form.querySelector('[name="name"]')?.value || "").trim(),
+          pax: Number(form.querySelector('[name="pax"]')?.value) || 1,
+          notes: String(form.querySelector('[name="notes"]')?.value || "").trim(),
+        });
+        guestView.guest = data.guest || guestView.guest;
+        guestView.mode = "view";
+        guestView.message = "Saved.";
+        guestView.messageKind = "ok";
+        paintGuest();
+      } catch (err) {
+        guestView.message = err.message || "Could not save.";
+        guestView.messageKind = "";
+        paintGuest();
+      }
+    });
+  }
+
+  async function openGuestEdit() {
+    const data = await postGuest({
+      action: "verify",
+      token: guestView.token,
+      email: guestView.email,
+      phone: guestView.phone,
+    });
+    saveGuestVerified(guestView.token, guestView.email, guestView.phone);
+    guestView.guest = data.guest || guestView.guest;
+    guestView.mode = "edit";
+    guestView.message = "";
+    paintGuest();
   }
 
   function openDay(iso) {
@@ -1016,23 +1197,26 @@
   }
 
   async function renderGuest(token) {
+    guestView.token = token;
+    guestView.guest = null;
+    guestView.error = "";
+    guestView.mode = "view";
+    guestView.message = "";
+    const saved = loadGuestVerified(token);
+    guestView.email = saved?.email || "";
+    guestView.phone = saved?.phone || "";
     app.innerHTML = `<div class="guest-card"><h1>Guest list</h1><p class="muted">Loading…</p></div>`;
-    const cfg = config();
     try {
-      const res = await fetch(cfg.joinEventUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          apikey: cfg.anonKey,
-          Authorization: `Bearer ${cfg.anonKey}`,
-        },
-        body: JSON.stringify({ action: "status", token }),
-      });
-      const body = await res.json().catch(() => ({}));
-      app.innerHTML = guestHtml(body.guest, body.error);
+      const body = await postGuest({ action: "status", token });
+      guestView.guest = body.guest || null;
+      guestView.error = body.guest ? "" : body.error || "We couldn’t find that request.";
     } catch (err) {
-      app.innerHTML = guestHtml(null, "Could not load that guest list request.");
+      guestView.guest = null;
+      guestView.error = err?.message && err.message !== "Failed to fetch"
+        ? err.message
+        : "Could not load that guest list request.";
     }
+    paintGuest();
   }
 
   function render() {

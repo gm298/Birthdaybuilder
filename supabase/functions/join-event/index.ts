@@ -107,10 +107,30 @@ type Guest = {
   token?: string;
   source?: string;
   created_at?: string;
+  archived_at?: string;
   slot?: { start?: string; end?: string };
   payment?: { status?: string; amount?: number };
   promo?: { code?: string; name?: string; discount_idr?: number };
 };
+
+function phoneDigits(value: string) {
+  let digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.startsWith("0")) digits = `62${digits.slice(1)}`;
+  else if (/^8\d{7,12}$/.test(digits)) digits = `62${digits}`;
+  return digits;
+}
+
+function guestContactsMatch(guest: Guest, email: string, phone: string) {
+  const wantEmail = asString(guest.email).toLowerCase();
+  const wantPhone = phoneDigits(asString(guest.phone));
+  const gotEmail = asString(email).toLowerCase();
+  const gotPhone = phoneDigits(phone);
+  if (!wantEmail && !wantPhone) return false;
+  if (wantEmail && (!EMAIL_RE.test(gotEmail) || gotEmail !== wantEmail)) return false;
+  if (wantPhone && gotPhone !== wantPhone) return false;
+  return true;
+}
 
 function slotFrom(value: unknown) {
   if (value && typeof value === "object") {
@@ -166,46 +186,116 @@ Deno.serve(async (req) => {
 
   const action = asString(body.action) || "join";
 
-  if (action === "status") {
-    const token = asString(body.token);
-    if (!token || token.length < 16) return json({ ok: false, error: "That link is not valid." }, 400, origin);
+  async function findGuest(token: string) {
     const { data: rows, error } = await supabase
       .from("requests")
-      .select("public_code, contact_name, party_date, party_time, status, payload, quote_total_idr")
+      .select("id, public_code, contact_name, party_date, party_time, status, payload, quote_total_idr")
       .eq("source", "event");
-    if (error) return json({ ok: false, error: "Could not load the guest list." }, 500, origin);
+    if (error) return { error: "Could not load the guest list." };
     for (const row of rows || []) {
-      const guests = (row.payload?.event?.guests || []) as Guest[];
-      const guest = guests.find((item) => item.token === token);
-      if (!guest) continue;
-      const eventName = row.payload?.event?.name || row.contact_name || "Event";
-      const start = slotLabel(guest.slot) || String(row.party_time || "").slice(0, 5);
-      const unit = ticketUnit(row);
-      const pax = Number(guest.pax) || 1;
-      const due = guest.promo?.code && Number.isFinite(Number(guest.payment?.amount))
-        ? Number(guest.payment?.amount)
-        : unit * pax;
+      const payload = row.payload && typeof row.payload === "object" ? row.payload : {};
+      const event = payload.event && typeof payload.event === "object" ? payload.event : {};
+      const guests = (Array.isArray(event.guests) ? event.guests : []) as Guest[];
+      const index = guests.findIndex((item) => item.token === token);
+      if (index < 0) continue;
+      return { row, payload, event, guests, index };
+    }
+    return { error: "We couldn't find that guest list request.", missing: true };
+  }
+
+  function guestView(found: {
+    row: {
+      public_code?: string;
+      contact_name?: string;
+      party_date?: string;
+      party_time?: string;
+      status?: string;
+      payload?: { event?: { name?: string } };
+      quote_total_idr?: number | null;
+    };
+    guests: Guest[];
+    index: number;
+  }, withNotes = false) {
+    const guest = found.guests[found.index];
+    const row = found.row;
+    const eventName = row.payload?.event?.name || row.contact_name || "Event";
+    const start = slotLabel(guest.slot) || String(row.party_time || "").slice(0, 5);
+    const unit = ticketUnit(row);
+    const pax = Number(guest.pax) || 1;
+    const due = guest.promo?.code && Number.isFinite(Number(guest.payment?.amount))
+      ? Number(guest.payment?.amount)
+      : unit * pax;
+    const status = guest.status === "confirmed" || guest.status === "contacted" || guest.status === "rejected"
+      ? guest.status
+      : "pending";
+    return {
+      name: guest.name || "Guest",
+      pax,
+      ...(withNotes ? { notes: asString(guest.notes) } : {}),
+      status,
+      eventName,
+      partyDate: row.party_date,
+      startTime: start,
+      publicCode: row.public_code,
+      eventOpen: !INACTIVE.has(String(row.status || "")),
+      payment: guest.payment?.status === "paid" ? "paid" : "onsite",
+      priceLabel: due ? `${formatIdr(due)} for ${pax} ${pax === 1 ? "ticket" : "tickets"}` : "",
+      editable: !guest.archived_at && !INACTIVE.has(String(row.status || "")) && Boolean(asString(guest.email) || asString(guest.phone)),
+      hasEmail: Boolean(asString(guest.email)),
+      hasPhone: Boolean(asString(guest.phone)),
+    };
+  }
+
+  if (action === "status" || action === "verify" || action === "update") {
+    const token = asString(body.token);
+    if (!token || token.length < 16) return json({ ok: false, error: "That link is not valid." }, 400, origin);
+    const found = await findGuest(token);
+    if (!("guests" in found) || found.index == null) {
+      return json({ ok: false, error: found.error || "We couldn't find that guest list request." }, found.missing ? 404 : 500, origin);
+    }
+    const guest = found.guests[found.index];
+    if (action === "status") {
+      return json({ ok: true, guest: guestView(found) }, 200, origin);
+    }
+    const email = asString(body.email);
+    const phone = asString(body.phone);
+    const needEmail = Boolean(asString(guest.email));
+    const needPhone = Boolean(asString(guest.phone));
+    if (!needEmail && !needPhone) {
+      return json({ ok: false, error: "This request can’t be edited from the link. Please WhatsApp Tiny." }, 403, origin);
+    }
+    if ((needEmail && !email) || (needPhone && !phone)) {
       return json(
         {
-          ok: true,
-          guest: {
-            name: guest.name || "Guest",
-            pax,
-            status: guest.status === "confirmed" || guest.status === "contacted" ? guest.status : "pending",
-            eventName,
-            partyDate: row.party_date,
-            startTime: start,
-            publicCode: row.public_code,
-            eventOpen: !INACTIVE.has(row.status),
-            payment: guest.payment?.status === "paid" ? "paid" : "onsite",
-            priceLabel: due ? `${formatIdr(due)} for ${pax} ${pax === 1 ? "ticket" : "tickets"}` : "",
-          },
+          ok: false,
+          error: needEmail && needPhone
+            ? "Enter the email and WhatsApp used for this request."
+            : needEmail
+              ? "Enter the email used for this request."
+              : "Enter the WhatsApp number used for this request.",
         },
-        200,
+        400,
         origin
       );
     }
-    return json({ ok: false, error: "We couldn't find that guest list request." }, 404, origin);
+    if (!guestContactsMatch(guest, email, phone)) {
+      return json({ ok: false, error: "Those details don’t match this request." }, 403, origin);
+    }
+    if (action === "verify") {
+      return json({ ok: true, verified: true, guest: guestView(found, true) }, 200, origin);
+    }
+    if (guest.archived_at || INACTIVE.has(String(found.row.status || ""))) {
+      return json({ ok: false, error: "This request can no longer be changed." }, 409, origin);
+    }
+    const name = asString(body.name);
+    const pax = Math.max(1, Math.min(40, Math.round(Number(body.pax) || 1)));
+    const notes = asString(body.notes).slice(0, 400);
+    if (!name) return json({ ok: false, error: "Please add your name." }, 400, origin);
+    found.guests[found.index] = { ...guest, name, pax, notes };
+    const nextPayload = { ...found.payload, event: { ...found.event, guests: found.guests } };
+    const { error: updateError } = await supabase.from("requests").update({ payload: nextPayload }).eq("id", found.row.id);
+    if (updateError) return json({ ok: false, error: "Could not save the guest list." }, 500, origin);
+    return json({ ok: true, guest: guestView(found, true) }, 200, origin);
   }
 
   if (action !== "join") return json({ ok: false, error: "Unknown action." }, 400, origin);

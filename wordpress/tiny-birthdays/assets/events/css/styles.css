@@ -592,13 +592,16 @@ button, input, select, textarea { font: inherit; }
 }
 
 .field input,
-.field select {
+.field select,
+.field textarea {
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 12px 14px;
   background: #fff;
   color: var(--ink);
 }
+
+.field textarea { width: 100%; resize: vertical; }
 
 .phone-split {
   display: grid;
