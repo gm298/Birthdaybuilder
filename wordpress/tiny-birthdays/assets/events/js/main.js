@@ -87,15 +87,48 @@
   }
 
   function ticketUnit(event) {
+    if (eventIsFree(event)) return 0;
     const amount = Number(event?.price_idr ?? event?.pricing?.total ?? event?.pricing?.price ?? 0);
     return amount > 0 ? Math.round(amount) : 0;
   }
 
-  function ticketPriceLabel(event) {
+  function eventIsFree(event) {
+    if (event?.is_free === true || event?.is_free === "true" || event?.is_free === 1) return true;
+    if (event?.pricing?.free === true || event?.pricing?.free === "true") return true;
     const raw = event?.price_idr ?? event?.pricing?.total ?? event?.pricing?.price;
-    if (raw === 0 || raw === "0") return "FREE!";
+    if (raw === 0 || raw === "0") return true;
+    const amount = Number(raw);
+    return raw != null && raw !== "" && Number.isFinite(amount) && amount === 0;
+  }
+
+  function ticketPriceLabel(event) {
+    if (eventIsFree(event)) return "FREE!";
     const amount = ticketUnit(event);
     return amount ? `${formatIdr(amount)} / ticket` : "Price not confirmed";
+  }
+
+  function eventCapacity(event) {
+    const capacity = Number(event?.capacity);
+    return Number.isFinite(capacity) && capacity >= 1 ? Math.round(capacity) : 0;
+  }
+
+  function eventSpotsTaken(event) {
+    const taken = Number(event?.spots_taken);
+    return Number.isFinite(taken) && taken > 0 ? Math.round(taken) : 0;
+  }
+
+  function eventSpotsLeft(event) {
+    const capacity = eventCapacity(event);
+    if (!capacity) return null;
+    return Math.max(0, capacity - eventSpotsTaken(event));
+  }
+
+  function spotsLeftLabel(event) {
+    const left = eventSpotsLeft(event);
+    if (left == null) return "";
+    if (left <= 0) return "Sold out";
+    if (left === 1) return "Only 1 spot left!";
+    return `Only ${left} spots left!`;
   }
 
   let appliedEventPromo = null;
@@ -395,6 +428,11 @@
                               : ""
                           }
                           <span class="event-card__price">${escapeHtml(ticketPriceLabel(event))}</span>
+                          ${
+                            spotsLeftLabel(event)
+                              ? `<span class="event-card__spots">${escapeHtml(spotsLeftLabel(event))}</span>`
+                              : ""
+                          }
                         </button>`
                       )
                       .join("")}</div>`
@@ -525,16 +563,22 @@
     const unit = ticketUnit(event);
     const price = formatIdr(unit);
     const priceLabel = ticketPriceLabel(event);
-    const isFree = priceLabel === "FREE!";
-    const bookable = priceLabel !== "Price not confirmed";
-    const actionLabel = bookable ? "Request tickets" : "Register your interest";
-    const payLine = isFree
-      ? "The team confirms your place."
-      : unit
-        ? "The team confirms your place. Pay at Tiny when you attend."
-        : "The price is not confirmed, so this is not a paid reservation.";
+    const isFree = eventIsFree(event);
+    const spotsLeft = eventSpotsLeft(event);
+    const spotsLabel = spotsLeftLabel(event);
+    const soldOut = spotsLeft === 0;
+    const bookable = priceLabel !== "Price not confirmed" && !soldOut;
+    const actionLabel = soldOut ? "Sold out" : bookable ? "Request tickets" : "Register your interest";
+    const payLine = soldOut
+      ? "This event is full."
+      : isFree
+        ? "The team confirms your place."
+        : unit
+          ? "The team confirms your place. Pay at Tiny when you attend."
+          : "The price is not confirmed, so this is not a paid reservation.";
     const slots = eventSlots(event);
     const aboutText = String(event.about || "").trim();
+    const maxTickets = spotsLeft == null ? 40 : Math.max(1, spotsLeft);
     return `
       <div class="event-page">
         <button class="event-back" type="button" data-back>← Upcoming events</button>
@@ -544,7 +588,9 @@
           .map((slot) => escapeHtml(timeRange({ start_time: slot.start, end_time: slot.end })))
           .join("<br>")}<br>${escapeHtml(event.location_label || "Tiny Healthy Cafe, Berawa")}<br>${escapeHtml(
           priceLabel
-        )}${unit ? " · Pay at Tiny" : ""}</p>
+        )}${unit ? " · Pay at Tiny" : ""}${
+          spotsLabel ? `<br><span class="event-spots">${escapeHtml(spotsLabel)}</span>` : ""
+        }</p>
         <aside class="ticket">
           <h2>Tickets</h2>
           <p class="ticket__when">${escapeHtml(prettyDate(event.party_date))}<br>${slots
@@ -555,9 +601,10 @@
               ? `${escapeHtml(price)} <span class="muted" style="font-size:16px">per ticket</span>`
               : escapeHtml(priceLabel)
           }</p>
+          ${spotsLabel ? `<p class="ticket__spots">${escapeHtml(spotsLabel)}</p>` : ""}
           <p class="ticket__pay">${escapeHtml(payLine)}</p>
           <p class="ticket__due" id="ticket-due"${unit ? "" : " hidden"}></p>
-          <button class="btn" type="button" id="book-spot">${actionLabel}</button>
+          <button class="btn" type="button" id="book-spot"${soldOut ? " disabled" : ""}>${actionLabel}</button>
           <form id="guest-form" hidden>
             <label class="honeypot">Website<input name="website" tabindex="-1" autocomplete="off"></label>
             <label class="field"><span>Time</span>
@@ -576,12 +623,14 @@
             <label class="field"><span>Name</span><input name="name" required autocomplete="name"></label>
             <div class="field">
               <span id="pax-label">Tickets</span>
-              <p class="field__hint">One ticket is one participant.</p>
+              <p class="field__hint">One ticket is one participant.${
+                spotsLeft != null ? ` ${spotsLeft} spot${spotsLeft === 1 ? "" : "s"} left.` : ""
+              }</p>
               <div class="guest-stepper" data-guest-stepper>
                 <div class="guest-stepper__row">
                   <label class="guest-stepper__name" for="guest-pax">Tickets</label>
                   <button type="button" class="guest-stepper__btn" data-for="guest-pax" data-step="-1" aria-label="Fewer tickets">−</button>
-                  <input class="guest-stepper__input" type="number" id="guest-pax" name="pax" min="1" max="40" inputmode="numeric" value="1" aria-labelledby="pax-label">
+                  <input class="guest-stepper__input" type="number" id="guest-pax" name="pax" min="1" max="${maxTickets}" inputmode="numeric" value="1" aria-labelledby="pax-label">
                   <button type="button" class="guest-stepper__btn" data-for="guest-pax" data-step="1" aria-label="More tickets">+</button>
                 </div>
               </div>
@@ -877,7 +926,7 @@
             (event) =>
               `<button type="button" data-open="${escapeHtml(event.public_code)}"><strong>${escapeHtml(event.name)}</strong><br><span class="muted">${escapeHtml(timeRange(event))}${
                 ticketPriceLabel(event) ? ` · ${escapeHtml(ticketPriceLabel(event))}` : ""
-              }</span></button>`
+              }${spotsLeftLabel(event) ? ` · ${escapeHtml(spotsLeftLabel(event))}` : ""}</span></button>`
           )
           .join("")
       : `<p class="muted">No events on this day.</p>`;
@@ -1088,6 +1137,8 @@
       document.getElementById("promo-code")?.focus();
     });
     document.getElementById("book-spot")?.addEventListener("click", () => {
+      const eventItem = state.events.find((item) => item.public_code === code);
+      if (eventSpotsLeft(eventItem) === 0) return;
       track("reservation_started", { event_code: code });
       const form = document.getElementById("guest-form");
       const trigger = document.getElementById("book-spot");
@@ -1101,6 +1152,20 @@
       const status = document.getElementById("guest-status");
       const data = new FormData(form);
       if (String(data.get("website") || "").trim()) return;
+      const eventItem = state.events.find((item) => item.public_code === code);
+      const left = eventSpotsLeft(eventItem);
+      if (left === 0) {
+        status.textContent = "This event is sold out.";
+        status.className = "status is-error";
+        return;
+      }
+      const requestedPax = Math.max(1, Number(data.get("pax")) || 1);
+      if (left != null && requestedPax > left) {
+        status.textContent =
+          left === 1 ? "Only 1 spot left." : `Only ${left} spots left. Choose fewer tickets.`;
+        status.className = "status is-error";
+        return;
+      }
       const slot = String(data.get("slot") || "");
       if (!slot.includes("|")) {
         status.textContent = "Choose a time slot first.";

@@ -83,6 +83,19 @@ function eventIsFree(row: { payload?: { event?: { pricing?: { free?: unknown } }
   return free === true || free === "true";
 }
 
+function eventCapacity(event: Record<string, unknown>) {
+  const capacity = Number(event.capacity);
+  return Number.isFinite(capacity) && capacity >= 1 ? Math.round(capacity) : 0;
+}
+
+function activeGuestPax(guests: Guest[]) {
+  return guests.reduce((sum, guest) => {
+    if (guest?.archived_at) return sum;
+    if (String(guest?.status || "").toLowerCase() === "rejected") return sum;
+    return sum + Math.max(1, Math.round(Number(guest?.pax) || 1));
+  }, 0);
+}
+
 function whatsappHref(details: { name: string; email: string; eventName: string; slot: string; pax: number; price?: string }) {
   const count = Number(details.pax) || 1;
   const tickets = count === 1 ? "1 person / 1 ticket" : `${count} people / ${count} tickets`;
@@ -297,6 +310,26 @@ Deno.serve(async (req) => {
     const pax = Math.max(1, Math.min(40, Math.round(Number(body.pax) || 1)));
     const notes = asString(body.notes).slice(0, 400);
     if (!name) return json({ ok: false, error: "Please add your name." }, 400, origin);
+    const capacity = eventCapacity(found.event as Record<string, unknown>);
+    if (capacity) {
+      const others = found.guests.filter((_, index) => index !== found.index);
+      const taken = activeGuestPax(others);
+      const left = Math.max(0, capacity - taken);
+      if (pax > left) {
+        return json(
+          {
+            ok: false,
+            error: left <= 0
+              ? "This event is sold out."
+              : left === 1
+                ? "Only 1 spot left."
+                : `Only ${left} spots left. Choose fewer tickets.`,
+          },
+          409,
+          origin
+        );
+      }
+    }
     found.guests[found.index] = { ...guest, name, pax, notes };
     const nextPayload = { ...found.payload, event: { ...found.event, guests: found.guests } };
     const { error: updateError } = await supabase.from("requests").update({ payload: nextPayload }).eq("id", found.row.id);
@@ -364,6 +397,25 @@ Deno.serve(async (req) => {
       409,
       origin
     );
+  }
+
+  const capacity = eventCapacity(event as Record<string, unknown>);
+  if (capacity) {
+    const taken = activeGuestPax(guests);
+    const left = Math.max(0, capacity - taken);
+    if (left <= 0) {
+      return json({ ok: false, error: "This event is sold out." }, 409, origin);
+    }
+    if (pax > left) {
+      return json(
+        {
+          ok: false,
+          error: left === 1 ? "Only 1 spot left." : `Only ${left} spots left. Choose fewer tickets.`,
+        },
+        409,
+        origin
+      );
+    }
   }
 
   const token = crypto.randomUUID();

@@ -473,6 +473,19 @@ select {
   .staff-layout:not(.is-collapsed) .staff-side {
     box-shadow: 24px 0 40px -24px rgba(31, 61, 64, 0.45);
   }
+
+  /* Item details need the full width — hide the icon rail until the burger opens it. */
+  .staff-layout.has-detail.has-side.is-collapsed .staff-main {
+    padding-left: 0;
+  }
+
+  .staff-layout.has-detail.is-collapsed .staff-side {
+    width: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
 }
 
 .calendar-sync {

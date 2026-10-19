@@ -3408,6 +3408,10 @@ function openEventModal(opts = {}) {
   document.getElementById("event-date").value = opts.date || state.selectedDate;
   fillEventSlots(opts.slots?.length ? opts.slots : [{ start: opts.start || "14:00", end: opts.end || "17:00" }]);
   paintEventPartySize(opts.partySize || 1);
+  const capacityInput = document.getElementById("event-capacity");
+  if (capacityInput) {
+    capacityInput.value = opts.capacity ? String(opts.capacity) : "";
+  }
   document.getElementById("event-location").value = opts.location || "service";
   document.getElementById("event-full-terrace").checked = Boolean(opts.fullTerrace);
   document.getElementById("event-about").value = opts.about || "";
@@ -3672,6 +3676,8 @@ async function saveStaffEvent() {
     return;
   }
   const partySize = Math.max(1, Math.min(40, Number(document.getElementById("event-party-size")?.value) || 1));
+  const capacityRaw = Number(document.getElementById("event-capacity")?.value);
+  const capacity = Number.isFinite(capacityRaw) && capacityRaw >= 1 ? Math.min(200, Math.round(capacityRaw)) : null;
   const tables = tableIds.map((id) => Map.findTable(id)).filter(Boolean);
   const tableLabel =
     location === "masterclass"
@@ -3719,6 +3725,7 @@ async function saveStaffEvent() {
       pricing: savedPricing,
       guests,
       partySize,
+      capacity,
       repeat,
       slots,
       coverUrl: coverFromGallery(existingEvent.coverUrl, keptGallery),
@@ -4724,11 +4731,18 @@ function backHash() {
   return `#/${state.lastView || "overview"}`;
 }
 
+function markDetailOpen(open) {
+  staffLayout?.classList.toggle("has-detail", open);
+  if (open && narrowSide.matches) setSideCollapsed(true, { remember: false });
+  else syncSideScrim();
+}
+
 function showDetailPage() {
   inboxViews.hidden = true;
   detailView.classList.remove("detail-view--drawer");
   if (detailScrim) detailScrim.hidden = true;
   detailView.hidden = false;
+  markDetailOpen(true);
 }
 
 function showDetailDrawer() {
@@ -4736,12 +4750,14 @@ function showDetailDrawer() {
   detailView.classList.add("detail-view--drawer");
   if (detailScrim) detailScrim.hidden = false;
   detailView.hidden = false;
+  markDetailOpen(true);
 }
 
 function hideDetailDrawer() {
   detailView.classList.remove("detail-view--drawer");
   if (detailScrim) detailScrim.hidden = true;
   detailView.hidden = true;
+  markDetailOpen(false);
 }
 
 function detailDrawerOpen() {
@@ -5616,6 +5632,10 @@ async function loadDetail(id) {
           <h3>Guest list</h3>
           <p class="muted">${
             Number(payload.event?.partySize) ? `Party size ${escapeHtml(payload.event.partySize)}. ` : ""
+          }${
+            Number(payload.event?.capacity)
+              ? `Capacity ${escapeHtml(payload.event.capacity)}. `
+              : ""
           }Each time slot has its own guest list. Open a slot to change a status, add a name, or move someone to another time.</p>
           <div class="contact-actions" style="margin-bottom:12px">
             <button class="btn btn--outline" type="button" id="export-guests">Export guest list PDF</button>
@@ -5824,6 +5844,7 @@ async function loadDetail(id) {
       tableIds: reservation.tableIds || [],
       guests: event.guests || [],
       partySize: event.partySize || row.guest_adults || 1,
+      capacity: event.capacity || "",
       repeat: event.repeat,
       pricing: event.pricing || eventPricingFromRow(row),
       coverUrl: event.coverUrl || "",

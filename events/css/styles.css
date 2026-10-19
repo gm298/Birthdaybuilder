@@ -296,6 +296,23 @@ button, input, select, textarea { font: inherit; }
   font-size: 15px;
 }
 
+.event-card__spots,
+.event-spots,
+.ticket__spots {
+  color: var(--sage);
+  font-weight: 600;
+}
+
+.event-card__spots {
+  display: block;
+  font-size: 14px;
+}
+
+.ticket__spots {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
 .event-card__meta {
   display: block;
 }

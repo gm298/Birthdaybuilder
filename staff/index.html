@@ -482,7 +482,13 @@
             <strong id="event-party-size-value">1 guest</strong>
           </button>
           <input type="hidden" id="event-party-size" value="1">
+          <span class="muted">Expected guests for staffing.</span>
         </div>
+        <label class="field">
+          <span>Capacity</span>
+          <input type="number" id="event-capacity" min="1" max="200" step="1" placeholder="No limit" inputmode="numeric">
+          <span class="muted">Maximum people who can request tickets. Leave blank for no limit. Guests see how many spots are left.</span>
+        </label>
         <label class="field">
           <span>Repeats</span>
           <select id="event-repeat">
@@ -770,6 +776,6 @@
   </div>
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/reserve-tables.js?v=20261006b"></script>
-  <script type="module" src="js/app.js?v=20261019b"></script>
+  <script type="module" src="js/app.js?v=20261019c"></script>
 </body>
 </html>
