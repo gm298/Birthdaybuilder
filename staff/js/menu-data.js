@@ -40,15 +40,63 @@ export function createMenuDataController({ supabase, setStatus }) {
     editId: null,
   };
 
+  async function loadSeedPayload() {
+    const url = new URL("../menu/data/menu-seed.json", location.href).href;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Could not load menu seed file.");
+    return res.json();
+  }
+
+  async function ensureSnapshots(seedPayload) {
+    const note = "Seeded from menu-seed.json";
+    const { data: liveRow, error: liveErr } = await supabase
+      .from("menu_snapshots")
+      .insert({
+        status: "live",
+        version: 1,
+        payload: seedPayload,
+        published_at: new Date().toISOString(),
+        note,
+      })
+      .select("id, status, version, payload, published_at, note, updated_at")
+      .single();
+    if (liveErr) throw liveErr;
+    const { data: draftRow, error: draftErr } = await supabase
+      .from("menu_snapshots")
+      .insert({
+        status: "draft",
+        version: 1,
+        payload: seedPayload,
+        published_at: null,
+        note,
+      })
+      .select("id, status, version, payload, published_at, note, updated_at")
+      .single();
+    if (draftErr) throw draftErr;
+    return [liveRow, draftRow];
+  }
+
   async function load() {
     const { data, error } = await supabase
       .from("menu_snapshots")
       .select("id, status, version, payload, published_at, note, updated_at")
       .in("status", ["draft", "live"]);
-    if (error) throw error;
-    const rows = data || [];
-    const draft = rows.find((r) => r.status === "draft");
-    const live = rows.find((r) => r.status === "live");
+    if (error) {
+      throw new Error(
+        error.message.includes("menu_snapshots") || error.code === "42P01" || error.code === "PGRST205"
+          ? "Menu table missing. Run scripts/deploy-supabase.ps1 (migration 20261019180000_menu_snapshots)."
+          : error.message
+      );
+    }
+    let rows = data || [];
+    let draft = rows.find((r) => r.status === "draft");
+    let live = rows.find((r) => r.status === "live");
+    if (!draft && !live) {
+      const seed = await loadSeedPayload();
+      rows = await ensureSnapshots(seed);
+      draft = rows.find((r) => r.status === "draft");
+      live = rows.find((r) => r.status === "live");
+    }
     if (!draft && !live) throw new Error("No menu snapshots yet. Run the menu migration/seed first.");
     state.draft = deepClone(draft?.payload || live.payload);
     state.live = deepClone(live?.payload || draft.payload);

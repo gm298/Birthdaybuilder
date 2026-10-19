@@ -23,7 +23,7 @@
 .dm {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 1.25rem 1rem 7rem;
+  padding: 1.25rem 1rem 5.5rem;
 }
 
 .dm-hero {
@@ -234,6 +234,14 @@
   aspect-ratio: 4 / 3;
   background: #e8dfcc;
   overflow: hidden;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  text-align: inherit;
+  font: inherit;
+  color: inherit;
 }
 
 .dm-card__media img {
@@ -245,7 +253,7 @@
 
 .dm-card__media img.is-contain {
   object-fit: contain;
-  background: #f4efE3;
+  background: #f4efe3;
 }
 
 .dm-card__media--empty {
@@ -263,6 +271,19 @@
   flex: 1;
 }
 
+.dm-card__open,
+.dm-row__open {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
 .dm-card__name {
   font-family: var(--dm-serif);
   font-size: 1.2rem;
@@ -271,10 +292,108 @@
 }
 
 .dm-card__short {
-  margin: 0;
+  margin: 0.35rem 0 0;
   color: var(--dm-muted);
   font-size: 0.88rem;
   line-height: 1.4;
+}
+
+.dm-opt-block {
+  margin-top: 0.35rem;
+}
+
+.dm-opt-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+}
+
+.dm-opt-head__name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dm-ink);
+}
+
+.dm-opt-head__pick {
+  font-size: 0.78rem;
+  color: var(--dm-muted);
+  font-weight: 500;
+}
+
+.dm-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.dm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--dm-line);
+  background: #fffdf8;
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem 0.35rem 0.35rem;
+  cursor: pointer;
+  font: 600 0.82rem/1.2 var(--dm-sans);
+  color: var(--dm-ink);
+  text-align: left;
+}
+
+.dm-pill.is-active {
+  border-color: var(--dm-green);
+  border-width: 2px;
+  background: var(--dm-green-soft);
+  padding: calc(0.35rem - 1px) calc(0.7rem - 1px) calc(0.35rem - 1px) calc(0.35rem - 1px);
+}
+
+.dm-pill__thumb {
+  width: 1.65rem;
+  height: 1.65rem;
+  border-radius: 999px;
+  overflow: hidden;
+  flex: 0 0 auto;
+  background: #e8dfcc;
+}
+
+.dm-pill__thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.dm-pill__dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  margin-left: 0.35rem;
+  box-shadow: inset 0 0 0 1px rgba(31, 61, 64, 0.12);
+}
+
+.dm-pill__dot--shape {
+  background: var(--dm-line);
+}
+
+.dm-pill__label {
+  padding-right: 0.15rem;
+}
+
+.dm-opt-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+  color: var(--dm-green);
+  font-weight: 600;
+}
+
+.dm-pop__price {
+  font-weight: 700;
+  margin: 0 0 1rem;
 }
 
 .dm-tags {
@@ -318,24 +437,9 @@
   background: var(--dm-green-soft);
 }
 
-.dm-card__actions {
-  display: flex;
-  gap: 0.4rem;
-  margin-top: auto;
-  padding-top: 0.35rem;
-}
-
-.dm-card__actions .dm-btn {
-  flex: 1;
-  padding: 0.55rem 0.6rem;
-  font-size: 0.82rem;
-}
-
 .dm-row {
   display: grid;
-  grid-template-columns: 1fr auto;
   gap: 0.75rem;
-  align-items: center;
   background: var(--dm-cream);
   border: 1px solid var(--dm-line);
   border-radius: var(--dm-radius);
@@ -363,44 +467,10 @@
   color: #8a3b3b;
 }
 
-.dm-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 40;
-  padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
-  background: linear-gradient(180deg, transparent, rgba(237, 228, 209, 0.92) 28%, var(--dm-page));
-  pointer-events: none;
-}
-
-.dm-bar__btn {
-  pointer-events: auto;
-  width: min(420px, 100%);
-  margin: 0 auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
-  background: var(--dm-green);
-  color: var(--dm-cream);
-  border: 0;
-  border-radius: 999px;
-  padding: 0.9rem 1.2rem;
-  font: 700 0.95rem/1 var(--dm-sans);
-  cursor: pointer;
-  box-shadow: 0 8px 24px rgba(31, 61, 64, 0.18);
-}
-
-.dm-bar__meta {
-  font-weight: 500;
-  opacity: 0.9;
-}
-
 .dm-fab {
   position: fixed;
   right: 1rem;
-  bottom: calc(var(--dm-fab-space) + env(safe-area-inset-bottom));
+  bottom: calc(1.25rem + env(safe-area-inset-bottom));
   z-index: 45;
   display: inline-flex;
   align-items: center;
@@ -412,10 +482,6 @@
   padding: 0.85rem 1.05rem;
   font: 700 0.88rem/1 var(--dm-sans);
   box-shadow: 0 10px 28px rgba(31, 61, 64, 0.22);
-}
-
-.dm-page.has-list-bar .dm-fab {
-  bottom: calc(6.4rem + env(safe-area-inset-bottom));
 }
 
 .dm-sheet {
@@ -554,105 +620,6 @@
   background: #fffdf8;
   cursor: pointer;
   font-size: 1.1rem;
-}
-
-.dm-list-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 0.35rem;
-}
-
-.dm-list-head h2 {
-  font-family: var(--dm-serif);
-  font-weight: 400;
-  margin: 0;
-}
-
-.dm-list-note {
-  color: var(--dm-muted);
-  font-size: 0.85rem;
-  margin: 0 0 0.85rem;
-}
-
-.dm-line {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.5rem 0.75rem;
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--dm-line-soft);
-}
-
-.dm-line__name {
-  margin: 0;
-  font-weight: 600;
-}
-
-.dm-line__opts {
-  margin: 0.2rem 0 0;
-  color: var(--dm-muted);
-  font-size: 0.82rem;
-}
-
-.dm-list-foot {
-  padding-top: 1rem;
-}
-
-.dm-list-total {
-  font-weight: 700;
-  margin: 0 0 0.75rem;
-}
-
-.dm-list-disclaimer {
-  margin: 0.65rem 0 0;
-  color: var(--dm-muted);
-  font-size: 0.8rem;
-  text-align: center;
-}
-
-.dm-waiter {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  background: var(--dm-ink);
-  color: var(--dm-cream);
-  display: grid;
-  place-items: center;
-  padding: 1.25rem;
-}
-
-.dm-waiter[hidden] {
-  display: none !important;
-}
-
-.dm-waiter__card {
-  width: min(520px, 100%);
-}
-
-.dm-waiter__label {
-  font-family: var(--dm-serif);
-  font-size: 1.6rem;
-  margin: 0 0 0.25rem;
-}
-
-.dm-waiter__time {
-  opacity: 0.75;
-  margin: 0 0 1rem;
-}
-
-.dm-waiter-line {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 0.55rem 0;
-  border-bottom: 1px solid rgba(252, 247, 236, 0.18);
-}
-
-.dm-waiter__total {
-  font-size: 1.2rem;
-  font-weight: 700;
-  margin: 1rem 0;
 }
 
 @media (max-width: 520px) {

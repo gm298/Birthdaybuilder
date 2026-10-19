@@ -83,8 +83,7 @@ function tiny_birthdays_enqueue_front() {
 
     if ($type === 'menu') {
         wp_enqueue_script('tiny-cafe-menu-api', tiny_birthdays_asset('menu/js/menu-api.js'), $app_deps, $ver, true);
-        wp_enqueue_script('tiny-cafe-menu-cart', tiny_birthdays_asset('menu/js/cart.js'), ['tiny-cafe-menu-api'], $ver, true);
-        wp_enqueue_script('tiny-cafe-menu-render', tiny_birthdays_asset('menu/js/render.js'), ['tiny-cafe-menu-cart'], $ver, true);
+        wp_enqueue_script('tiny-cafe-menu-render', tiny_birthdays_asset('menu/js/render.js'), ['tiny-cafe-menu-api'], $ver, true);
         wp_enqueue_script('tiny-cafe-menu', tiny_birthdays_asset('menu/js/main.js'), ['tiny-cafe-menu-render'], $ver, true);
         return;
     }

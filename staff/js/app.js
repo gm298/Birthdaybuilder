@@ -1,5 +1,5 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-import { createMenuDataController } from "./menu-data.js";
+import { createMenuDataController } from "./menu-data.js?v=20261019f";
 
 const cfg = window.TINY_SUPABASE || {};
 const supabase = createClient(cfg.url || "", cfg.anonKey || "");
@@ -686,7 +686,14 @@ function parseHash() {
   if (day) return { view: "day", date: day[1] };
   const parts = hash.split("/").filter(Boolean);
   if (parts[0] === "master") {
-    const section = parts[1] === "cakes" || parts[1] === "promos" || parts[1] === "decor" || parts[1] === "bank" ? parts[1] : "";
+    const section =
+      parts[1] === "cakes" ||
+      parts[1] === "promos" ||
+      parts[1] === "decor" ||
+      parts[1] === "bank" ||
+      parts[1] === "menu"
+        ? parts[1]
+        : "";
     return { view: "master", section };
   }
   if (parts[0] === "reservations" || parts[0] === "birthdays") {
