@@ -375,8 +375,12 @@ select {
 @media (max-width: 640px) {
   .staff-bar { padding: 0 10px; }
   .staff-bar__left, .staff-bar__right { gap: 8px; }
-  .staff-bar__home span { font-size: 18px; }
+  .staff-bar__home span { font-size: 17px; }
   .staff-bar__status { display: none; }
+  #sign-out {
+    padding: 8px 12px;
+    font-size: 12.5px;
+  }
 }
 
 .staff-side {
@@ -2338,6 +2342,180 @@ select {
 
 @media (max-width: 640px) {
   .drawer__expand { display: none; }
+
+  /* Phones: collapsed menu is fully off-screen; burger opens overlay. */
+  .staff-layout.has-side .staff-main,
+  .staff-layout.has-side.is-collapsed .staff-main {
+    padding-left: 0;
+  }
+
+  .staff-layout.is-collapsed .staff-side {
+    width: 0;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .staff-layout:not(.is-collapsed) .staff-side {
+    width: min(var(--side-w), 82vw);
+  }
+
+  .staff-top {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .staff-top h1,
+  .staff-top h2 {
+    font-size: 1.35rem;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+
+  .staff-top__meta {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .staff-top__meta .field {
+    margin: 0 !important;
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  .staff-top__meta .field > select,
+  .staff-top__meta .btn {
+    width: 100%;
+    align-self: stretch;
+  }
+
+  .detail-actions,
+  .contact-actions,
+  .guest-detail-actions,
+  .member-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 10px 0 14px;
+  }
+
+  .detail-actions .btn,
+  .contact-actions .btn,
+  .guest-detail-actions .btn,
+  .member-actions .btn {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    justify-content: center;
+    padding: 10px 12px;
+    font-size: 13px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .contact-actions a.btn[href^="mailto"],
+  .contact-actions a.btn[href^="tel"],
+  .contact-actions a.btn[href^="http"]:not([href*="wa.me"]) {
+    grid-column: 1 / -1;
+  }
+
+  .quote-list li,
+  .kv li {
+    gap: 10px;
+    padding: 10px;
+    align-items: flex-start;
+  }
+
+  .quote-list li > span:first-child,
+  .kv li > span:first-child {
+    flex: 0 1 38%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .quote-list li > span:last-child,
+  .kv li > span:last-child {
+    flex: 1 1 55%;
+    min-width: 0;
+    text-align: right;
+    overflow-wrap: anywhere;
+  }
+
+  #detail-view.detail-view--drawer {
+    width: 100%;
+  }
+
+  #detail-view.detail-view--drawer > .detail,
+  #detail-view.detail-view--drawer > .status {
+    padding: 12px 14px;
+  }
+
+  .drawer__head {
+    padding: 12px 14px;
+  }
+
+  .drawer__title {
+    font-size: 18px;
+  }
+
+  .drawer__body {
+    padding: 14px;
+  }
+
+  .drawer__foot {
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: stretch;
+    padding: 12px 14px;
+  }
+
+  .drawer__foot .btn {
+    flex: 1 1 calc(50% - 4px);
+    min-width: 0;
+  }
+
+  .card,
+  .toolbar,
+  .table-wrap,
+  .detail {
+    padding: 14px;
+  }
+
+  .booking-card-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .booking-card-actions .btn {
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+
+  .modal {
+    padding: 12px;
+    align-items: end;
+  }
+
+  .modal__card,
+  .modal__card--wide {
+    width: 100%;
+    max-height: min(88vh, 100%);
+    border-radius: 18px 18px 12px 12px;
+    padding: 18px 16px;
+  }
 }
 
 .drawer__form {
