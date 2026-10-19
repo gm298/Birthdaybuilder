@@ -50,8 +50,30 @@
     return list;
   }
 
-  function visibleSections(menu) {
-    return (menu.sections || []).filter((s) => s.visible !== false && s.id !== "play");
+  function menuFamilies(menu) {
+    const fromSettings = menu?.settings?.menus;
+    if (Array.isArray(fromSettings) && fromSettings.length) return fromSettings;
+    return [
+      { id: "food", name: "Food Menu" },
+      { id: "drink", name: "Drink Menu" },
+      { id: "special", name: "Special Menu" },
+    ];
+  }
+
+  function sectionFamily(section) {
+    if (section?.family) return section.family;
+    const id = section?.id || "";
+    if (id === "drinks" || id === "drink") return "drink";
+    if (id === "offers" || id === "special") return "special";
+    return "food";
+  }
+
+  function visibleSections(menu, familyId) {
+    return (menu.sections || []).filter((s) => {
+      if (s.visible === false || s.id === "play") return false;
+      if (!familyId) return true;
+      return sectionFamily(s) === familyId;
+    });
   }
 
   function pastaShapeSrc(menu, shape, colourLabel) {
@@ -246,13 +268,15 @@
     const unit = unitPriceFor(menu, dish, state.size, state.opts);
 
     return `
-      ${img ? `<div class="dm-pop__hero"><img src="${esc(img)}" alt=""></div>` : ""}
-      <h2 class="dm-pop__title" id="dm-pop-title">${esc(dish.name)}</h2>
-      ${tags ? `<div class="dm-tags">${tags}</div>` : ""}
-      <p class="dm-pop__desc">${esc(dish.desc || dish.short || "")}</p>
-      <p class="dm-pop__price">${esc(fmtPrice(unit))}</p>
-      ${(dish.sizes || []).length > 1 ? `<div class="dm-field"><span class="dm-field__label">Size</span><div class="dm-opts">${sizes}</div></div>` : ""}
-      ${groups}
+      ${img ? `<div class="dm-pop__hero"><img src="${esc(img)}" alt="${esc(dish.name)}"></div>` : ""}
+      <div class="dm-pop__body">
+        <h2 class="dm-pop__title" id="dm-pop-title">${esc(dish.name)}</h2>
+        ${tags ? `<div class="dm-tags">${tags}</div>` : ""}
+        <p class="dm-pop__desc">${esc(dish.desc || dish.short || "")}</p>
+        <p class="dm-pop__price">${esc(fmtPrice(unit))}</p>
+        ${(dish.sizes || []).length > 1 ? `<div class="dm-field"><span class="dm-field__label">Size</span><div class="dm-opts">${sizes}</div></div>` : ""}
+        ${groups}
+      </div>
     `;
   }
 
@@ -261,6 +285,8 @@
     fmtPrice,
     sizePrice,
     sectionDishes,
+    menuFamilies,
+    sectionFamily,
     visibleSections,
     kidsDishes,
     pastaShapeSrc,

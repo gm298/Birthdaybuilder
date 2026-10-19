@@ -24,6 +24,7 @@
   document.addEventListener("DOMContentLoaded", async () => {
     const app = document.getElementById("dm-app");
     const grid = document.getElementById("dm-grid");
+    const menusEl = document.getElementById("dm-menus");
     const sectionsEl = document.getElementById("dm-sections");
     const subsEl = document.getElementById("dm-subs");
     const introEl = document.getElementById("dm-intro");
@@ -35,6 +36,7 @@
 
     const state = {
       menu: null,
+      familyId: "food",
       sectionId: "",
       sub: "All",
       sizeSel: {},
@@ -57,8 +59,34 @@
       return state.cardOpts[dish.id];
     }
 
+    function sectionsForFamily() {
+      return R().visibleSections(state.menu, state.familyId);
+    }
+
+    function selectFamily(familyId, preferSectionId) {
+      state.familyId = familyId || "food";
+      const sections = sectionsForFamily();
+      const preferred =
+        preferSectionId && sections.some((s) => s.id === preferSectionId) ? preferSectionId : "";
+      state.sectionId = preferred || sections[0]?.id || "";
+      state.sub = "All";
+    }
+
+    function renderMenus() {
+      if (!menusEl) return;
+      const families = R().menuFamilies(state.menu);
+      menusEl.innerHTML = families
+        .map(
+          (m) =>
+            `<button type="button" class="dm-menu-chip${m.id === state.familyId ? " is-active" : ""}" role="tab" aria-selected="${
+              m.id === state.familyId ? "true" : "false"
+            }" data-menu-family="${R().esc(m.id)}">${R().esc(m.name)}</button>`
+        )
+        .join("");
+    }
+
     function renderSections() {
-      const sections = R().visibleSections(state.menu);
+      const sections = sectionsForFamily();
       sectionsEl.innerHTML = sections
         .map(
           (s) =>
@@ -119,9 +147,26 @@
     }
 
     function renderAll() {
+      renderMenus();
       renderSections();
       renderSubs();
       renderGrid();
+    }
+
+    let popScrollY = 0;
+
+    function lockPageScroll() {
+      popScrollY = window.scrollY || window.pageYOffset || 0;
+      document.documentElement.classList.add("dm-pop-open");
+      document.body.classList.add("dm-pop-open");
+      document.body.style.top = `-${popScrollY}px`;
+    }
+
+    function unlockPageScroll() {
+      document.documentElement.classList.remove("dm-pop-open");
+      document.body.classList.remove("dm-pop-open");
+      document.body.style.top = "";
+      window.scrollTo(0, popScrollY);
     }
 
     function openDetail(dish) {
@@ -135,12 +180,15 @@
       };
       popBody.innerHTML = R().popHtml(state.menu, dish, state.pop, api());
       pop.hidden = false;
+      lockPageScroll();
+      pop.querySelector(".dm-sheet__panel")?.scrollTo(0, 0);
       track("menu_detail_open", { dish_id: dish.id });
     }
 
     function closePop() {
       pop.hidden = true;
       state.pop = null;
+      unlockPageScroll();
     }
 
     function syncPop() {
@@ -152,6 +200,14 @@
       if (state.pop.size) state.sizeSel[dish.id] = state.pop.size;
       popBody.innerHTML = R().popHtml(state.menu, dish, state.pop, api());
     }
+
+    menusEl?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-menu-family]");
+      if (!btn) return;
+      selectFamily(btn.getAttribute("data-menu-family"));
+      renderAll();
+      track("menu_family_switch", { family: state.familyId });
+    });
 
     sectionsEl.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-sec]");
@@ -238,8 +294,7 @@
     try {
       const loaded = await api().loadMenu();
       state.menu = loaded.menu;
-      const sections = R().visibleSections(state.menu);
-      state.sectionId = sections[0]?.id || "breakfast";
+      selectFamily("food");
       if (fab) fab.href = api().shopUrl(state.menu);
       if (statusEl) statusEl.hidden = true;
       app.setAttribute("aria-busy", "false");
@@ -249,7 +304,10 @@
       if (offer) {
         const dish = dishById(offer);
         if (dish) {
-          state.sectionId = dish.sec === "kids" ? "kids" : dish.sec;
+          const sec =
+            (state.menu.sections || []).find((s) => s.id === (dish.sec === "kids" ? "kids" : dish.sec)) ||
+            null;
+          selectFamily(R().sectionFamily(sec), sec?.id || dish.sec);
           state.sub = dish.sub || "All";
           renderAll();
           openDetail(dish);

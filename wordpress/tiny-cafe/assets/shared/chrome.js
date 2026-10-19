@@ -219,7 +219,7 @@
       <nav class="site-nav" aria-label="Header menu">
         <a class="${current(page, "home").trim()}" href="${p.home || CAFE.home}">Home</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
-        <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
+        <a class="${current(page, "menu").trim()}" href="${p.menu}">Menu</a>
         <a class="${current(page, "events").trim()}" href="${eventsLink(page, p)}">Events</a>
         <div class="nav-drop">
           <a class="nav-drop__toggle${birthdayClass}" href="${p.birthdays}" aria-haspopup="true" aria-expanded="false">Birthdays</a>
@@ -242,7 +242,7 @@
         <button class="nav-drawer__close" type="button" aria-label="Close menu">&times;</button>
         <a class="${current(page, "home").trim()}" href="${p.home || CAFE.home}">Home</a>
         <a class="${current(page, "reserve").trim()}" href="${p.reserve}">Reservations</a>
-        <a href="${CAFE.shop}" target="_blank" rel="noopener noreferrer">Shop Online</a>
+        <a class="${current(page, "menu").trim()}" href="${p.menu}">Menu</a>
         <a class="${current(page, "events").trim()}" href="${eventsLink(page, p)}">Events</a>
         <a class="${current(page, "landing").trim()}" href="${p.birthdays}">About Birthdays</a>
         <a class="${current(page, "builder").trim()}" href="${p.builder}">Birthday Builder</a>

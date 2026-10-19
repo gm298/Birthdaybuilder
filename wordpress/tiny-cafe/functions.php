@@ -7,7 +7,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('TINY_CAFE_VERSION', '1.0.1');
+define('TINY_CAFE_VERSION', '1.0.4');
 define('TINY_CAFE_DIR', trailingslashit(get_template_directory()));
 define('TINY_CAFE_URL', trailingslashit(get_template_directory_uri()));
 define('TINY_CAFE_META', '_tiny_cafe_canvas');

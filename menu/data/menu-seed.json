@@ -34,7 +34,21 @@
       "assets/menu/pasta/spaghetti.png": "img/pasta/spaghetti.png",
       "spaghetti.png": "img/pasta/spaghetti.png"
     },
-    "shopUrl": "https://esborder.qs.esb.co.id/TYKB/THFC/mode"
+    "shopUrl": "https://esborder.qs.esb.co.id/TYKB/THFC/mode",
+    "menus": [
+      {
+        "id": "food",
+        "name": "Food Menu"
+      },
+      {
+        "id": "drink",
+        "name": "Drink Menu"
+      },
+      {
+        "id": "special",
+        "name": "Special Menu"
+      }
+    ]
   },
   "sections": [
     {
@@ -47,7 +61,8 @@
         "Waffles",
         "Bowls & porridge",
         "Toast & eggs"
-      ]
+      ],
+      "family": "food"
     },
     {
       "id": "lunch",
@@ -60,7 +75,8 @@
         "Salads & poke",
         "Pasta",
         "Mains"
-      ]
+      ],
+      "family": "food"
     },
     {
       "id": "kids",
@@ -71,7 +87,8 @@
       "intro": "Every dish that comes in a Tiny size.",
       "subs": [
         "Tiny tummies"
-      ]
+      ],
+      "family": "food"
     },
     {
       "id": "sweet",
@@ -79,7 +96,8 @@
       "layout": "cards",
       "visible": true,
       "intro": "No added sugar.",
-      "subs": []
+      "subs": [],
+      "family": "food"
     },
     {
       "id": "confect",
@@ -91,7 +109,8 @@
         "Bars & slices",
         "Cookies",
         "Cupcakes"
-      ]
+      ],
+      "family": "food"
     },
     {
       "id": "cakes",
@@ -99,7 +118,8 @@
       "layout": "cards",
       "visible": true,
       "intro": "No added sugar. Pre-order 2 days ahead.",
-      "subs": []
+      "subs": [],
+      "family": "food"
     },
     {
       "id": "extras",
@@ -110,7 +130,8 @@
       "subs": [
         "Sides",
         "Sauces & dips"
-      ]
+      ],
+      "family": "food"
     },
     {
       "id": "offers",
@@ -118,7 +139,21 @@
       "layout": "cards",
       "visible": true,
       "intro": "",
-      "subs": []
+      "subs": [],
+      "family": "special"
+    },
+    {
+      "id": "drinks",
+      "name": "Drinks",
+      "family": "drink",
+      "layout": "cards",
+      "visible": true,
+      "intro": "Cold presses, coffee, tea, and house favourites. Ask us for today’s list.",
+      "subs": [
+        "Coffee & tea",
+        "Juices",
+        "Smoothies & shakes"
+      ]
     },
     {
       "id": "play",
@@ -127,7 +162,8 @@
       "visible": true,
       "fixed": true,
       "intro": "",
-      "subs": []
+      "subs": [],
+      "family": "food"
     }
   ],
   "groups": [
