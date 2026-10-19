@@ -77,4 +77,40 @@ Write-Partial (Join-Path $root "booking\index.html") (Join-Path $partials "booki
 Write-Partial (Join-Path $root "location\index.html") (Join-Path $partials "location.php")
 Write-Partial (Join-Path $root "menu\index.html") (Join-Path $partials "menu.php")
 
+# Party builder markup lives in the static page. Keep WordPress image and menu URLs.
+function Write-PartyBuilder($htmlPath, $partialPath) {
+  $html = [IO.File]::ReadAllText($htmlPath, [Text.Encoding]::UTF8)
+  $main = [regex]::Match($html, '(?s)<main[^>]*>(?<body>.*?)</main>')
+  if (-not $main.Success) {
+    throw "No <main> in $htmlPath"
+  }
+  $staff = [regex]::Match($html, '(?s)(<div class="staff-decor-bar" id="staff-decor-bar".*?)\s*<main>')
+  $after = [regex]::Match($html, '(?s)<div id="site-chrome-footer"></div>(?<rest>.*?)<script')
+  $parts = @()
+  if ($staff.Success) { $parts += $staff.Groups[1].Value.Trim() }
+  $parts += $main.Groups["body"].Value.Trim()
+  if ($after.Success -and $after.Groups["rest"].Value.Trim() -ne "") {
+    $parts += $after.Groups["rest"].Value.Trim()
+  }
+  $chunk = ($parts -join "`n`n")
+  $chunk = [regex]::Replace($chunk, 'src="img/hero\.jpg(?:\?[^"]*)?"', 'src="<?php echo esc_url($hero); ?>"')
+  $chunk = [regex]::Replace($chunk, 'src="img/food\.jpg(?:\?[^"]*)?"', 'src="<?php echo esc_url($food); ?>"')
+  $chunk = [regex]::Replace($chunk, 'href="(?:\.\./)+menu/"', 'href="<?php echo $menu; ?>"')
+  $chunk = [regex]::Replace($chunk, 'id="builder-exit" href="\.\./"', 'id="builder-exit" href="<?php echo esc_url(tiny_birthdays_page_url(''landing'')); ?>"')
+  $header = @'
+<?php
+if (!defined('ABSPATH')) {
+    exit;
+}
+$hero = tiny_birthdays_asset('birthdays/builder/img/hero.jpg');
+$food = tiny_birthdays_asset('birthdays/builder/img/food.jpg');
+$menu = esc_url(tiny_birthdays_page_url('menu'));
+?>
+
+'@
+  [IO.File]::WriteAllText($partialPath, $header + $chunk + "`n", (New-Object Text.UTF8Encoding $false))
+}
+
+Write-PartyBuilder (Join-Path $root "birthdays\builder\index.html") (Join-Path $partials "party-builder.php")
+
 Write-Host "Synced Tiny assets into $dest"

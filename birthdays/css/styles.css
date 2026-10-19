@@ -2269,16 +2269,6 @@ h3 {
   min-width: 100%;
 }
 
-.offer-slider__slide::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(90deg, #f6f3ee 0%, rgba(246, 243, 238, 0.2) 16%, rgba(246, 243, 238, 0) 28%, rgba(246, 243, 238, 0) 72%, rgba(246, 243, 238, 0.35) 86%, #f6f3ee 100%),
-    linear-gradient(180deg, #f6f3ee 0%, rgba(246, 243, 238, 0.15) 14%, rgba(246, 243, 238, 0) 30%, rgba(246, 243, 238, 0) 62%, rgba(246, 243, 238, 0.72) 82%, #f6f3ee 100%);
-}
-
 .offer-slider__slide img {
   display: block;
   width: 100%;
@@ -2286,8 +2276,6 @@ h3 {
   aspect-ratio: 4 / 3;
   object-fit: contain;
   object-position: center;
-  -webkit-mask-image: radial-gradient(ellipse 78% 74% at 50% 44%, #000 36%, rgba(0, 0, 0, 0.55) 68%, transparent 100%);
-  mask-image: radial-gradient(ellipse 78% 74% at 50% 44%, #000 36%, rgba(0, 0, 0, 0.55) 68%, transparent 100%);
 }
 
 .offer-slider__caption {

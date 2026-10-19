@@ -8,7 +8,7 @@ function tiny_birthdays_cake_app_attributes() {
         'galleryHeadline' => tiny_birthdays_string_attr('Cakes we bake'),
         'eyebrow' => tiny_birthdays_string_attr('Build your cake'),
         'headline' => tiny_birthdays_string_attr('Make your own cake'),
-        'copy' => tiny_birthdays_string_attr('Size, sponge flavours and a design — either one of ours or your own photo. It all goes to our WhatsApp in one message.'),
+        'copy' => tiny_birthdays_string_attr('Choose a date and size, then flavours and a design. Your request is saved for Tiny.'),
     ];
 }
 
@@ -22,7 +22,7 @@ function tiny_birthdays_render_cake_app($attrs) {
     $gallery_headline = tiny_birthdays_text($attrs, 'galleryHeadline', 'Cakes we bake');
     $eyebrow = tiny_birthdays_text($attrs, 'eyebrow', 'Build your cake');
     $headline = tiny_birthdays_text($attrs, 'headline', 'Make your own cake');
-    $copy = tiny_birthdays_text($attrs, 'copy', 'Size, sponge flavours and a design — either one of ours or your own photo. It all goes to our WhatsApp in one message.');
+    $copy = tiny_birthdays_text($attrs, 'copy', 'Choose a date and size, then flavours and a design. Your request is saved for Tiny.');
     $birthdays_url = tiny_birthdays_page_url('landing');
     ob_start();
     include TINY_BIRTHDAYS_DIR . 'templates/partials/cake-app.php';
@@ -32,7 +32,8 @@ function tiny_birthdays_render_cake_app($attrs) {
 function tiny_birthdays_render_reserve() {
     ob_start();
     include TINY_BIRTHDAYS_DIR . 'templates/partials/reserve.php';
-    return ob_get_clean();
+    $html = str_replace('src="img/', 'src="' . esc_url(tiny_birthdays_asset('reserve/img/')), ob_get_clean());
+    return tiny_birthdays_link_static_pages($html);
 }
 
 function tiny_birthdays_render_booking() {
@@ -70,7 +71,7 @@ function tiny_birthdays_link_static_pages($html) {
 }
 
 function tiny_birthdays_render_events() {
-    $hero = 'https://tinyhealthycafe.com/birthdays/builder/img/decor/terrace.jpg';
+    $hero = tiny_birthdays_asset('birthdays/builder/img/decor/terrace.jpg');
     $video = tiny_birthdays_asset('events/video/cooking-class.mp4');
     $logo = tiny_birthdays_asset('birthdays/img/logo-dark.png');
     return '<div id="events-app" data-hero="' . esc_url($hero) . '" data-video="' . esc_url($video) . '" data-logo="' . esc_url($logo) . '"></div>';

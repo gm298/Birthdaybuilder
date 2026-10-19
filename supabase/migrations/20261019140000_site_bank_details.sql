@@ -40,3 +40,5 @@ create policy "staff update site settings"
   to authenticated
   using (public.is_staff())
   with check (public.is_staff());
+
+notify pgrst, 'reload schema';

@@ -52,7 +52,7 @@ $og_image = $type === 'cakes'
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <?php wp_head(); ?>
 </head>
-<body data-page="<?php echo esc_attr($data_page); ?>" class="<?php echo esc_attr(implode(' ', $body_classes)); ?>"<?php echo $type === 'builder' ? ' data-builder-step="intro"' : ''; ?>>
+<body data-page="<?php echo esc_attr($data_page); ?>" class="<?php echo esc_attr(implode(' ', $body_classes)); ?>"<?php echo $type === 'builder' ? ' data-builder-step="details"' : ''; ?>>
   <div id="site-chrome-header"></div>
   <main>
     <?php

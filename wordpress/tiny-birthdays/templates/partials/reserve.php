@@ -10,7 +10,7 @@ if (!defined('ABSPATH')) {
         <p class="hero__sub">The cafe is open 8:30am–8pm. Online Reservations last for 2 hours and we will hold your table for 15 minutes. Full booking conditions are shown before you confirm.</p>
       </div>
       <figure class="hero__photo">
-        <img src="<?php echo esc_url(tiny_birthdays_asset('reserve/img/dining.jpg')); ?>" alt="Family at a table with drinks, food, and a server at Tiny" width="1024" height="1024">
+        <img src="img/dining.jpg" alt="Family at a table with drinks, food, and a server at Tiny" width="1024" height="1024">
       </figure>
     </section>
 
@@ -29,21 +29,22 @@ if (!defined('ABSPATH')) {
       <form id="reserve-form" novalidate>
         <div class="wizard-panel is-active" data-panel="1">
           <div class="field field--guests">
-            <span class="field__label">Guests <span class="field__req">*</span></span>
-            <div class="guest-stepper" id="guest-stepper" data-guest-stepper>
-              <div class="guest-stepper__row">
-                <label class="guest-stepper__name" id="guest-kids-label" for="guest-kids">Children</label>
-                <button type="button" class="guest-stepper__btn" data-for="guest-kids" data-step="-1" aria-label="Fewer children">−</button>
-                <input class="guest-stepper__input" type="number" id="guest-kids" name="guest-kids" min="0" max="30" inputmode="numeric" value="" aria-labelledby="guest-kids-label">
-                <button type="button" class="guest-stepper__btn" data-for="guest-kids" data-step="1" aria-label="More children">+</button>
+            <span class="field__label">How many people? <span class="field__req">*</span></span>
+            <div class="guest-pair">
+              <div class="field">
+                <span class="field__label field__label--soft" id="guest-kids-label">Kids</span>
+                <button type="button" class="count-trigger" id="guest-kids-trigger" aria-haspopup="dialog" aria-labelledby="guest-kids-label">
+                  <strong id="guest-kids-value">Slide to choose</strong>
+                </button>
+                <input type="hidden" id="guest-kids" name="guest-kids" value="">
               </div>
-              <div class="guest-stepper__row">
-                <label class="guest-stepper__name" id="guest-adults-label" for="guest-adults">Adults</label>
-                <button type="button" class="guest-stepper__btn" data-for="guest-adults" data-step="-1" aria-label="Fewer adults">−</button>
-                <input class="guest-stepper__input" type="number" id="guest-adults" name="guest-adults" min="0" max="20" inputmode="numeric" value="" aria-labelledby="guest-adults-label">
-                <button type="button" class="guest-stepper__btn" data-for="guest-adults" data-step="1" aria-label="More adults">+</button>
+              <div class="field">
+                <span class="field__label field__label--soft" id="guest-adults-label">Adults</span>
+                <button type="button" class="count-trigger" id="guest-adults-trigger" aria-haspopup="dialog" aria-labelledby="guest-adults-label">
+                  <strong id="guest-adults-value">Slide to choose</strong>
+                </button>
+                <input type="hidden" id="guest-adults" name="guest-adults" value="">
               </div>
-              <p class="guest-stepper__total" data-guest-total>Total: —</p>
             </div>
           </div>
           <div class="field">
@@ -139,6 +140,20 @@ if (!defined('ABSPATH')) {
       </form>
     </section>
 
+  <div class="count-modal" id="count-modal" hidden>
+    <button type="button" class="count-modal__backdrop" data-close-count aria-label="Close"></button>
+    <div class="count-modal__panel" role="dialog" aria-modal="true" aria-labelledby="count-modal-title">
+      <h3 id="count-modal-title">How many?</h3>
+      <p class="count-modal__note" id="count-modal-note"></p>
+      <div class="count-modal__value" id="count-modal-value">0</div>
+      <div class="count-modal__unit" id="count-modal-unit"></div>
+      <input type="range" id="count-modal-range" min="0" max="30" value="0">
+      <div class="count-modal__scale"><span id="count-modal-min">0</span><span id="count-modal-max">30</span></div>
+      <p class="count-modal__confirm" id="count-modal-confirm"></p>
+      <button type="button" class="btn count-modal__done" id="count-modal-done">Continue</button>
+    </div>
+  </div>
+
   <div class="time-modal" id="time-modal" hidden aria-hidden="true">
     <button type="button" class="time-modal__backdrop" data-close-time aria-label="Close"></button>
     <div class="time-modal__panel" role="dialog" aria-modal="true" aria-labelledby="time-modal-title">
@@ -149,4 +164,3 @@ if (!defined('ABSPATH')) {
       <div class="time-grid" id="time-grid" role="group" aria-labelledby="time-modal-title"></div>
     </div>
   </div>
-
