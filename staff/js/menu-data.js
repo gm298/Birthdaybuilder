@@ -135,6 +135,18 @@ export function createMenuDataController({ supabase, setStatus }) {
       .join("");
   }
 
+  function sectionLabel(secId) {
+    const s = (state.draft?.sections || []).find((x) => x.id === secId);
+    return s?.name || secId || "—";
+  }
+
+  function imgThumb(d) {
+    const path = d.img || "";
+    if (!path) return `<span class="dm-desk-thumb dm-desk-thumb--empty"></span>`;
+    const src = path.startsWith("http") || path.startsWith("/") ? path : `../menu/${path.replace(/^\.?\/?/, "")}`;
+    return `<span class="dm-desk-thumb"><img src="${esc(src)}" alt="" loading="lazy"></span>`;
+  }
+
   function renderItems() {
     const sections = state.draft?.sections || [];
     const filters = [
@@ -142,24 +154,41 @@ export function createMenuDataController({ supabase, setStatus }) {
       ...sections.filter((s) => !s.fixed).map((s) => [s.id, s.name]),
       ["kids", "Kids sizes"],
     ];
-    const rows = filteredDishes()
+    const list = filteredDishes();
+    const rows = list
       .map((d) => {
-        const price = (d.sizes || []).map((s) => `${s.l} ${fmtPrice(s.p)}`).join(" · ");
-        const flags = [d.hidden ? "Hidden" : "", d.soldOut ? "Sold out" : ""].filter(Boolean).join(" · ");
-        return `<button type="button" class="dm-admin-row" data-edit-dish="${esc(d.id)}">
-          <strong>${esc(d.name)}</strong>
-          <span class="muted">${esc(d.sec)}${d.sub ? ` / ${esc(d.sub)}` : ""} · ${esc(price)}${
-          flags ? ` · ${esc(flags)}` : ""
-        }</span>
-        </button>`;
+        const price = (d.sizes || []).map((s) => `${s.l} ${s.p}`).join(" · ") || "—";
+        const customise = (d.groups || []).length ? `<span class="dm-desk-badge">CUSTOMISE</span>` : "";
+        const onMenu = !d.hidden;
+        return `<div class="dm-desk-row${state.editId === d.id ? " is-editing" : ""}" data-row-dish="${esc(d.id)}">
+          <div class="dm-desk-cell dm-desk-cell--item">
+            ${imgThumb(d)}
+            <div class="dm-desk-item-text">
+              <div class="dm-desk-name">${esc(d.name)}${customise}</div>
+              <div class="dm-desk-desc">${esc(d.short || d.desc || "")}</div>
+            </div>
+          </div>
+          <div class="dm-desk-cell dm-desk-cell--sec">${esc(sectionLabel(d.sec))}${
+          d.sub ? ` · ${esc(d.sub)}` : ""
+        }</div>
+          <div class="dm-desk-cell dm-desk-cell--price">${esc(price)}</div>
+          <div class="dm-desk-cell dm-desk-cell--on">
+            <button type="button" class="dm-desk-toggle${onMenu ? " is-on" : ""}" data-toggle-on="${esc(
+              d.id
+            )}" aria-pressed="${onMenu}" title="On menu">${onMenu ? "On" : "Off"}</button>
+          </div>
+          <div class="dm-desk-cell dm-desk-cell--act">
+            <button type="button" class="dm-desk-edit" data-edit-dish="${esc(d.id)}">Edit</button>
+          </div>
+        </div>`;
       })
       .join("");
 
     const edit = state.editId ? dishes().find((d) => d.id === state.editId) : null;
     const editor = edit
-      ? `<div class="dm-admin-editor">
+      ? `<div class="dm-admin-editor" id="menu-data-editor">
           <div class="master-panel__head">
-            <h3>${esc(edit.name)}</h3>
+            <h3>Edit · ${esc(edit.name)}</h3>
             <button type="button" class="btn btn--outline" data-close-dish>Close</button>
           </div>
           <label class="field"><span>Name</span><input data-dish-field="name" value="${esc(edit.name)}"></label>
@@ -183,15 +212,25 @@ export function createMenuDataController({ supabase, setStatus }) {
           )}"></label>
           <label class="check"><input type="checkbox" data-dish-flag="hidden" ${
             edit.hidden ? "checked" : ""
-          }> Hidden</label>
+          }> Hidden (off menu)</label>
           <label class="check"><input type="checkbox" data-dish-flag="soldOut" ${
             edit.soldOut ? "checked" : ""
           }> Sold out today</label>
-          <button type="button" class="btn" data-save-dish>Save item</button>
+          <div class="dm-admin-editor__actions">
+            <button type="button" class="btn" data-save-dish>Save item</button>
+            <button type="button" class="btn btn--outline" data-close-dish>Cancel</button>
+          </div>
         </div>`
-      : "";
+      : `<p class="muted dm-desk-hint">Click a row or Edit to change an item. Toggle On to show it on the guest menu.</p>`;
 
-    return `<div class="dm-admin-toolbar">
+    return `<div class="dm-desk-head">
+        <div>
+          <h3 class="dm-desk-title">Menu items</h3>
+          <p class="muted">${list.length} of ${dishes().length} items · click Edit to change</p>
+        </div>
+        <button type="button" class="btn" data-new-dish>+ New item</button>
+      </div>
+      <div class="dm-admin-toolbar">
         <input type="search" id="menu-data-query" placeholder="Search dishes" value="${esc(state.query)}">
         <div class="dm-admin-filters">${filters
           .map(
@@ -202,7 +241,16 @@ export function createMenuDataController({ supabase, setStatus }) {
           )
           .join("")}</div>
       </div>
-      <div class="dm-admin-list">${rows || `<p class="muted">No dishes match.</p>`}</div>
+      <div class="dm-desk-table" role="table">
+        <div class="dm-desk-row dm-desk-row--head" role="row">
+          <div class="dm-desk-cell">Item</div>
+          <div class="dm-desk-cell">Section</div>
+          <div class="dm-desk-cell">Price ('000)</div>
+          <div class="dm-desk-cell">On menu</div>
+          <div class="dm-desk-cell"></div>
+        </div>
+        ${rows || `<p class="muted" style="padding:1rem">No dishes match.</p>`}
+      </div>
       ${editor}`;
   }
 
@@ -345,10 +393,63 @@ export function createMenuDataController({ supabase, setStatus }) {
         render();
         return;
       }
+      const toggleOn = e.target.closest("[data-toggle-on]");
+      if (toggleOn) {
+        const id = toggleOn.getAttribute("data-toggle-on");
+        const dish = dishes().find((d) => d.id === id);
+        if (!dish) return;
+        dish.hidden = !dish.hidden;
+        saveDraft()
+          .then(() => {
+            setStatus("menu-data-status", dish.hidden ? "Hidden from guest menu." : "Shown on guest menu.", "is-success");
+            render();
+          })
+          .catch((err) => setStatus("menu-data-status", err.message || "Could not update.", "is-error"));
+        return;
+      }
+      if (e.target.closest("[data-new-dish]")) {
+        const id = `dish_${Date.now().toString(36)}`;
+        const dish = {
+          id,
+          name: "New dish",
+          short: "",
+          desc: "",
+          img: "",
+          sec: (state.draft?.sections || []).find((s) => !s.fixed)?.id || "breakfast",
+          sub: "",
+          tags: [],
+          sizes: [{ l: "Regular", p: 0 }],
+          groups: [],
+          hidden: true,
+          soldOut: false,
+        };
+        if (!state.draft.dishes) state.draft.dishes = [];
+        state.draft.dishes.unshift(dish);
+        state.editId = id;
+        state.filter = "all";
+        state.query = "";
+        render();
+        requestAnimationFrame(() => {
+          document.getElementById("menu-data-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        return;
+      }
       const edit = e.target.closest("[data-edit-dish]");
       if (edit) {
         state.editId = edit.getAttribute("data-edit-dish");
         render();
+        requestAnimationFrame(() => {
+          document.getElementById("menu-data-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
+        return;
+      }
+      const row = e.target.closest("[data-row-dish]");
+      if (row && !e.target.closest("[data-toggle-on]")) {
+        state.editId = row.getAttribute("data-row-dish");
+        render();
+        requestAnimationFrame(() => {
+          document.getElementById("menu-data-editor")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        });
         return;
       }
       if (e.target.closest("[data-close-dish]")) {
@@ -432,13 +533,13 @@ export function createMenuDataController({ supabase, setStatus }) {
     root.addEventListener("input", (e) => {
       if (e.target.id === "menu-data-query") {
         state.query = e.target.value || "";
-        // re-render list only
-        const list = root.querySelector(".dm-admin-list");
-        if (list) {
-          const tmp = document.createElement("div");
-          state.tab = "items";
-          // cheap: full render
-          render();
+        state.tab = "items";
+        render();
+        const q = root.querySelector("#menu-data-query");
+        if (q) {
+          q.focus();
+          const len = q.value.length;
+          q.setSelectionRange(len, len);
         }
         return;
       }
@@ -472,12 +573,16 @@ export function createMenuDataController({ supabase, setStatus }) {
   }
 
   let bound = false;
+  let loaded = false;
 
   async function renderMenuData() {
-    setStatus("menu-data-status", "Loading menu…");
-    await load();
-    render();
     const root = document.getElementById("menu-data-root");
+    if (!loaded || !state.draft) {
+      setStatus("menu-data-status", "Loading menu…");
+      await load();
+      loaded = true;
+    }
+    render();
     if (root && !bound) {
       bind(root);
       bound = true;

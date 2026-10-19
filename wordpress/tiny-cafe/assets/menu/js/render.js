@@ -173,28 +173,31 @@
           )}" data-size="${esc(s.l)}">${esc(s.l)}</button>`
       )
       .join("");
-    const media = img
-      ? `<button type="button" class="dm-card__media" data-open-dish="${esc(
-          dish.id
-        )}" aria-label="Open ${esc(dish.name)}"><img src="${esc(img)}" alt="" class="${fit}" loading="lazy" decoding="async"></button>`
-      : `<button type="button" class="dm-card__media dm-card__media--empty" data-open-dish="${esc(
-          dish.id
-        )}" aria-label="Open ${esc(dish.name)}">Tiny</button>`;
+    const mediaInner = img
+      ? `<img src="${esc(img)}" alt="" class="${fit}" loading="lazy" decoding="async">`
+      : `<span>your photo</span>`;
     const sold = dish.soldOut ? `<span class="dm-sold-badge">SOLD OUT TODAY</span>` : "";
     const oneGroups = optionGroupsHtml(menu, dish, opts || {}, api, "card", false);
 
     return `<article class="dm-card${dish.soldOut ? " is-sold" : ""}" data-dish="${esc(dish.id)}">
-      ${media}
+      <button type="button" class="dm-card__media${img ? "" : " dm-card__media--empty"}" data-open-dish="${esc(
+        dish.id
+      )}" aria-label="Open ${esc(dish.name)}">
+        ${tags ? `<span class="dm-card__tags">${tags}</span>` : ""}
+        ${mediaInner}
+      </button>
       <div class="dm-card__body">
         <button type="button" class="dm-card__open" data-open-dish="${esc(dish.id)}">
           <h3 class="dm-card__name">${esc(dish.name)}</h3>
-          ${tags ? `<div class="dm-tags">${tags}</div>` : ""}
           <p class="dm-card__short">${esc(dish.short || "")}</p>
         </button>
         ${sold}
-        <div class="dm-card__price">${esc(fmtPrice(size.p))}</div>
         ${(dish.sizes || []).length > 1 ? `<div class="dm-card__sizes">${sizes}</div>` : ""}
+        <div class="dm-card__price">${esc(fmtPrice(size.p))}</div>
         ${oneGroups}
+        <div class="dm-card__foot">
+          <button type="button" class="dm-card__more" data-open-dish="${esc(dish.id)}">More</button>
+        </div>
       </div>
     </article>`;
   }

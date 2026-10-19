@@ -47,15 +47,27 @@ function tiny_birthdays_enqueue_front() {
     );
 
     $deps = [];
-    foreach (tiny_birthdays_page_styles($type) as $handle => $path) {
-        wp_enqueue_style($handle, tiny_birthdays_asset($path), $deps, $ver);
-        $deps = [$handle];
+    $page_styles = tiny_birthdays_page_styles($type);
+    // Menu CSS must load after chrome so full-bleed header/footer + FAB overrides win.
+    if ($type === 'menu') {
+        wp_enqueue_style('tiny-cafe-chrome', tiny_birthdays_asset('shared/chrome.css'), [], $ver);
+        foreach ($page_styles as $handle => $path) {
+            wp_enqueue_style($handle, tiny_birthdays_asset($path), ['tiny-cafe-chrome'], $ver);
+            $deps = [$handle];
+        }
+    } else {
+        foreach ($page_styles as $handle => $path) {
+            wp_enqueue_style($handle, tiny_birthdays_asset($path), $deps, $ver);
+            $deps = [$handle];
+        }
+        wp_enqueue_style('tiny-cafe-chrome', tiny_birthdays_asset('shared/chrome.css'), $deps, $ver);
+        $deps = ['tiny-cafe-chrome'];
     }
-    wp_enqueue_style('tiny-cafe-chrome', tiny_birthdays_asset('shared/chrome.css'), $deps, $ver);
     if ($type === 'booking') {
         wp_enqueue_style('tiny-cafe-booking', tiny_birthdays_asset('booking/css/styles.css'), ['tiny-cafe-chrome'], $ver);
     }
-    wp_enqueue_style('tiny-cafe-canvas', TINY_CAFE_URL . 'assets/tiny-canvas.css', ['tiny-cafe-chrome'], $ver);
+    $canvas_deps = $type === 'menu' ? (array_keys($page_styles) ?: ['tiny-cafe-chrome']) : ['tiny-cafe-chrome'];
+    wp_enqueue_style('tiny-cafe-canvas', TINY_CAFE_URL . 'assets/tiny-canvas.css', $canvas_deps, $ver);
 
     wp_enqueue_script('tiny-cafe-analytics', tiny_birthdays_asset('shared/analytics.js'), [], $ver, false);
     wp_enqueue_script('tiny-cafe-chrome', tiny_birthdays_asset('shared/chrome.js'), [], $ver, true);
