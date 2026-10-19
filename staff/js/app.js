@@ -68,6 +68,10 @@ const state = {
   paymentFilter: "all",
   listSearch: { overview: "", events: "", payments: "" },
   editingEventId: null,
+  eventGallery: [],
+  eventPhotoPaths: [],
+  eventNewPhotos: [],
+  eventPreviewUrls: [],
 };
 
 function todayIso() {
@@ -3181,18 +3185,190 @@ function eventGalleryFrom(event = {}) {
   return cover ? [cover] : [];
 }
 
-function fillEventPhotosExisting(urls = []) {
+function isEventImagePath(path) {
+  return /\.(jpe?g|png|webp)$/i.test(String(path || "").split("?")[0]);
+}
+
+function isEventPdfPath(path) {
+  return /\.pdf$/i.test(String(path || "").split("?")[0]);
+}
+
+function isAcceptedEventFile(file) {
+  const type = String(file?.type || "").toLowerCase();
+  if (type === "application/pdf" || type.startsWith("image/")) return true;
+  return /\.(jpe?g|png|webp|pdf)$/i.test(file?.name || "");
+}
+
+function fileNameFromPath(path) {
+  const clean = String(path || "").split("?")[0];
+  try {
+    return decodeURIComponent(clean.split("/").pop() || "File");
+  } catch {
+    return clean.split("/").pop() || "File";
+  }
+}
+
+function coverFromGallery(current, gallery) {
+  const list = (gallery || []).filter(Boolean);
+  if (current && list.includes(current)) return current;
+  return list[0] || "";
+}
+
+function eventImageStoragePath(url) {
+  const value = String(url || "");
+  const marker = "/object/public/event-images/";
+  const index = value.indexOf(marker);
+  if (index === -1) return "";
+  return decodeURIComponent(value.slice(index + marker.length).split("?")[0]);
+}
+
+function clearEventPhotoPreviews() {
+  (state.eventPreviewUrls || []).forEach((url) => URL.revokeObjectURL(url));
+  state.eventPreviewUrls = [];
+}
+
+function eventPhotoTile(imageHtml, removeAttr) {
+  return `<figure class="event-photo">${imageHtml}<button class="btn btn--outline btn--tiny" type="button" ${removeAttr}>Remove</button></figure>`;
+}
+
+function fillEventPhotosExisting() {
   const host = document.getElementById("event-photos-existing");
   if (!host) return;
-  const list = (urls || []).filter(Boolean);
-  host.innerHTML = list.length
-    ? list
-        .map(
-          (url) =>
-            `<img src="${escapeHtml(url)}" alt="Attached event picture">`
-        )
+  clearEventPhotoPreviews();
+  const gallery = (state.eventGallery || []).filter(Boolean);
+  const pdfs = (state.eventPhotoPaths || []).filter(isEventPdfPath);
+  const pending = state.eventNewPhotos || [];
+  if (!gallery.length && !pdfs.length && !pending.length) {
+    host.innerHTML = `<p class="muted">No pictures attached yet.</p>`;
+    return;
+  }
+  const saved = gallery
+    .map((url, index) =>
+      eventPhotoTile(
+        `<img src="${escapeHtml(url)}" alt="Event picture ${index + 1}">`,
+        `data-remove-event-photo="${index}"`
+      )
+    )
+    .join("");
+  const pdfHtml = pdfs
+    .map((path, index) =>
+      eventPhotoTile(
+        `<div class="event-photo__file">${escapeHtml(fileNameFromPath(path))}</div>`,
+        `data-remove-event-pdf="${index}"`
+      )
+    )
+    .join("");
+  const pendingHtml = pending
+    .map((file, index) => {
+      if (String(file.type || "").startsWith("image/") || /\.(jpe?g|png|webp)$/i.test(file.name || "")) {
+        const url = URL.createObjectURL(file);
+        state.eventPreviewUrls.push(url);
+        return eventPhotoTile(
+          `<img src="${url}" alt="New picture ${escapeHtml(file.name || index + 1)}">`,
+          `data-remove-new-photo="${index}"`
+        );
+      }
+      return eventPhotoTile(
+        `<div class="event-photo__file">${escapeHtml(file.name || "PDF")}</div>`,
+        `data-remove-new-photo="${index}"`
+      );
+    })
+    .join("");
+  host.innerHTML = saved + pdfHtml + pendingHtml;
+}
+
+function eventPictureItems(event, photoPaths, signedByPath) {
+  const gallery = eventGalleryFrom(event);
+  const paths = Array.isArray(photoPaths) ? photoPaths : [];
+  const items = [];
+  if (gallery.length) {
+    gallery.forEach((url, index) => items.push({ kind: "gallery", url, index }));
+  } else {
+    paths.filter(isEventImagePath).forEach((path) => {
+      const url = signedByPath?.get(path) || "";
+      if (url) items.push({ kind: "file", path, url });
+    });
+  }
+  paths.filter(isEventPdfPath).forEach((path) => {
+    items.push({ kind: "pdf", path, url: signedByPath?.get(path) || "", name: fileNameFromPath(path) });
+  });
+  return items;
+}
+
+function eventPicturesSectionHtml(items) {
+  const cards = items.length
+    ? items
+        .map((item, index) => {
+          if (item.kind === "pdf") {
+            const file = item.url
+              ? `<a class="event-photo__file" href="${escapeHtml(item.url)}" target="_blank" rel="noopener">${escapeHtml(item.name || "PDF")}</a>`
+              : `<div class="event-photo__file">${escapeHtml(item.name || "PDF")}</div>`;
+            return eventPhotoTile(file, `data-event-picture-remove="${index}"`);
+          }
+          return eventPhotoTile(
+            `<img src="${escapeHtml(item.url)}" alt="Event picture ${index + 1}">`,
+            `data-event-picture-remove="${index}"`
+          );
+        })
         .join("")
-    : `<p class="muted" style="margin:0">No pictures attached yet.</p>`;
+    : `<p class="muted">No pictures uploaded.</p>`;
+  return `<section>
+          <h3>Pictures</h3>
+          <div id="event-detail-photos" class="event-photos-existing event-photos-existing--detail">${cards}</div>
+          <label class="field">
+            <span>Add pictures or PDFs</span>
+            <input type="file" id="event-detail-photos-add" accept="image/jpeg,image/png,image/webp,application/pdf" multiple>
+          </label>
+          <p class="status" id="event-pictures-status" role="status"></p>
+        </section>`;
+}
+
+async function saveEventPictureSet(requestId, payload, files, gallery, photoPaths) {
+  const event = { ...(payload?.event || {}) };
+  event.gallery = gallery;
+  event.coverUrl = coverFromGallery(event.coverUrl, gallery);
+  const nextFiles = { ...(files || {}), eventPhotos: photoPaths };
+  const nextPayload = { ...(payload || {}), event };
+  const { error } = await supabase
+    .from("requests")
+    .update({ files: nextFiles, payload: nextPayload })
+    .eq("id", requestId)
+    .eq("source", "event");
+  if (error) throw error;
+}
+
+async function cleanupRemovedEventPictures(urls, paths) {
+  const imagePaths = [...new Set((urls || []).map(eventImageStoragePath).filter(Boolean))];
+  const filePaths = [...new Set((paths || []).map((path) => String(path || "").trim()).filter(Boolean))];
+  try {
+    if (imagePaths.length) await supabase.storage.from("event-images").remove(imagePaths);
+    if (filePaths.length) await supabase.storage.from("request-files").remove(filePaths);
+  } catch {
+    /* The event no longer lists these pictures. */
+  }
+}
+
+function pictureChangeFromItem(event, photoPaths, item) {
+  const gallery = eventGalleryFrom(event);
+  const paths = Array.isArray(photoPaths) ? [...photoPaths] : [];
+  if (!item) return null;
+  if (item.kind === "gallery") {
+    const imagePaths = paths.filter(isEventImagePath);
+    const removedPath = imagePaths[item.index];
+    return {
+      gallery: gallery.filter((_, index) => index !== item.index),
+      photoPaths: removedPath ? paths.filter((path) => path !== removedPath) : paths,
+      removedUrls: gallery[item.index] ? [gallery[item.index]] : [],
+      removedPaths: removedPath ? [removedPath] : [],
+    };
+  }
+  if (!item.path) return null;
+  return {
+    gallery,
+    photoPaths: paths.filter((path) => path !== item.path),
+    removedUrls: [],
+    removedPaths: [item.path],
+  };
 }
 
 function openEventModal(opts = {}) {
@@ -3208,7 +3384,10 @@ function openEventModal(opts = {}) {
   document.getElementById("event-promo").value = opts.promo || "";
   document.getElementById("event-notes").value = opts.notes || "";
   document.getElementById("event-photos").value = "";
-  fillEventPhotosExisting(eventGalleryFrom({ coverUrl: opts.coverUrl, gallery: opts.gallery }));
+  state.eventGallery = eventGalleryFrom({ coverUrl: opts.coverUrl, gallery: opts.gallery });
+  state.eventPhotoPaths = Array.isArray(opts.photoPaths) ? opts.photoPaths.map((path) => String(path || "")).filter(Boolean) : [];
+  state.eventNewPhotos = [];
+  fillEventPhotosExisting();
   state.eventLayouts = eventLayoutsFrom({ layouts: opts.layouts });
   document.getElementById("event-layout-terrace").value = "";
   document.getElementById("event-layout-indoor").value = "";
@@ -3233,6 +3412,10 @@ function openEventModal(opts = {}) {
 function closeEventModal() {
   eventModal.hidden = true;
   state.editingEventId = null;
+  clearEventPhotoPreviews();
+  state.eventGallery = [];
+  state.eventPhotoPaths = [];
+  state.eventNewPhotos = [];
 }
 
 function eventCoversRange(row, from, to) {
@@ -3433,7 +3616,9 @@ async function saveStaffEvent() {
   const payment = document.querySelector('input[name="event-payment"]:checked')?.value || "tiny";
   const pricing = readEventPricing();
   const hasPricing = pricing.price > 0;
-  const photos = document.getElementById("event-photos")?.files;
+  const keptGallery = [...(state.eventGallery || [])];
+  const keptPaths = [...(state.eventPhotoPaths || [])];
+  const newPhotos = [...(state.eventNewPhotos || [])];
   const freq = document.getElementById("event-repeat")?.value || "none";
   const until = document.getElementById("event-until")?.value || "";
   const Map = window.TinyReserveMap;
@@ -3484,7 +3669,8 @@ async function saveStaffEvent() {
   }
   const guests = document.querySelector("#event-guests .guest-row") ? readGuestList() : existingEvent.guests || [];
   const pax = guests.reduce((sum, guest) => sum + (Number(guest.pax) || 0), 0) || null;
-  const preservedGallery = eventGalleryFrom(existingEvent);
+  const removedGallery = eventGalleryFrom(existingEvent).filter((url) => !keptGallery.includes(url));
+  const removedPaths = (existingFiles.eventPhotos || []).filter((path) => !keptPaths.includes(path));
   const payload = {
     event: {
       name,
@@ -3499,8 +3685,8 @@ async function saveStaffEvent() {
       partySize,
       repeat,
       slots,
-      coverUrl: existingEvent.coverUrl || preservedGallery[0] || "",
-      gallery: preservedGallery,
+      coverUrl: coverFromGallery(existingEvent.coverUrl, keptGallery),
+      gallery: keptGallery,
       layouts: location === "service" ? { ...state.eventLayouts } : {},
     },
     reservation: {
@@ -3528,6 +3714,7 @@ async function saveStaffEvent() {
         email: guests.find((guest) => guest.email)?.email || user?.email || "events@tinyhealthycafe.com",
         phone: requestPhoneFromGuests(guests),
         payload,
+        files: { ...existingFiles, eventPhotos: keptPaths },
         quote_subtotal_idr: hasPricing ? pricing.price : null,
         quote_service_idr: hasPricing ? pricing.service : null,
         quote_tax_idr: hasPricing ? pricing.tax : null,
@@ -3570,18 +3757,19 @@ async function saveStaffEvent() {
     }
     requestId = data.id;
   }
+  let requestSaved = true;
   try {
-    const hasNewFiles = photos && photos.length;
+    const hasNewFiles = newPhotos.length > 0;
     const hasNewLayouts = location === "service" && (layoutFiles.terrace || layoutFiles.indoor);
     if (hasNewFiles || hasNewLayouts) {
-      const files = { ...existingFiles };
+      const files = { ...existingFiles, eventPhotos: keptPaths };
       const nextEvent = { ...(payload.event || {}) };
       if (hasNewFiles) {
-        const uploaded = await uploadEventPhotos(requestId, photos);
-        const galleryUrls = await uploadEventGalleryImages(requestId, photos);
-        if (uploaded.length) files.eventPhotos = [...(files.eventPhotos || []), ...uploaded];
-        nextEvent.gallery = [...preservedGallery, ...galleryUrls.filter((url) => !preservedGallery.includes(url))];
-        nextEvent.coverUrl = existingEvent.coverUrl || nextEvent.gallery[0] || "";
+        const uploaded = await uploadEventPhotos(requestId, newPhotos);
+        const galleryUrls = await uploadEventGalleryImages(requestId, newPhotos);
+        if (uploaded.length) files.eventPhotos = [...keptPaths, ...uploaded];
+        nextEvent.gallery = [...keptGallery, ...galleryUrls.filter((url) => !keptGallery.includes(url))];
+        nextEvent.coverUrl = coverFromGallery(existingEvent.coverUrl, nextEvent.gallery);
       }
       if (hasNewLayouts) {
         nextEvent.layouts = { ...(nextEvent.layouts || {}), ...(await uploadEventLayouts(requestId, layoutFiles)) };
@@ -3593,10 +3781,12 @@ async function saveStaffEvent() {
       if (fileError) throw fileError;
     }
   } catch (err) {
+    if (requestSaved) await cleanupRemovedEventPictures(removedGallery, removedPaths);
     statusEl.textContent = `Event saved, but files did not upload: ${err.message || err}`;
     statusEl.className = "status is-error";
     return;
   }
+  await cleanupRemovedEventPictures(removedGallery, removedPaths);
   const stayOnDetail = Boolean(state.editingEventId);
   closeEventModal();
   state.selectedDate = date;
@@ -5207,10 +5397,10 @@ async function loadDetail(id) {
     staffDecorReplacementUrl(decor, files),
   ]);
   const decorPicture = decorResolved.url;
-  const eventPhotoPaths = files.eventPhotos || [];
+  const eventPhotoPaths = Array.isArray(files.eventPhotos) ? files.eventPhotos.filter(Boolean) : [];
   const eventPhotoUrls = await Promise.all(eventPhotoPaths.map((path) => signedUrl(path)));
-  const galleryUrls = eventGalleryFrom(payload.event || {});
-  const pictureUrls = [...galleryUrls, ...eventPhotoUrls.filter((url) => url && !galleryUrls.includes(url))];
+  const eventPhotoSigned = new Map(eventPhotoPaths.map((path, index) => [path, eventPhotoUrls[index] || ""]));
+  const pictureItems = isEvent ? eventPictureItems(payload.event || {}, eventPhotoPaths, eventPhotoSigned) : [];
   const printEntries = Object.entries(files.prints || {});
   const printUrls = await Promise.all(printEntries.map(([, path]) => signedUrl(path)));
   const lines = (quote.lines || [])
@@ -5413,20 +5603,7 @@ async function loadDetail(id) {
         </section>`
             : ""
         }
-        <section>
-          <h3>Pictures</h3>
-          <div class="media-row">
-            ${
-              pictureUrls.filter(Boolean).length
-                ? pictureUrls
-                    .map((url, i) =>
-                      url ? `<img src="${escapeHtml(url)}" alt="Event picture ${i + 1}">` : ""
-                    )
-                    .join("")
-                : `<p class="muted">No pictures uploaded.</p>`
-            }
-          </div>
-        </section>
+        ${eventPicturesSectionHtml(pictureItems)}
         ${
           isEvent && payload.event?.location !== "masterclass"
             ? `<section>
@@ -5610,8 +5787,72 @@ async function loadDetail(id) {
       pricing: event.pricing || eventPricingFromRow(row),
       coverUrl: event.coverUrl || "",
       gallery: eventGalleryFrom(event),
+      photoPaths: files.eventPhotos || [],
       layouts: eventLayoutsFrom(event),
     });
+  });
+  document.getElementById("event-detail-photos")?.addEventListener("click", async (e) => {
+    const button = e.target.closest("[data-event-picture-remove]");
+    if (!button) return;
+    const item = pictureItems[Number(button.dataset.eventPictureRemove)];
+    if (!item) return;
+    const ok = await confirmAction({
+      title: "Remove this picture?",
+      message: "It comes off this event, the public events page, and Google Calendar.",
+      confirmLabel: "Remove",
+    });
+    if (!ok) return;
+    const statusEl = document.getElementById("event-pictures-status");
+    button.disabled = true;
+    if (statusEl) {
+      statusEl.textContent = "Removing picture…";
+      statusEl.className = "status";
+    }
+    try {
+      const change = pictureChangeFromItem(payload.event || {}, eventPhotoPaths, item);
+      if (!change) return;
+      await saveEventPictureSet(row.id, payload, files, change.gallery, change.photoPaths);
+      await cleanupRemovedEventPictures(change.removedUrls, change.removedPaths);
+      await loadRows();
+      await loadDetail(row.id);
+    } catch (err) {
+      button.disabled = false;
+      if (statusEl) {
+        statusEl.textContent = err.message || "Could not remove the picture.";
+        statusEl.className = "status is-error";
+      }
+    }
+  });
+  document.getElementById("event-detail-photos-add")?.addEventListener("change", async (e) => {
+    const incoming = [...(e.target.files || [])];
+    e.target.value = "";
+    const statusEl = document.getElementById("event-pictures-status");
+    const accepted = incoming.filter(isAcceptedEventFile);
+    if (!accepted.length) {
+      if (statusEl && incoming.length) {
+        statusEl.textContent = "Use JPG, PNG, WebP, or PDF files.";
+        statusEl.className = "status is-error";
+      }
+      return;
+    }
+    if (statusEl) {
+      statusEl.textContent = "Uploading pictures…";
+      statusEl.className = "status";
+    }
+    try {
+      const gallery = eventGalleryFrom(payload.event || {});
+      const uploaded = await uploadEventPhotos(row.id, accepted);
+      const galleryUrls = await uploadEventGalleryImages(row.id, accepted);
+      const nextGallery = [...gallery, ...galleryUrls.filter((url) => !gallery.includes(url))];
+      await saveEventPictureSet(row.id, payload, files, nextGallery, [...eventPhotoPaths, ...uploaded]);
+      await loadRows();
+      await loadDetail(row.id);
+    } catch (err) {
+      if (statusEl) {
+        statusEl.textContent = err.message || "Could not add the pictures.";
+        statusEl.className = "status is-error";
+      }
+    }
   });
   document.querySelectorAll("[data-confirm-guest]").forEach((button) => {
     button.addEventListener("click", async () => {
@@ -7295,6 +7536,49 @@ document.addEventListener("keydown", (e) => {
 });
 document.getElementById("event-location")?.addEventListener("change", syncEventLocationFields);
 document.getElementById("event-full-terrace")?.addEventListener("change", applyFullTerrace);
+document.getElementById("event-photos-existing")?.addEventListener("click", (e) => {
+  const photo = e.target.closest("[data-remove-event-photo]");
+  if (photo) {
+    const index = Number(photo.dataset.removeEventPhoto);
+    const imagePaths = (state.eventPhotoPaths || []).filter(isEventImagePath);
+    const removedPath = imagePaths[index];
+    state.eventGallery = (state.eventGallery || []).filter((_, itemIndex) => itemIndex !== index);
+    if (removedPath) state.eventPhotoPaths = (state.eventPhotoPaths || []).filter((path) => path !== removedPath);
+    fillEventPhotosExisting();
+    return;
+  }
+  const pdfButton = e.target.closest("[data-remove-event-pdf]");
+  if (pdfButton) {
+    const pdfs = (state.eventPhotoPaths || []).filter(isEventPdfPath);
+    const path = pdfs[Number(pdfButton.dataset.removeEventPdf)];
+    if (path) state.eventPhotoPaths = (state.eventPhotoPaths || []).filter((item) => item !== path);
+    fillEventPhotosExisting();
+    return;
+  }
+  const pending = e.target.closest("[data-remove-new-photo]");
+  if (!pending) return;
+  const next = [...(state.eventNewPhotos || [])];
+  next.splice(Number(pending.dataset.removeNewPhoto), 1);
+  state.eventNewPhotos = next;
+  fillEventPhotosExisting();
+});
+document.getElementById("event-photos")?.addEventListener("change", (e) => {
+  const incoming = [...(e.target.files || [])];
+  e.target.value = "";
+  const statusEl = document.getElementById("event-status");
+  const accepted = incoming.filter(isAcceptedEventFile);
+  if (accepted.length !== incoming.length && statusEl) {
+    statusEl.textContent = "Use JPG, PNG, WebP, or PDF files.";
+    statusEl.className = "status is-error";
+  }
+  if (!accepted.length) return;
+  state.eventNewPhotos = [...(state.eventNewPhotos || []), ...accepted];
+  if (statusEl && accepted.length === incoming.length) {
+    statusEl.textContent = "";
+    statusEl.className = "status";
+  }
+  fillEventPhotosExisting();
+});
 document.querySelectorAll("[data-layout-remove]").forEach((button) => {
   button.addEventListener("click", () => {
     const area = button.dataset.layoutRemove;
