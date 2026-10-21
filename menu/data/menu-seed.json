@@ -29,6 +29,12 @@
       "note": "",
       "family": "drink",
       "cat": "drink"
+    },
+    {
+      "label": "Regular",
+      "note": "",
+      "family": "dinner",
+      "cat": "dinner"
     }
   ],
   "settings": {
@@ -61,6 +67,10 @@
       {
         "id": "food",
         "name": "Food Menu"
+      },
+      {
+        "id": "dinner",
+        "name": "Dinner Menu"
       },
       {
         "id": "drink",
@@ -321,6 +331,76 @@
       "subs": [],
       "family": "drink",
       "cat": "drink"
+    },
+    {
+      "id": "dn-app",
+      "name": "Appetiser",
+      "layout": "cards",
+      "visible": true,
+      "intro": "",
+      "subs": [],
+      "family": "dinner",
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-classics",
+      "name": "The Classics",
+      "layout": "cards",
+      "visible": true,
+      "intro": "",
+      "subs": [],
+      "family": "dinner",
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-snacks",
+      "name": "Snacks & sides",
+      "layout": "cards",
+      "visible": true,
+      "intro": "",
+      "subs": [],
+      "family": "dinner",
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-mains",
+      "name": "Mains",
+      "layout": "cards",
+      "visible": true,
+      "intro": "",
+      "subs": [],
+      "family": "dinner",
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-salads",
+      "name": "Salads",
+      "layout": "cards",
+      "visible": true,
+      "intro": "",
+      "subs": [],
+      "family": "dinner",
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-desserts",
+      "name": "Desserts",
+      "layout": "cards",
+      "visible": true,
+      "intro": "",
+      "subs": [],
+      "family": "dinner",
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-beer",
+      "name": "Beer specials",
+      "layout": "cards",
+      "visible": true,
+      "intro": "Burger or pasta with a beer.",
+      "subs": [],
+      "family": "dinner",
+      "cat": "dinner"
     },
     {
       "id": "play",
@@ -867,6 +947,44 @@
       ],
       "family": "drink",
       "cat": "drink"
+    },
+    {
+      "id": "dn-sauce",
+      "name": "Sauce",
+      "type": "one",
+      "opts": [
+        {
+          "id": "demi",
+          "l": "Demi-glace",
+          "esbOptionId": null
+        },
+        {
+          "id": "pepper",
+          "l": "Black pepper",
+          "esbOptionId": null
+        }
+      ],
+      "family": "dinner",
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-mash",
+      "name": "Side",
+      "type": "one",
+      "opts": [
+        {
+          "id": "potato",
+          "l": "Mashed potato",
+          "esbOptionId": null
+        },
+        {
+          "id": "carrot",
+          "l": "Carrot",
+          "esbOptionId": null
+        }
+      ],
+      "family": "dinner",
+      "cat": "dinner"
     }
   ],
   "dishes": [
@@ -4909,6 +5027,562 @@
       "esbMenuId": null,
       "esbMenuCode": null,
       "cat": "drink"
+    },
+    {
+      "id": "dn-tartare",
+      "sec": "dn-app",
+      "sub": "",
+      "name": "Steak Tartare",
+      "short": "Australian tenderloin, herbs, capers and tobiko.",
+      "desc": "Brunoise-cut Australian tenderloin with herbs, capers, egg yolk and tobiko, served with crisp baguette.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/tartare.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 119
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-polenta",
+      "sec": "dn-app",
+      "sub": "",
+      "name": "Salmon & Polenta",
+      "short": "Polenta pancake, dill cream cheese and gravlax.",
+      "desc": "Polenta pancake with dill cream cheese, topped with salmon gravlax and tobiko.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/polenta.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 119
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-brus",
+      "sec": "dn-app",
+      "sub": "",
+      "name": "Bruschetta",
+      "short": "Tomato, garlic, basil and olive oil.",
+      "desc": "Home-made baguette with fresh diced tomatoes, garlic, basil and extra virgin olive oil.",
+      "img": "",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 39
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-rolls",
+      "sec": "dn-app",
+      "sub": "",
+      "name": "Fairy Flower Rolls",
+      "short": "Rice paper rolls with peanut sesame sauce.",
+      "desc": "Seasonal salad, micro herbs, mango, kale, pickles and flowers wrapped in rice paper, with peanut sesame sauce and coriander cashew chutney.",
+      "img": "",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 85
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-burger",
+      "sec": "dn-classics",
+      "sub": "",
+      "name": "Black Cheese Burger",
+      "short": "Charcoal bun, beef patty, cheddar and fries.",
+      "desc": "Multigrain charcoal brioche bun with an Australian beef patty, caramelised onion, cheddar cheese and ranch sauce. Served with crinkle-cut french fries.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/burger.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 119
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-olive",
+      "sec": "dn-classics",
+      "sub": "",
+      "name": "Olive & Caper Tagliatelle",
+      "short": "Home-made tagliatelle, olive and caper sauce.",
+      "desc": "Home-made tagliatelle with an olive and caper sauce.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/olive-pasta.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 55
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-tomato",
+      "sec": "dn-classics",
+      "sub": "",
+      "name": "Tomato & Basil Tagliatelle",
+      "short": "Home-made tagliatelle, fresh tomato and basil.",
+      "desc": "Home-made tagliatelle with a fresh tomato and basil sauce.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/tomato-pasta.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 55
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-wings",
+      "sec": "dn-snacks",
+      "sub": "",
+      "name": "Chicken Wings",
+      "short": "6 pieces, roasted garlic soy.",
+      "desc": "Six roasted garlic soy chicken wings.",
+      "img": "",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 39
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-calamari",
+      "sec": "dn-snacks",
+      "sub": "",
+      "name": "Calamari Tempura",
+      "short": "Calamari tempura.",
+      "desc": "Calamari tempura.",
+      "img": "",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 59
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-karage",
+      "sec": "dn-snacks",
+      "sub": "",
+      "name": "Chicken Karage",
+      "short": "Chicken karage.",
+      "desc": "Chicken karage.",
+      "img": "",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 44
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-crisps",
+      "sec": "dn-snacks",
+      "sub": "",
+      "name": "Potato Crisps",
+      "short": "Potato crisps.",
+      "desc": "Potato crisps.",
+      "img": "",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 29
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-mash",
+      "sec": "dn-snacks",
+      "sub": "",
+      "name": "Mashed Potato or Carrot",
+      "short": "Choose mashed potato or carrot.",
+      "desc": "Mashed potato or carrot.",
+      "img": "",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 29
+        }
+      ],
+      "groups": [
+        "dn-mash"
+      ],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-roast",
+      "sec": "dn-mains",
+      "sub": "",
+      "name": "Roast Chicken",
+      "short": "Chicken breast, beans, onion and cherry tomato.",
+      "desc": "Roasted chicken breast with sauteed beans, grilled onion and toasted cherry tomato.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/roast-chicken.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 96
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-steak",
+      "sec": "dn-mains",
+      "sub": "",
+      "name": "Steak & Veg",
+      "short": "200g Australian rib-eye with greens.",
+      "desc": "200g Australian rib-eye with green beans, asparagus, baby carrots and mashed potato. Choice of demi-glace or black pepper sauce.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/steak-veg.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 279
+        }
+      ],
+      "groups": [
+        "dn-sauce"
+      ],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-schnitz",
+      "sec": "dn-mains",
+      "sub": "",
+      "name": "Chicken Schnitzel",
+      "short": "Breaded cutlet, creamy sauce, onion and lemon.",
+      "desc": "Breaded chicken cutlet with creamy sauce, grilled onion and lemon.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/schnitzel.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 114
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-salmon",
+      "sec": "dn-mains",
+      "sub": "",
+      "name": "Seared Salmon",
+      "short": "Crispy skin salmon, carrot puree and greens.",
+      "desc": "Crispy skin salmon with carrot puree, sauteed asparagus, spinach and shimeji mushrooms.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/salmon.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 249
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-zuc",
+      "sec": "dn-salads",
+      "sub": "",
+      "name": "Grilled Zucchini",
+      "short": "Zucchini, cherry tomato, kale and feta.",
+      "desc": "Grilled zucchini, cherry tomato, kale and feta cheese.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/zucchini.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 109
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-thai",
+      "sec": "dn-salads",
+      "sub": "",
+      "name": "Thai Beef Salad",
+      "short": "Rib-eye with a spicy Thai dressing.",
+      "desc": "Marinated Australian rib-eye with a spicy Thai dressing, cucumber, red paprika, coriander, shallots and spring onion.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/thai-beef.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 185
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-burrata",
+      "sec": "dn-salads",
+      "sub": "",
+      "name": "Citrus Burrata Salad",
+      "short": "Citrus, watermelon, tomatoes and burrata.",
+      "desc": "Seasonal citrus, watermelon, three-colour cherry tomatoes and Italian basil, topped with burrata.",
+      "img": "",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 129
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-dome",
+      "sec": "dn-desserts",
+      "sub": "",
+      "name": "Chocolate Dome",
+      "short": "Chocolate dome with banana ice cream.",
+      "desc": "Tempered chocolate dome filled with banana ice cream and red velvet sponge.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/dome.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 79
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-lava",
+      "sec": "dn-desserts",
+      "sub": "",
+      "name": "Chocolate Lava Cake",
+      "short": "Home-made chocolate lava cake.",
+      "desc": "Home-made chocolate lava cake.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/lava.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 39
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-macaron",
+      "sec": "dn-desserts",
+      "sub": "",
+      "name": "Macaron & Ice Cream",
+      "short": "Matcha macaron and hojicha ice cream.",
+      "desc": "Matcha macaron served with hojicha ice cream and berry reduction.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/macaron.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 69
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-beer-burger",
+      "sec": "dn-beer",
+      "sub": "",
+      "name": "Burger & Beer",
+      "short": "Black cheese burger with a beer.",
+      "desc": "Black cheese burger with a beer.",
+      "img": "https://wvfwnnujxvaukwrtydac.supabase.co/storage/v1/object/public/menu-images/dinner/burger.jpg",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 149
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
+    },
+    {
+      "id": "dn-beer-pasta",
+      "sec": "dn-beer",
+      "sub": "",
+      "name": "Pasta & Beer",
+      "short": "Tagliatelle with a beer.",
+      "desc": "Tagliatelle with a beer.",
+      "img": "",
+      "fit": "cover",
+      "tags": [],
+      "sizes": [
+        {
+          "l": "Regular",
+          "p": 79
+        }
+      ],
+      "groups": [],
+      "hidden": false,
+      "soldOut": false,
+      "esbMenuId": null,
+      "esbMenuCode": null,
+      "cat": "dinner"
     }
   ],
   "playground": {
