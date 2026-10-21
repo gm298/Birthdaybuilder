@@ -260,6 +260,375 @@ export function createMenuDataController({ supabase, setStatus }) {
     }, 450);
   }
 
+  const CROP_RATIO = 5 / 4;
+  const OUTPUT_W = 1000;
+  const OUTPUT_H = 800;
+  const cropState = {
+    bitmap: null,
+    zoom: 1,
+    x: 0,
+    y: 0,
+    frameW: 0,
+    frameH: 0,
+    drag: null,
+    pinch: null,
+    pointers: new Map(),
+    busy: false,
+  };
+  let cropBound = false;
+
+  function bitmapSize(bitmap) {
+    return {
+      w: bitmap.naturalWidth || bitmap.width,
+      h: bitmap.naturalHeight || bitmap.height,
+    };
+  }
+
+  function formatPhotoSize(bytes) {
+    if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  async function readBitmap(file) {
+    const type = String(file?.type || "");
+    const name = String(file?.name || "");
+    if (type && !type.startsWith("image/") && !/\.(jpe?g|png|webp|gif|bmp|avif|heic|heif)$/i.test(name)) {
+      throw new Error("Choose a picture file.");
+    }
+    try {
+      if (typeof createImageBitmap === "function") {
+        return await createImageBitmap(file, { imageOrientation: "from-image" });
+      }
+    } catch (_) {
+      /* Fall back to an image element for formats the bitmap decoder rejects. */
+    }
+    const url = URL.createObjectURL(file);
+    try {
+      return await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("Could not read that picture. Try a JPG or PNG."));
+        img.src = url;
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  function imageScale() {
+    const { w, h } = bitmapSize(cropState.bitmap);
+    const cover = Math.max(cropState.frameW / w, cropState.frameH / h);
+    return cover * cropState.zoom;
+  }
+
+  function clampCropOffsets() {
+    const { w, h } = bitmapSize(cropState.bitmap);
+    const scale = imageScale();
+    const minX = cropState.frameW - w * scale;
+    const minY = cropState.frameH - h * scale;
+    cropState.x = Math.min(0, Math.max(minX, cropState.x));
+    cropState.y = Math.min(0, Math.max(minY, cropState.y));
+  }
+
+  function sourceRect() {
+    const { w, h } = bitmapSize(cropState.bitmap);
+    const scale = imageScale();
+    let sx = -cropState.x / scale;
+    let sy = -cropState.y / scale;
+    let sw = cropState.frameW / scale;
+    let sh = cropState.frameH / scale;
+    sx = Math.max(0, sx);
+    sy = Math.max(0, sy);
+    if (sx + sw > w) sw = w - sx;
+    if (sy + sh > h) sh = h - sy;
+    return { sx, sy, sw, sh };
+  }
+
+  function drawCrop(ctx, dw, dh) {
+    const { sx, sy, sw, sh } = sourceRect();
+    ctx.fillStyle = "#fbf6eb";
+    ctx.fillRect(0, 0, dw, dh);
+    ctx.drawImage(cropState.bitmap, sx, sy, sw, sh, 0, 0, dw, dh);
+  }
+
+  function layoutCrop() {
+    const stage = document.getElementById("menu-photo-crop-stage");
+    const width = Math.max(240, stage?.clientWidth || 360);
+    cropState.frameW = width;
+    cropState.frameH = Math.round(width / CROP_RATIO);
+    if (stage) stage.style.height = `${cropState.frameH}px`;
+  }
+
+  function paintCrop() {
+    const canvas = document.getElementById("menu-photo-crop-canvas");
+    const preview = document.getElementById("menu-photo-crop-preview");
+    if (!canvas || !preview || !cropState.bitmap) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.round(cropState.frameW * dpr);
+    canvas.height = Math.round(cropState.frameH * dpr);
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawCrop(ctx, cropState.frameW, cropState.frameH);
+    preview.width = 250;
+    preview.height = 200;
+    drawCrop(preview.getContext("2d"), 250, 200);
+  }
+
+  function setCropZoom(next, anchorX, anchorY) {
+    if (!cropState.bitmap) return;
+    const prevScale = imageScale();
+    const ax = anchorX ?? cropState.frameW / 2;
+    const ay = anchorY ?? cropState.frameH / 2;
+    const ix = (ax - cropState.x) / prevScale;
+    const iy = (ay - cropState.y) / prevScale;
+    cropState.zoom = Math.min(4, Math.max(1, next));
+    const nextScale = imageScale();
+    cropState.x = ax - ix * nextScale;
+    cropState.y = ay - iy * nextScale;
+    clampCropOffsets();
+    const slider = document.getElementById("menu-photo-crop-zoom");
+    if (slider) slider.value = String(cropState.zoom);
+    paintCrop();
+  }
+
+  function centerCrop() {
+    const { w, h } = bitmapSize(cropState.bitmap);
+    const scale = imageScale();
+    cropState.x = (cropState.frameW - w * scale) / 2;
+    cropState.y = (cropState.frameH - h * scale) / 2;
+    clampCropOffsets();
+  }
+
+  function closeCrop() {
+    const modal = document.getElementById("menu-photo-crop");
+    if (modal) modal.hidden = true;
+    if (cropState.bitmap?.close) cropState.bitmap.close();
+    cropState.bitmap = null;
+    cropState.drag = null;
+    cropState.pinch = null;
+    cropState.pointers.clear();
+    cropState.busy = false;
+    const status = document.getElementById("menu-photo-crop-status");
+    if (status) {
+      status.textContent = "";
+      status.className = "status";
+    }
+    const saveBtn = document.querySelector("[data-crop-save]");
+    if (saveBtn) saveBtn.disabled = false;
+    document.getElementById("menu-photo-crop-stage")?.classList.remove("is-dragging");
+  }
+
+  async function openCrop(file) {
+    const bitmap = await readBitmap(file);
+    const size = bitmapSize(bitmap);
+    if (!size.w || !size.h) throw new Error("Could not read that picture. Try a JPG or PNG.");
+    closeCrop();
+    cropState.bitmap = bitmap;
+    cropState.zoom = 1;
+    const modal = document.getElementById("menu-photo-crop");
+    if (!modal) throw new Error("Crop tool is missing from the page.");
+    modal.hidden = false;
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    layoutCrop();
+    centerCrop();
+    const slider = document.getElementById("menu-photo-crop-zoom");
+    if (slider) slider.value = "1";
+    paintCrop();
+  }
+
+  function canvasToJpeg(canvas, quality) {
+    return new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Could not compress the picture."))),
+        "image/jpeg",
+        quality
+      );
+    });
+  }
+
+  async function exportCroppedFile() {
+    const canvas = document.createElement("canvas");
+    canvas.width = OUTPUT_W;
+    canvas.height = OUTPUT_H;
+    drawCrop(canvas.getContext("2d"), OUTPUT_W, OUTPUT_H);
+    let quality = 0.82;
+    let blob = await canvasToJpeg(canvas, quality);
+    const target = 380 * 1024;
+    while (blob.size > target && quality > 0.52) {
+      quality = Math.round((quality - 0.08) * 100) / 100;
+      blob = await canvasToJpeg(canvas, quality);
+    }
+    if (blob.size > 1024 * 1024) {
+      canvas.width = 800;
+      canvas.height = 640;
+      drawCrop(canvas.getContext("2d"), 800, 640);
+      blob = await canvasToJpeg(canvas, 0.72);
+    }
+    return new File([blob], "dish.jpg", { type: "image/jpeg" });
+  }
+
+  async function commitCrop() {
+    if (cropState.busy || !cropState.bitmap) return;
+    const dish = editingDish();
+    const status = document.getElementById("menu-photo-crop-status");
+    const saveBtn = document.querySelector("[data-crop-save]");
+    if (!dish) {
+      if (status) {
+        status.textContent = "Open a menu item before saving the photo.";
+        status.className = "status is-error";
+      }
+      return;
+    }
+    cropState.busy = true;
+    if (saveBtn) saveBtn.disabled = true;
+    try {
+      if (status) {
+        status.textContent = "Compressing photo…";
+        status.className = "status";
+      }
+      const file = await exportCroppedFile();
+      if (status) status.textContent = "Uploading photo…";
+      const prev = dish.img;
+      dish.img = await uploadDishImage(dish.id, file);
+      if (prev && prev !== dish.img) await removeStoredImage(prev);
+      closeCrop();
+      fillDrawer();
+      scheduleSave();
+      setStatus("menu-data-status", `Photo uploaded · ${formatPhotoSize(file.size)}`, "is-success");
+    } catch (err) {
+      cropState.busy = false;
+      if (saveBtn) saveBtn.disabled = false;
+      if (status) {
+        status.textContent = err.message || "Upload failed.";
+        status.className = "status is-error";
+      }
+      setStatus("menu-data-status", err.message || "Upload failed.", "is-error");
+    }
+  }
+
+  function bindCrop() {
+    if (cropBound) return;
+    const modal = document.getElementById("menu-photo-crop");
+    const stage = document.getElementById("menu-photo-crop-stage");
+    if (!modal || !stage) return;
+    cropBound = true;
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal || e.target.closest("[data-crop-cancel]")) {
+        closeCrop();
+        return;
+      }
+      if (e.target.closest("[data-crop-save]")) commitCrop();
+    });
+
+    document.getElementById("menu-photo-crop-zoom")?.addEventListener("input", (e) => {
+      setCropZoom(Number(e.target.value));
+    });
+
+    stage.addEventListener("pointerdown", (e) => {
+      if (!cropState.bitmap) return;
+      try {
+        stage.setPointerCapture(e.pointerId);
+      } catch (_) {
+        /* Synthetic events and some browsers cannot capture the pointer. */
+      }
+      cropState.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (cropState.pointers.size >= 2) {
+        const [a, b] = [...cropState.pointers.values()];
+        cropState.pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, zoom: cropState.zoom };
+        cropState.drag = null;
+      } else {
+        cropState.drag = { x: e.clientX, y: e.clientY, ox: cropState.x, oy: cropState.y };
+        stage.classList.add("is-dragging");
+      }
+    });
+
+    stage.addEventListener("pointermove", (e) => {
+      if (!cropState.pointers.has(e.pointerId)) return;
+      cropState.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (cropState.pointers.size >= 2 && cropState.pinch) {
+        const [a, b] = [...cropState.pointers.values()];
+        const dist = Math.hypot(a.x - b.x, a.y - b.y) || 1;
+        setCropZoom(cropState.pinch.zoom * (dist / cropState.pinch.dist));
+        return;
+      }
+      if (!cropState.drag) return;
+      cropState.x = cropState.drag.ox + (e.clientX - cropState.drag.x);
+      cropState.y = cropState.drag.oy + (e.clientY - cropState.drag.y);
+      clampCropOffsets();
+      paintCrop();
+    });
+
+    const endPointer = (e) => {
+      cropState.pointers.delete(e.pointerId);
+      if (cropState.pointers.size < 2) cropState.pinch = null;
+      if (cropState.pointers.size === 0) {
+        cropState.drag = null;
+        stage.classList.remove("is-dragging");
+      } else if (cropState.pointers.size === 1) {
+        const point = [...cropState.pointers.values()][0];
+        cropState.drag = { x: point.x, y: point.y, ox: cropState.x, oy: cropState.y };
+      }
+    };
+    stage.addEventListener("pointerup", endPointer);
+    stage.addEventListener("pointercancel", endPointer);
+
+    stage.addEventListener(
+      "wheel",
+      (e) => {
+        if (!cropState.bitmap) return;
+        e.preventDefault();
+        const rect = stage.getBoundingClientRect();
+        const factor = e.deltaY < 0 ? 1.06 : 0.94;
+        setCropZoom(cropState.zoom * factor, e.clientX - rect.left, e.clientY - rect.top);
+      },
+      { passive: false }
+    );
+
+    window.addEventListener("resize", () => {
+      if (modal.hidden || !cropState.bitmap) return;
+      const prev = sourceRect();
+      layoutCrop();
+      const scale = imageScale();
+      cropState.x = cropState.frameW / 2 - (prev.sx + prev.sw / 2) * scale;
+      cropState.y = cropState.frameH / 2 - (prev.sy + prev.sh / 2) * scale;
+      clampCropOffsets();
+      paintCrop();
+    });
+
+    document.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key !== "Escape" || modal.hidden) return;
+        e.preventDefault();
+        e.stopPropagation();
+        closeCrop();
+      },
+      true
+    );
+
+    document.addEventListener("change", async (e) => {
+      const fileInput = e.target.closest?.("[data-drawer-upload]");
+      if (!fileInput || !fileInput.files?.[0]) return;
+      const file = fileInput.files[0];
+      fileInput.value = "";
+      const photoStatus = document.getElementById("menu-photo-status");
+      const showPhotoStatus = (message, kind) => {
+        if (photoStatus) {
+          photoStatus.textContent = message || "";
+          photoStatus.className = kind ? `status ${kind}` : "status";
+        }
+      };
+      try {
+        showPhotoStatus("Preparing photo…");
+        await openCrop(file);
+        showPhotoStatus("");
+      } catch (err) {
+        showPhotoStatus(err.message || "Could not open that picture.", "is-error");
+      }
+    });
+  }
+
   function pictureType(file) {
     const type = String(file?.type || "").toLowerCase();
     if (type === "image/jpg" || type === "image/pjpeg") return "image/jpeg";
@@ -274,7 +643,6 @@ export function createMenuDataController({ supabase, setStatus }) {
   async function uploadDishImage(dishId, file) {
     const contentType = pictureType(file);
     if (!contentType) throw new Error("Use a JPG, PNG or WebP picture.");
-    if (file.size > 8 * 1024 * 1024) throw new Error("Picture must be 8 MB or smaller.");
     const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
     const safeId = String(dishId || "dish").replace(/[^a-zA-Z0-9_-]/g, "") || "dish";
     const path = `dishes/${safeId}-${Date.now()}.${ext}`;
@@ -689,7 +1057,7 @@ export function createMenuDataController({ supabase, setStatus }) {
             : `<span class="dm-drawer-photo__empty">No photo yet</span>`
         }</div>
         <div class="dm-drawer-photo__actions">
-          <span class="btn dm-file-btn">Upload photo<input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" data-drawer-upload aria-label="Upload photo"></span>
+          <span class="btn dm-file-btn">Upload photo<input type="file" accept="image/*" data-drawer-upload aria-label="Upload photo"></span>
           ${
             src
               ? `<button type="button" class="btn btn--outline" data-drawer-fit>${
@@ -699,7 +1067,7 @@ export function createMenuDataController({ supabase, setStatus }) {
           }
         </div>
         <p class="status" id="menu-photo-status" role="status"></p>
-        <p class="muted">Upload a picture like Events. It shows on the card and in the guest pop-up.</p>
+        <p class="muted">Choose a photo, crop it to the menu card, then save. Large pictures are compressed to a small JPG.</p>
       </div>
       <label class="field"><span>Name</span><input data-drawer-field="name" value="${esc(dish.name || "")}"></label>
       <label class="field"><span>Card line</span><input data-drawer-field="short" value="${esc(
@@ -758,6 +1126,7 @@ export function createMenuDataController({ supabase, setStatus }) {
         setStatus("menu-data-status", err.message || "Could not save.", "is-error");
       }
     }
+    closeCrop();
     state.editId = null;
     const drawer = document.getElementById("menu-item-drawer");
     if (drawer) drawer.hidden = true;
@@ -788,6 +1157,7 @@ export function createMenuDataController({ supabase, setStatus }) {
         if (!confirm(`Delete “${dish.name}”?`)) return;
         await removeStoredImage(dish.img);
         state.menu.dishes = dishes().filter((d) => d.id !== dish.id);
+        closeCrop();
         state.editId = null;
         drawer.hidden = true;
         scheduleSave();
@@ -859,34 +1229,12 @@ export function createMenuDataController({ supabase, setStatus }) {
       }
     });
 
+    bindCrop();
+
     drawer.addEventListener("change", async (e) => {
+      if (e.target.closest("[data-drawer-upload]")) return;
       const dish = editingDish();
       if (!dish) return;
-      const fileInput = e.target.closest("[data-drawer-upload]");
-      if (fileInput && fileInput.files?.[0]) {
-        const photoStatus = document.getElementById("menu-photo-status");
-        const showPhotoStatus = (message, kind) => {
-          if (photoStatus) {
-            photoStatus.textContent = message || "";
-            photoStatus.className = kind ? `status ${kind}` : "status";
-          }
-          setStatus("menu-data-status", message, kind);
-        };
-        const file = fileInput.files[0];
-        try {
-          showPhotoStatus("Uploading photo…");
-          const prev = dish.img;
-          dish.img = await uploadDishImage(dish.id, file);
-          if (prev && prev !== dish.img) await removeStoredImage(prev);
-          fillDrawer();
-          scheduleSave();
-          setStatus("menu-data-status", "Photo uploaded.", "is-success");
-        } catch (err) {
-          fileInput.value = "";
-          showPhotoStatus(err.message || "Upload failed. Run the menu-images migration.", "is-error");
-        }
-        return;
-      }
       const field = e.target.closest("[data-drawer-field]");
       if (field) {
         const key = field.getAttribute("data-drawer-field");
@@ -1334,8 +1682,11 @@ export function createMenuDataController({ supabase, setStatus }) {
       bound = true;
     }
     bindDrawer();
+    bindCrop();
     setStatus("menu-data-status", state.tab ? "Saved changes go live on /menu/" : "");
   }
+
+  bindCrop();
 
   return { renderMenuData, closeItemDrawer };
 }

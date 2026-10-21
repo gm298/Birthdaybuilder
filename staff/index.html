@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/staff.css?v=20261021a">
+  <link rel="stylesheet" href="css/staff.css?v=20261021b">
 </head>
 <body>
   <div class="staff-layout" id="staff-layout">
@@ -759,6 +759,29 @@
       </form>
     </div>
   </div>
+  <div class="dm-crop" id="menu-photo-crop" hidden>
+    <div class="dm-crop__panel" role="dialog" aria-modal="true" aria-labelledby="menu-photo-crop-title">
+      <div class="dm-crop__head">
+        <h3 id="menu-photo-crop-title">Crop photo</h3>
+        <button class="drawer__close" type="button" data-crop-cancel aria-label="Cancel">&#x2715;</button>
+      </div>
+      <p class="muted">Drag to move the photo. Scroll, pinch, or use the slider to zoom. The frame matches the menu card.</p>
+      <div class="dm-crop__stage" id="menu-photo-crop-stage">
+        <canvas id="menu-photo-crop-canvas"></canvas>
+      </div>
+      <label class="field dm-crop__zoom"><span>Zoom</span><input id="menu-photo-crop-zoom" type="range" min="1" max="4" step="0.01" value="1"></label>
+      <div class="dm-crop__preview">
+        <span class="dm-drawer-label">Menu card preview</span>
+        <div class="dm-crop__preview-frame"><canvas id="menu-photo-crop-preview"></canvas></div>
+      </div>
+      <p class="muted">The photo is saved as a small JPG, about 1000×800.</p>
+      <p class="status" id="menu-photo-crop-status" role="status"></p>
+      <div class="dm-crop__actions">
+        <button class="btn btn--outline" type="button" data-crop-cancel>Cancel</button>
+        <button class="btn" type="button" data-crop-save>Use photo</button>
+      </div>
+    </div>
+  </div>
   <div class="drawer" id="menu-item-drawer" hidden>
     <div class="drawer__panel" role="dialog" aria-modal="true" aria-labelledby="menu-item-drawer-title">
       <div class="drawer__head">
@@ -803,6 +826,6 @@
   </div>
   <script src="../shared/supabase-config.js?v=20260910a"></script>
   <script src="../shared/reserve-tables.js?v=20261006b"></script>
-  <script type="module" src="js/app.js?v=20261021a"></script>
+  <script type="module" src="js/app.js?v=20261021b"></script>
 </body>
 </html>
