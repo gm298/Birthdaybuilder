@@ -260,14 +260,35 @@ export function createMenuDataController({ supabase, setStatus }) {
     }, 450);
   }
 
+  function pictureType(file) {
+    const type = String(file?.type || "").toLowerCase();
+    if (type === "image/jpg" || type === "image/pjpeg") return "image/jpeg";
+    if (type === "image/jpeg" || type === "image/png" || type === "image/webp") return type;
+    const ext = String(file?.name || "").split(".").pop().toLowerCase();
+    if (ext === "jpg" || ext === "jpeg") return "image/jpeg";
+    if (ext === "png") return "image/png";
+    if (ext === "webp") return "image/webp";
+    return "";
+  }
+
   async function uploadDishImage(dishId, file) {
-    const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
-    const path = `dishes/${dishId}-${Date.now()}.${ext}`;
+    const contentType = pictureType(file);
+    if (!contentType) throw new Error("Use a JPG, PNG or WebP picture.");
+    if (file.size > 8 * 1024 * 1024) throw new Error("Picture must be 8 MB or smaller.");
+    const ext = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+    const safeId = String(dishId || "dish").replace(/[^a-zA-Z0-9_-]/g, "") || "dish";
+    const path = `dishes/${safeId}-${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from(MENU_BUCKET).upload(path, file, {
-      upsert: true,
-      contentType: file.type || "image/jpeg",
+      upsert: false,
+      contentType,
     });
-    if (error) throw error;
+    if (error) {
+      const message = error.message || "Upload failed.";
+      if (/bucket not found/i.test(message)) {
+        throw new Error("Picture storage is not set up yet. Run the menu-images migration.");
+      }
+      throw new Error(message);
+    }
     return menuPublicUrl(path);
   }
 
@@ -668,7 +689,7 @@ export function createMenuDataController({ supabase, setStatus }) {
             : `<span class="dm-drawer-photo__empty">No photo yet</span>`
         }</div>
         <div class="dm-drawer-photo__actions">
-          <label class="btn">Upload photo<input type="file" accept="image/jpeg,image/png,image/webp" data-drawer-upload hidden></label>
+          <span class="btn dm-file-btn">Upload photo<input type="file" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" data-drawer-upload aria-label="Upload photo"></span>
           ${
             src
               ? `<button type="button" class="btn btn--outline" data-drawer-fit>${
@@ -677,6 +698,7 @@ export function createMenuDataController({ supabase, setStatus }) {
               : ""
           }
         </div>
+        <p class="status" id="menu-photo-status" role="status"></p>
         <p class="muted">Upload a picture like Events. It shows on the card and in the guest pop-up.</p>
       </div>
       <label class="field"><span>Name</span><input data-drawer-field="name" value="${esc(dish.name || "")}"></label>
@@ -842,16 +864,26 @@ export function createMenuDataController({ supabase, setStatus }) {
       if (!dish) return;
       const fileInput = e.target.closest("[data-drawer-upload]");
       if (fileInput && fileInput.files?.[0]) {
+        const photoStatus = document.getElementById("menu-photo-status");
+        const showPhotoStatus = (message, kind) => {
+          if (photoStatus) {
+            photoStatus.textContent = message || "";
+            photoStatus.className = kind ? `status ${kind}` : "status";
+          }
+          setStatus("menu-data-status", message, kind);
+        };
+        const file = fileInput.files[0];
         try {
-          setStatus("menu-data-status", "Uploading photo…");
+          showPhotoStatus("Uploading photo…");
           const prev = dish.img;
-          dish.img = await uploadDishImage(dish.id, fileInput.files[0]);
+          dish.img = await uploadDishImage(dish.id, file);
           if (prev && prev !== dish.img) await removeStoredImage(prev);
           fillDrawer();
           scheduleSave();
           setStatus("menu-data-status", "Photo uploaded.", "is-success");
         } catch (err) {
-          setStatus("menu-data-status", err.message || "Upload failed. Run the menu-images migration.", "is-error");
+          fileInput.value = "";
+          showPhotoStatus(err.message || "Upload failed. Run the menu-images migration.", "is-error");
         }
         return;
       }

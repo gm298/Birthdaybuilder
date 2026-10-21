@@ -1,5 +1,5 @@
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-import { createMenuDataController } from "./menu-data.js?v=20261019j";
+import { createMenuDataController } from "./menu-data.js?v=20261021a";
 
 const cfg = window.TINY_SUPABASE || {};
 const supabase = createClient(cfg.url || "", cfg.anonKey || "");
