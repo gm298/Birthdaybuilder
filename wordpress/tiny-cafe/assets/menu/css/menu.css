@@ -334,7 +334,7 @@ body.dm-page .site-footer {
 
 .dm-card__media {
   position: relative;
-  aspect-ratio: 5 / 4;
+  aspect-ratio: 4 / 3;
   flex: 0 0 auto;
   background: #e8dfcc;
   overflow: hidden;
@@ -803,19 +803,20 @@ body.dm-pop-open .dm-sheet__panel {
   margin: -2.5rem 0 0;
   padding: 0;
   border-radius: 0;
-  overflow: visible;
-  background: #1f3d40;
+  overflow: hidden;
+  background: var(--dm-cream);
   flex-shrink: 0;
+  aspect-ratio: 4 / 3;
 }
 
 .dm-pop__hero img {
   display: block;
   width: 100%;
-  height: auto;
-  max-width: 100%;
-  object-fit: contain;
-  object-position: center top;
-  background: #1f3d40;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  object-fit: cover;
+  object-position: center;
 }
 
 .dm-pop__body {
@@ -858,10 +859,6 @@ body.dm-pop-open .dm-sheet__panel {
     margin-top: -2.5rem;
     border-radius: 18px 18px 0 0;
     overflow: hidden;
-  }
-
-  .dm-pop__hero img {
-    max-height: min(52vh, 520px);
   }
 
   .dm-pop__body {

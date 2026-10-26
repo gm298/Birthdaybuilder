@@ -3448,7 +3448,7 @@ select {
 .dm-crop__preview { margin-bottom: 8px; }
 .dm-crop__preview-frame {
   width: 180px;
-  aspect-ratio: 5 / 4;
+  aspect-ratio: 4 / 3;
   border-radius: 12px;
   overflow: hidden;
   background: #e8dfcc;

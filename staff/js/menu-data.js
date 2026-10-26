@@ -260,9 +260,9 @@ export function createMenuDataController({ supabase, setStatus }) {
     }, 450);
   }
 
-  const CROP_RATIO = 5 / 4;
-  const OUTPUT_W = 1000;
-  const OUTPUT_H = 800;
+  const CROP_RATIO = 4 / 3;
+  const OUTPUT_W = 1200;
+  const OUTPUT_H = 900;
   const cropState = {
     bitmap: null,
     zoom: 1,
@@ -369,9 +369,9 @@ export function createMenuDataController({ supabase, setStatus }) {
     const ctx = canvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     drawCrop(ctx, cropState.frameW, cropState.frameH);
-    preview.width = 250;
-    preview.height = 200;
-    drawCrop(preview.getContext("2d"), 250, 200);
+    preview.width = 240;
+    preview.height = 180;
+    drawCrop(preview.getContext("2d"), 240, 180);
   }
 
   function setCropZoom(next, anchorX, anchorY) {
@@ -460,8 +460,8 @@ export function createMenuDataController({ supabase, setStatus }) {
     }
     if (blob.size > 1024 * 1024) {
       canvas.width = 800;
-      canvas.height = 640;
-      drawCrop(canvas.getContext("2d"), 800, 640);
+      canvas.height = 600;
+      drawCrop(canvas.getContext("2d"), 800, 600);
       blob = await canvasToJpeg(canvas, 0.72);
     }
     return new File([blob], "dish.jpg", { type: "image/jpeg" });
