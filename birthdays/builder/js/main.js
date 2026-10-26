@@ -857,8 +857,37 @@
     return true;
   }
 
+  function fitQuotePreview() {
+    const preview = document.getElementById("quote-preview");
+    const wrap = preview?.parentElement;
+    if (!preview || !wrap) return;
+    if (!preview.querySelector(".qp-page")) {
+      preview.style.transform = "";
+      wrap.style.height = "";
+      return;
+    }
+    const natural = 794;
+    const available = wrap.clientWidth;
+    if (!available) return;
+    const scale = Math.min(1, available / natural);
+    preview.style.width = `${natural}px`;
+    preview.style.maxWidth = "none";
+    preview.style.transformOrigin = "top left";
+    preview.style.transform = scale < 0.995 ? `scale(${scale})` : "";
+    wrap.style.height = scale < 0.995 ? `${Math.ceil(preview.scrollHeight * scale)}px` : "";
+  }
+
+  function watchQuotePreview() {
+    const wrap = document.querySelector(".quote-preview-wrap");
+    if (!wrap || wrap.dataset.fitWatch || typeof ResizeObserver === "undefined") return;
+    wrap.dataset.fitWatch = "1";
+    new ResizeObserver(() => fitQuotePreview()).observe(wrap);
+  }
+
   function contactEmailValue() {
-    return document.getElementById("contact-email")?.value.trim() || "";
+    const fromForm = document.getElementById("contact-email")?.value.trim() || "";
+    if (fromForm) return fromForm;
+    return window.TinyContact?.readContact?.()?.email?.trim() || "";
   }
 
   function validateRequestDetails(showErrors) {
@@ -2471,6 +2500,12 @@
         page.style.minHeight = "0";
         page.style.overflow = "visible";
       });
+      watchQuotePreview();
+      fitQuotePreview();
+      requestAnimationFrame(() => fitQuotePreview());
+      preview.querySelectorAll("img").forEach((img) => {
+        if (!img.complete) img.addEventListener("load", () => fitQuotePreview(), { once: true });
+      });
     } catch (err) {
       console.error(err);
       if (token !== quotePreviewToken) return;
@@ -2520,7 +2555,6 @@
     const fields = document.getElementById("request-fields");
     const status = document.getElementById("send-details-status");
     const confirm = document.getElementById("send-details-confirm");
-    const skipEmail = document.getElementById("send-details-skip-email");
     const lede = document.getElementById("send-details-lede");
     const dobField = document.getElementById("modal-dob-field");
     const ageField = document.getElementById("child-age-field");
@@ -2528,17 +2562,17 @@
     const emailInput = document.getElementById("send-details-email");
     if (!modal || !slot || !fields) return;
     sendDetailsModalCallback = typeof options.onConfirm === "function" ? options.onConfirm : null;
-    sendDetailsSkipCallback = typeof options.onSkipEmail === "function" ? options.onSkipEmail : null;
+    sendDetailsSkipCallback = null;
     const needDob = !childDobComplete();
-    const needEmail = Boolean(options.promptEmail) && needsEmailPrompt();
+    const needEmail = !contactEmailValue() && Boolean(options.promptEmail) && needsEmailPrompt();
     if (lede) {
       lede.textContent =
         options.lede ||
         (needDob && needEmail
-          ? "Add the child’s date of birth. Email is optional — you can skip it."
+          ? "Add the child’s date of birth. Email is optional."
           : needDob
             ? "Add the child’s date of birth so we can set the celebration age."
-            : "No email yet. Add one, or skip for now.");
+            : "Add an email if you’d like one on the request. A WhatsApp number is enough if you already added one.");
     }
     if (confirm) confirm.textContent = options.confirmLabel || "Save details";
     if (status) {
@@ -2548,8 +2582,7 @@
     if (dobField) dobField.hidden = !needDob;
     if (ageField) ageField.hidden = !needDob;
     if (emailField) emailField.hidden = !needEmail;
-    if (skipEmail) skipEmail.hidden = !needEmail;
-    if (emailInput) emailInput.value = contactEmailValue();
+    if (emailInput && needEmail) emailInput.value = "";
     slot.appendChild(fields);
     modal.hidden = false;
     modal.setAttribute("aria-hidden", "false");
@@ -2585,31 +2618,6 @@
     modal.querySelectorAll("[data-close-send-details]").forEach((el) => {
       el.addEventListener("click", () => closeSendDetailsModal());
     });
-    document.getElementById("send-details-skip-email")?.addEventListener("click", () => {
-      const status = document.getElementById("send-details-status");
-      applyModalEmailToForm();
-      if (!childDobComplete()) {
-        if (status) {
-          status.textContent = "Add the child’s date of birth first.";
-          status.className = "form-status is-error";
-        }
-        document.getElementById("child-birthday")?.focus();
-        return;
-      }
-      if (!contactIsComplete()) {
-        if (status) {
-          status.textContent = "Add a WhatsApp number on details, or enter an email here.";
-          status.className = "form-status is-error";
-        }
-        return;
-      }
-      emailPromptSkipped = true;
-      const cb = sendDetailsSkipCallback || sendDetailsModalCallback;
-      closeSendDetailsModal();
-      syncChildAge();
-      renderSummary();
-      if (cb) cb();
-    });
     document.getElementById("send-details-confirm")?.addEventListener("click", () => {
       const status = document.getElementById("send-details-status");
       applyModalEmailToForm();
@@ -2640,6 +2648,9 @@
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && !modal.hidden) closeSendDetailsModal();
     });
+    window.addEventListener("resize", () => {
+      if (document.getElementById("quote-preview")?.querySelector(".qp-page")) fitQuotePreview();
+    });
   }
 
   function ensureQuoteSendDetails(options = {}) {
@@ -2650,12 +2661,15 @@
       if (ready) ready();
       return true;
     }
+    if (!needDob && contactEmailValue()) {
+      if (ready) ready();
+      return true;
+    }
     openSendDetailsModal({
       lede: options.lede,
       confirmLabel: options.confirmLabel || "Save & continue",
-      promptEmail: needEmail,
+      promptEmail: needEmail && !contactEmailValue(),
       onConfirm: ready,
-      onSkipEmail: ready,
     });
     return false;
   }
@@ -3767,6 +3781,40 @@
     );
   }
 
+  async function savePdfBlob(blob, filename) {
+    const file = new File([blob], filename, { type: "application/pdf" });
+    const ios =
+      /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+      (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (ios && typeof navigator.share === "function") {
+      const canShare = !navigator.canShare || navigator.canShare({ files: [file] });
+      if (canShare) {
+        try {
+          await navigator.share({ files: [file], title: "Birthday quotation" });
+          return "shared";
+        } catch (err) {
+          if (err && err.name === "AbortError") return "cancelled";
+        }
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    if (ios) {
+      const opened = window.open(url, "_blank", "noopener");
+      if (!opened) window.location.assign(url);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+      return "opened";
+    }
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    return "downloaded";
+  }
+
   async function exportQuotationPdf() {
     const status = document.getElementById("send-status");
     // The PDF is the strongest lead magnet in the flow — it requires a valid
@@ -3818,21 +3866,23 @@
     try {
       const blob = await buildQuotationPdfBlob();
       const partyDate = document.getElementById("party-date")?.value || "estimate";
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `Tiny-Birthday-Quotation-${partyDate}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
+      const filename = `Tiny-Birthday-Quotation-${partyDate}.pdf`;
+      const result = await savePdfBlob(blob, filename);
+      if (result === "cancelled") {
+        if (status) {
+          status.textContent = "";
+          status.className = "form-status";
+        }
+        return;
+      }
 
       track("builder_export_pdf", { package: partyState.packageId });
       if (status) {
         const contact = window.TinyContact?.readContact?.() || {};
+        const saved = result === "opened" ? "PDF opened." : result === "shared" ? "PDF ready to save." : "PDF downloaded.";
         status.textContent = contact.phone
-          ? "PDF downloaded. Tap “Send Birthday Request” and we'll also send it to your WhatsApp."
-          : "PDF downloaded. Tap “Send Birthday Request” and we'll also send it to your email.";
+          ? `${saved} Tap “Send Birthday Request” and we'll also send it to your WhatsApp.`
+          : `${saved} Tap “Send Birthday Request” and we'll also send it to your email.`;
         status.className = "form-status is-success";
       }
     } catch (err) {
@@ -4020,16 +4070,21 @@
     const decorMockup = await resolveDecorMockupAsset();
 
     document.getElementById("quote-pdf-root")?.remove();
+    document.getElementById("quote-pdf-clip")?.remove();
     ensureQuotePdfStyles();
 
+    const clip = document.createElement("div");
+    clip.id = "quote-pdf-clip";
+    clip.setAttribute("aria-hidden", "true");
+    clip.style.cssText =
+      "position:fixed;left:0;top:0;width:0;height:0;overflow:hidden;pointer-events:none;";
     const host = document.createElement("div");
     host.id = "quote-pdf-root";
     host.className = "quote-pdf-root";
-    host.setAttribute("aria-hidden", "true");
-    host.style.cssText =
-      "position:fixed;left:0;top:0;width:794px;transform:translateX(-140vw);pointer-events:none;opacity:1;background:#fffaf6;";
+    host.style.cssText = "width:794px;background:#fffaf6;";
     host.innerHTML = buildQuotationPdfMarkup(cakeImage || null, decorMockup || null);
-    document.body.appendChild(host);
+    clip.appendChild(host);
+    document.body.appendChild(clip);
 
     try {
       await loadPdfLibs();
@@ -4062,11 +4117,18 @@
           logging: false,
           onclone: (doc) => {
             const clonedRoot = doc.getElementById("quote-pdf-root");
-            if (clonedRoot) {
-              clonedRoot.style.left = "0";
-              clonedRoot.style.top = "0";
-              clonedRoot.style.opacity = "1";
-              clonedRoot.style.position = "static";
+            if (!clonedRoot) return;
+            clonedRoot.style.left = "0";
+            clonedRoot.style.top = "0";
+            clonedRoot.style.opacity = "1";
+            clonedRoot.style.position = "static";
+            clonedRoot.style.transform = "none";
+            const clonedClip = doc.getElementById("quote-pdf-clip");
+            if (clonedClip) {
+              clonedClip.style.overflow = "visible";
+              clonedClip.style.width = "auto";
+              clonedClip.style.height = "auto";
+              clonedClip.style.position = "static";
             }
           },
         });
@@ -4077,7 +4139,7 @@
 
       return pdf.output("blob");
     } finally {
-      host.remove();
+      clip.remove();
     }
   }
 
