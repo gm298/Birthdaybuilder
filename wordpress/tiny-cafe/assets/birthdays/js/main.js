@@ -14,6 +14,11 @@
         name: "Simple celebration",
         shortName: "Simple celebration",
         guests: "5 guests included · add up to 9",
+        guestsIncluded: 5,
+        guestsMax: 9,
+        cakeSize: "15cm",
+        priceWeekend: "IDR 3.8M",
+        flags: { photozone: false, pinata: false, masterclass: false, dessertStation: false, privateTerrace: false },
         price: "IDR 2.3M",
         featured: false,
         features: [
@@ -30,6 +35,11 @@
         name: "Signature themed party",
         shortName: "Signature themed party",
         guests: "10 guests included · add up to 20",
+        guestsIncluded: 10,
+        guestsMax: 20,
+        cakeSize: "18cm",
+        priceWeekend: "IDR 8.7M",
+        flags: { photozone: true, pinata: false, masterclass: false, dessertStation: false, privateTerrace: false },
         price: "IDR 5.3M",
         featured: false,
         features: [
@@ -46,6 +56,11 @@
         name: "Private terrace event",
         shortName: "Private terrace event",
         guests: "20 guests included · add up to 35",
+        guestsIncluded: 20,
+        guestsMax: 35,
+        cakeSize: "22cm",
+        priceWeekend: "IDR 20.5M",
+        flags: { photozone: true, pinata: true, masterclass: true, dessertStation: true, privateTerrace: true },
         price: "IDR 12.7M",
         featured: false,
         features: [
@@ -121,7 +136,11 @@
     }
 
     grid.innerHTML = data.packages
-      .map((pkg) => {
+      .map((pkg, index) => {
+        const prev = index > 0 ? data.packages[index - 1] : null;
+        const plusLine = prev
+          ? `<li class="pkg__plus">Everything in ${escapeHtml(prev.shortName || prev.name)}, plus:</li>`
+          : "";
         const features = (pkg.features || [])
           .map((f) => `<li>${escapeHtml(f)}</li>`)
           .join("");
@@ -134,11 +153,13 @@
             <h3>${escapeHtml(pkg.name)}</h3>
             <div class="pkg__guests">${escapeHtml(pkg.guests)}</div>
             <div class="pkg__price">${escapeHtml(pkg.price)}</div>
-            <ul class="pkg__features">${features}</ul>
+            <ul class="pkg__features">${plusLine}${features}</ul>
             <div class="pkg__cta">Customise this →</div>
           </a>`;
       })
       .join("");
+
+    renderLandingCompare(data);
 
     compact.innerHTML = data.packages
       .map((pkg, index) => {
@@ -162,6 +183,59 @@
       .join("");
 
     initPackageAccordion(compact);
+  }
+
+  // Variant C (review §6): differences-only table, driven by the same
+  // packages.json fields the builder uses (guestsMax, cakeSize, flags).
+  function renderLandingCompare(data) {
+    const host = document.getElementById("package-compare");
+    if (!host || !Array.isArray(data?.packages) || !data.packages.length) return;
+    const packages = data.packages;
+    const yes = (on) => (on ? "✓" : "—");
+    const rows = [
+      { label: "Weekday", cell: (p) => p.price || "—" },
+      { label: "Weekend", cell: (p) => p.priceWeekend || "—" },
+      { label: "Guests", cell: (p) => (p.guestsMax ? `≤${p.guestsMax}` : p.guests || "—") },
+      { label: "Cake", cell: (p) => p.cakeSize || "—" },
+      { label: "Photozone", cell: (p) => yes(p.flags?.photozone) },
+      { label: "Piñata", cell: (p) => yes(p.flags?.pinata) },
+      { label: "Masterclass", cell: (p) => (p.flags?.masterclass ? "10 kids" : "—") },
+      { label: "Dessert station", cell: (p) => yes(p.flags?.dessertStation) },
+      { label: "Private terrace", cell: (p) => yes(p.flags?.privateTerrace) },
+    ];
+    const shared = [
+      { label: "Duration", cell: () => "3 hours" },
+      { label: "Themed party", cell: () => "✓" },
+      { label: "Table decor", cell: () => "✓ included in full decor" },
+    ];
+    const renderRows = (list, cls) =>
+      list
+        .map(
+          (row) =>
+            `<tr${cls ? ` class="${cls}" hidden` : ""}><td>${escapeHtml(row.label)}</td>${packages
+              .map((p) => {
+                const v = row.cell(p);
+                return `<td class="${v === "✓" || v === "10 kids" ? "yes" : v === "—" ? "no" : ""}">${escapeHtml(v)}</td>`;
+              })
+              .join("")}</tr>`
+        )
+        .join("");
+    host.innerHTML = `
+      <h3 class="pkg-compare__title">Compare Packages</h3>
+      <label class="pkg-compare__toggle"><input type="checkbox" id="landing-compare-diffs" checked> Show only differences</label>
+      <div class="pkg-compare__scroll">
+        <table class="ctable" aria-label="Compare Packages">
+          <tr><th></th>${packages.map((p) => `<th>${escapeHtml(p.shortName || p.name)}</th>`).join("")}</tr>
+          ${renderRows(rows)}
+          ${renderRows(shared, "ctable__shared")}
+        </table>
+      </div>
+      <p class="packages__legal">Swipe the cards above to compare. Prices exclude 5% service and 10% tax.</p>`;
+    host.querySelector("#landing-compare-diffs")?.addEventListener("change", (e) => {
+      host.querySelectorAll(".ctable__shared").forEach((row) => {
+        row.hidden = e.target.checked;
+      });
+    });
   }
 
   function initPackageAccordion(root) {

@@ -20,7 +20,8 @@
         "Food & drink credit · 750k weekday / 1.5M weekend. Extra orders are charged from the menu."
       ],
       "decorId": "simple",
-      "cakeSize": "15 cm"
+      "cakeSize": "15 cm",
+      "flags": { "photozone": false, "pinata": false, "masterclass": false, "dessertStation": false, "privateTerrace": false }
     },
     {
       "id": "signature",
@@ -43,7 +44,8 @@
         "Food & drink credit · 1.5M weekday / 3M weekend. Extra orders are charged from the menu."
       ],
       "decorId": "optimal",
-      "cakeSize": "18 cm"
+      "cakeSize": "18 cm",
+      "flags": { "photozone": true, "pinata": false, "masterclass": false, "dessertStation": false, "privateTerrace": false }
     },
     {
       "id": "terrace",
@@ -67,7 +69,8 @@
         "Food & drink credit · 3M weekday / 6M weekend. Extra orders are charged from the menu."
       ],
       "decorId": "terrace",
-      "cakeSize": "22 cm"
+      "cakeSize": "22 cm",
+      "flags": { "photozone": true, "pinata": true, "masterclass": true, "dessertStation": true, "privateTerrace": true }
     }
   ],
   "decorPackages": [

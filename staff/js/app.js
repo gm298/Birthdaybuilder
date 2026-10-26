@@ -4117,9 +4117,91 @@ window.addEventListener("message", (event) => {
   else loadInvoice(id);
 });
 
+function foodOrderSectionHtml(foodOrder) {
+  const order = foodOrder && typeof foodOrder === "object" ? foodOrder : null;
+  const items = Array.isArray(order?.items) ? order.items : [];
+  if (!items.length) {
+    return `<section>
+      <h3>Food order</h3>
+      <p class="muted">No pre-order — guests can order on the day from the package credit.</p>
+    </section>`;
+  }
+  const credit = Number(order.creditIdr) || 0;
+  const total = Number(order.itemsTotalIdr) || items.reduce((sum, item) => sum + (Number(item.lineTotal) || 0), 0);
+  const remaining = Number(order.remainingCreditIdr) || Math.max(0, credit - total);
+  const over = Number(order.overCreditIdr) || Math.max(0, total - credit);
+  return `<section>
+    <h3>Food order</h3>
+    <ul class="kv">
+      <li><span>Package credit</span><span>${escapeHtml(formatIdr(credit))}</span></li>
+      <li><span>Pre-order total</span><span>${escapeHtml(formatIdr(total))}</span></li>
+      <li><span>${over > 0 ? "Over credit" : "Remaining credit"}</span><span>${escapeHtml(
+        formatIdr(over > 0 ? over : remaining)
+      )}</span></li>
+    </ul>
+    <ul class="quote-list" style="margin-top:12px">
+      ${items
+        .map((item) => {
+          const opts = item.optsLabel ? ` · ${escapeHtml(item.optsLabel)}` : "";
+          const size = item.size ? ` (${escapeHtml(item.size)})` : "";
+          return `<li><span>${escapeHtml(item.qty || 1)}× ${escapeHtml(item.name || "Item")}${size}${opts}</span><span>${escapeHtml(
+            formatIdr(item.lineTotal ?? (item.unitPrice || 0) * (item.qty || 1))
+          )}</span></li>`;
+        })
+        .join("")}
+    </ul>
+  </section>`;
+}
+
+function foodOrderPdfPageHtml(header, meta, foodOrder, flowersSrc) {
+  const order = foodOrder && typeof foodOrder === "object" ? foodOrder : null;
+  const items = Array.isArray(order?.items) ? order.items : [];
+  if (!items.length) return "";
+  const credit = Number(order.creditIdr) || 0;
+  const total = Number(order.itemsTotalIdr) || items.reduce((sum, item) => sum + (Number(item.lineTotal) || 0), 0);
+  const remaining = Number(order.remainingCreditIdr) || Math.max(0, credit - total);
+  const over = Number(order.overCreditIdr) || Math.max(0, total - credit);
+  const rows = items
+    .map((item) => {
+      const qty = Number(item.qty) || 1;
+      const unit = Number(item.unitPrice) || 0;
+      const lineTotal = Number(item.lineTotal) || unit * qty;
+      const opts = item.optsLabel ? `<div class="qp-note">${escapeHtml(item.optsLabel)}</div>` : "";
+      return `<tr>
+        <td class="qp-details">${escapeHtml(item.name || "Item")}${item.size ? ` · ${escapeHtml(item.size)}` : ""}${opts}</td>
+        <td class="qp-num">${escapeHtml(formatIdr(unit))}</td>
+        <td class="qp-qty">${escapeHtml(qty)}</td>
+        <td class="qp-num">${escapeHtml(formatIdr(lineTotal))}</td>
+      </tr>`;
+    })
+    .join("");
+  const balance =
+    over > 0
+      ? `Package credit ${formatIdr(credit)}. Pre-order ${formatIdr(total)}. Over credit ${formatIdr(over)} added to the quotation.`
+      : `Package credit ${formatIdr(credit)}. Pre-order ${formatIdr(total)}. Remaining minimum spend / credit ${formatIdr(remaining)}.`;
+  return `<div class="qp-page">${header}${meta}
+    <h2 class="qp-rules-title">Food &amp; drink pre-order</h2>
+    <table class="qp-items"><thead><tr><th>Details</th><th class="qp-num">Price</th><th class="qp-qty">Qty</th><th class="qp-num">Total</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+    <div class="qp-totals-wrap"><div class="qp-totals">
+      <div class="qp-totals-row"><span>Pre-order total :</span><span>${escapeHtml(formatIdr(total))}</span></div>
+      <div class="qp-totals-row"><span>Package credit :</span><span>${escapeHtml(formatIdr(credit))}</span></div>
+      <div class="qp-totals-row is-grand"><span>${over > 0 ? "Over credit :" : "Remaining credit :"}</span><span class="qp-amount">${escapeHtml(
+        formatIdr(over > 0 ? over : remaining)
+      )}</span></div>
+    </div></div>
+    <p class="qp-estimate">${escapeHtml(balance)}</p>
+    ${flowersSrc ? `<img class="qp-flowers qp-flowers--right" src="${flowersSrc}" alt="">` : ""}
+  </div>`;
+}
+
 function quoteLineHtml(line = {}) {
   const qty = Number(line.qty) || 1;
-  const price = Number(line.price ?? line.value) || 0;
+  // Food pre-order rows are drawn from credit (value 0); keep unit price at 0 so totals stay correct.
+  const price =
+    line.foodItem || line.foodBalance
+      ? Number(line.price ?? line.value) || 0
+      : Number(line.price ?? line.value) || 0;
   return `<div class="quote-line">
     <input class="quote-line-item" type="text" name="quote-label" value="${escapeHtml(line.label || "")}" placeholder="Item">
     <input class="quote-line-qty" type="number" name="quote-qty" min="1" step="1" value="${qty}" aria-label="Qty" placeholder="Qty">
@@ -4643,6 +4725,8 @@ function invoicePdfMarkup(form, row, extras) {
       <p class="qp-estimate">${escapeHtml([extras.decor?.backdropName ? `Name: ${extras.decor.backdropName}` : "", colours ? `Balloon colours: ${colours}` : "", form.decor?.notes || ""].filter(Boolean).join(". "))}</p>
     </div>`);
   }
+  const foodPage = foodOrderPdfPageHtml(header, meta, extras.foodOrder || form.foodOrder, flowers2);
+  if (foodPage) pages.push(foodPage);
   if (extras.cakeUrl) {
     const cakeBits = [form.cake?.size ? `Size ${form.cake.size}` : "", form.cake?.design || "", form.cake?.theme ? `Theme ${form.cake.theme}` : ""].filter(Boolean);
     pages.push(`<div class="qp-page">${header}${meta}
@@ -5717,6 +5801,7 @@ async function loadDetail(id) {
             <li><span>Payment</span><span>${escapeHtml(paymentSummary(payload.payment))}</span></li>
           </ul>
         </section>
+        ${foodOrderSectionHtml(payload.foodOrder)}
         <section>
           <h3>Cake</h3>
           <ul class="kv">
@@ -6169,6 +6254,7 @@ async function loadInvoice(id) {
           <label class="field"><span>Account number</span><input id="invoice-account-number" value="${escapeHtml(bank.accountNumber)}"></label>
           <p class="muted">Taken from Master data. Change them here only for this invoice.</p>
         </section>
+        ${foodOrderSectionHtml(payload.foodOrder)}
         <section>
           <h3>Decoration</h3>
           <ul class="kv">
@@ -6324,6 +6410,7 @@ async function loadInvoice(id) {
           decorPhotoUrl: decorForInvoice.replaced ? decorForInvoice.url : "",
           backdropUrl: decorForInvoice.replaced ? "" : decorForInvoice.url,
           payment: nextPayload.payment,
+          foodOrder: nextPayload.foodOrder || payload.foodOrder,
         });
         const path = `${row.id}/invoice.pdf`;
         const pdfFile = new File([blob], `${row.public_code}-invoice.pdf`, { type: "application/pdf" });
@@ -6391,6 +6478,7 @@ async function loadInvoice(id) {
         decorPhotoUrl: decorForInvoice.replaced ? decorForInvoice.url : "",
         backdropUrl: decorForInvoice.replaced ? "" : decorForInvoice.url,
         payment: readPaymentForm(form.quote.dp30, Math.max(0, form.quote.total - form.quote.dp30)),
+        foodOrder: payload.foodOrder,
       });
       downloadBlob(blob, `${row.public_code || "invoice"}-invoice.pdf`);
       if (statusEl) {

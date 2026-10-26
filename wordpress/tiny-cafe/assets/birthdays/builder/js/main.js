@@ -8,12 +8,12 @@
   const TERRACE_GUEST_MAX = 35;
   const BUILDER_FLOW = [
     { id: "intro", href: "#intro", nextLabel: "Continue", required: false },
-    { id: "details", href: "#details", nextLabel: "See packages & estimate", required: true },
-    { id: "package", href: "#package", nextLabel: "Next: Decorations", required: true },
-    { id: "decor", href: "#decor", nextLabel: "Next: Cake", required: true },
-    { id: "cakes", href: "#cakes", nextLabel: "Next: Add ons", required: true },
-    { id: "addons", href: "#addons", nextLabel: "Next: Food", required: true },
-    { id: "food", href: "#food", nextLabel: "Next: Quote", required: true },
+    { id: "details", href: "#details", nextLabel: "See packages & estimate →", required: true },
+    { id: "package", href: "#package", nextLabel: "Next: Decorations →", required: true },
+    { id: "decor", href: "#decor", nextLabel: "Next: Cake →", required: true },
+    { id: "cakes", href: "#cakes", nextLabel: "Next: Add ons →", required: true },
+    { id: "addons", href: "#addons", nextLabel: "Next: Food →", required: true },
+    { id: "food", href: "#food", nextLabel: "Next: Quote →", required: true },
     { id: "send", href: "#send", nextLabel: "", required: false },
   ];
   const DIET_NONE = "No special requirements";
@@ -97,6 +97,7 @@
         ],
         decorId: "simple",
         cakeSize: "15 cm",
+        flags: { photozone: false, pinata: false, masterclass: false, dessertStation: false, privateTerrace: false },
       },
       {
         id: "signature",
@@ -119,6 +120,7 @@
         ],
         decorId: "optimal",
         cakeSize: "18 cm",
+        flags: { photozone: true, pinata: false, masterclass: false, dessertStation: false, privateTerrace: false },
       },
       {
         id: "terrace",
@@ -143,6 +145,7 @@
         ],
         decorId: "terrace",
         cakeSize: "22 cm",
+        flags: { photozone: true, pinata: true, masterclass: true, dessertStation: true, privateTerrace: true },
       },
     ],
     decorPackages: [
@@ -304,15 +307,27 @@
     ],
   };
 
+  function emptyFoodOrder() {
+    return {
+      skipped: true,
+      creditIdr: 0,
+      itemsTotalIdr: 0,
+      remainingCreditIdr: 0,
+      overCreditIdr: 0,
+      items: [],
+    };
+  }
+
   const partyState = {
     day: "weekday",
     packageId: "",
     packageChosen: false,
+    packageExplicitId: "",
     decorPackageId: "optimal",
     decorThemeId: "",
     masterclassId: "",
-    masterclassReviewed: true,
-    entertainmentReviewed: true,
+    masterclassReviewed: false,
+    entertainmentReviewed: false,
     foodReviewed: false,
     decorReviewed: false,
     extras: [],
@@ -320,7 +335,63 @@
     tableArea: "indoor",
     occupancy: [],
     occupancyOk: false,
+    foodOrder: emptyFoodOrder(),
   };
+
+  function normalizeFoodOrder(raw, creditIdr) {
+    const credit = Math.max(0, Number(creditIdr) || 0);
+    const items = Array.isArray(raw?.items)
+      ? raw.items
+          .map((item) => {
+            const qty = Math.max(1, Math.round(Number(item?.qty) || 1));
+            const unitPrice = Math.max(0, Math.round(Number(item?.unitPrice) || 0));
+            return {
+              id: String(item?.id || ""),
+              name: String(item?.name || "Menu item"),
+              size: String(item?.size || ""),
+              opts: item?.opts && typeof item.opts === "object" ? item.opts : {},
+              optsLabel: String(item?.optsLabel || ""),
+              qty,
+              unitPrice,
+              lineTotal: Math.max(0, Math.round(Number(item?.lineTotal) || unitPrice * qty)),
+              family: String(item?.family || ""),
+            };
+          })
+          .filter((item) => item.id || item.name)
+      : [];
+    const itemsTotalIdr = items.reduce((sum, item) => sum + item.lineTotal, 0);
+    return {
+      skipped: items.length === 0,
+      creditIdr: credit,
+      itemsTotalIdr,
+      remainingCreditIdr: Math.max(0, credit - itemsTotalIdr),
+      overCreditIdr: Math.max(0, itemsTotalIdr - credit),
+      items,
+    };
+  }
+
+  function currentFoodCredit() {
+    const pkg = selectedPackage();
+    if (!pkg) return 0;
+    const deposit = foodDepositAmount(pkg);
+    const { kids, adults } = guestCounts();
+    const included = pkg.guestsIncluded || 0;
+    const extraPeople = Math.max(0, kids + adults - included);
+    let extraCost = 0;
+    if (extraPeople > 0) {
+      const rate =
+        partyState.day === "weekend"
+          ? partyData.extraGuest?.weekend || 300000
+          : partyData.extraGuest?.weekday || 150000;
+      extraCost = extraPeople * rate;
+    }
+    return deposit + extraCost;
+  }
+
+  function syncFoodOrderCredit() {
+    partyState.foodOrder = normalizeFoodOrder(partyState.foodOrder, currentFoodCredit());
+    return partyState.foodOrder;
+  }
 
   let currentStepId = "details";
   let estimateExpanded = false;
@@ -442,16 +513,51 @@
     return "simple";
   }
 
+  function recommendedPackageId() {
+    return packageIdForGuests(totalGuests());
+  }
+
   function syncPackageFromGuests() {
-    const packageId = packageIdForGuests(totalGuests());
+    const packageId = recommendedPackageId();
     if (!packageId) {
-      partyState.packageId = "";
-      partyState.packageChosen = false;
+      if (!partyState.packageExplicitId) {
+        partyState.packageId = "";
+        partyState.packageChosen = false;
+      }
       return false;
+    }
+    // An explicit choice (landing ?package= link or step 02 pick) is respected
+    // as long as the guest count still fits that package's maximum.
+    const explicitId = partyState.packageExplicitId;
+    if (explicitId) {
+      const explicitPkg = (partyData.packages || []).find((p) => p.id === explicitId);
+      if (explicitPkg && totalGuests() <= (explicitPkg.guestsMax || Infinity)) {
+        if (partyState.packageId !== explicitId || !partyState.packageChosen) {
+          applyPackageSelection(explicitId);
+          return true;
+        }
+        return false;
+      }
+      // Over the chosen package's max: fall back to the recommendation for
+      // now, but keep the explicit choice so it returns when guests fit again.
     }
     if (partyState.packageChosen && partyState.packageId === packageId) return false;
     applyPackageSelection(packageId);
     return true;
+  }
+
+  function choosePackage(packageId) {
+    const pkg = (partyData.packages || []).find((p) => p.id === packageId);
+    if (!pkg) return;
+    if (totalGuests() > (pkg.guestsMax || Infinity)) {
+      showStepGate(
+        `${pkg.name} fits up to ${pkg.guestsMax} guests — you have ${totalGuests()}. Reduce guests or choose a bigger package.`
+      );
+      return;
+    }
+    partyState.packageExplicitId = packageId;
+    applyPackageSelection(packageId);
+    showStepGate("");
   }
 
   function canOpenPartyTime() {
@@ -583,6 +689,7 @@
         updateStepProgress();
         renderSummary();
         closePartyTimeModal();
+        maybeAutoAdvance();
       });
       grid.appendChild(btn);
     });
@@ -637,6 +744,7 @@
         parentNameValue() &&
         childNameValue() &&
         totalGuests() > 0 &&
+        totalGuests() <= TERRACE_GUEST_MAX &&
         partyState.packageChosen &&
         partyState.packageId &&
         partyState.occupancyOk &&
@@ -661,6 +769,7 @@
       if (error) error.hidden = true;
       return;
     }
+    wrap.classList.remove("is-valid");
     wrap.classList.add("is-invalid");
     if (!error) {
       error = document.createElement("span");
@@ -669,6 +778,29 @@
     }
     error.hidden = false;
     error.textContent = message;
+  }
+
+  // Clear a field's error as soon as the user fixes it (review §3), and mark
+  // the field valid so progress is visible. Option groups are re-validated by
+  // validateCurrentStep(), which toggles their is-invalid class directly.
+  function initClearErrorsOnFix() {
+    if (document.body.dataset.clearErrorsBound) return;
+    document.body.dataset.clearErrorsBound = "1";
+    const onFix = (event) => {
+      const wrap = event.target.closest?.(".field");
+      if (!wrap || !wrap.classList.contains("is-invalid")) return;
+      const control = wrap.querySelector("input, textarea, select");
+      const hasValue = control ? String(control.value || "").trim() !== "" : true;
+      if (!hasValue) return;
+      wrap.classList.remove("is-invalid");
+      wrap.classList.add("is-valid");
+      const error = wrap.querySelector(":scope > .field__error");
+      if (error) error.hidden = true;
+      if (currentStepId === "details") validateDetailsSection(false);
+      hideStepErrorSummary();
+    };
+    document.addEventListener("input", onFix);
+    document.addEventListener("change", onFix);
   }
 
   function validateDetailsSection(showErrors) {
@@ -686,7 +818,14 @@
       },
       { id: "party-date", ok: Boolean(partyDate), message: "Choose the party date." },
       { id: "party-time", ok: Boolean(partyTimeValue()), message: "Choose a start time." },
-      { id: "guest-kids", ok: totalGuests() > 0, message: "Add at least one guest." },
+      {
+        id: "guest-kids",
+        ok: totalGuests() > 0 && totalGuests() <= TERRACE_GUEST_MAX,
+        message:
+          totalGuests() > TERRACE_GUEST_MAX
+            ? `That's ${totalGuests()} guests — over 35 needs a custom quote on WhatsApp.`
+            : "Add at least one guest.",
+      },
     ];
     let ok = true;
     let firstId = "";
@@ -707,6 +846,19 @@
       (el?.closest(".field") || visible)?.scrollIntoView({ behavior: "smooth", block: "center" });
     }
     return ok;
+  }
+
+  function childDobComplete() {
+    syncChildAge();
+    const partyDate = document.getElementById("party-date")?.value || "";
+    if (!childBirthdayValue() || !childBirthdayValid()) return false;
+    if (celebrationAgeInfo()?.invalid) return false;
+    if (partyDate && parseChildAge() == null) return false;
+    return true;
+  }
+
+  function contactEmailValue() {
+    return document.getElementById("contact-email")?.value.trim() || "";
   }
 
   function validateRequestDetails(showErrors) {
@@ -734,36 +886,34 @@
       },
       {
         id: "child-birthday",
-        ok: !birthdayMessage && childBirthdayValid() && (!partyDate || parseChildAge() != null),
+        ok: !birthdayMessage && childDobComplete(),
         message: birthdayMessage || "Enter the child’s date of birth.",
       },
     ];
+    // Email is optional; WhatsApp or email still needed to reply when sending.
     const contactOk = contactIsComplete();
     window.TinyContact?.markContactValidity?.(contactOk);
     const contactWrap = document.getElementById("contact-fields");
-    const contactHint = document.getElementById("contact-hint");
     if (contactWrap) contactWrap.classList.toggle("is-invalid", Boolean(showErrors && !contactOk));
-    if (contactHint && showErrors && !contactOk) {
-      contactHint.textContent = "Add an email or a WhatsApp number. At least one is required.";
-    }
     let ok = true;
     let firstId = "";
+    const missing = [];
     checks.forEach((check) => {
       if (!check.ok) {
         ok = false;
+        missing.push(check.message.replace(/\.$/, "").toLowerCase());
         if (!firstId) firstId = check.id;
       }
       setFieldMessage(check.id, showErrors && !check.ok ? check.message : "");
     });
-    if (!contactOk) {
-      ok = false;
-      if (!firstId) firstId = "contact-email";
-    }
+    lastRequestMissing = missing;
     if (showErrors && firstId) {
       document.getElementById(firstId)?.focus();
     }
     return ok;
   }
+
+  let lastRequestMissing = [];
 
   function entertainmentExtraIds() {
     const items = (partyData.extras && partyData.extras.entertainment) || [];
@@ -1325,7 +1475,9 @@
     canvas.width = w;
     canvas.height = h;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
-    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "#fffaf6";
+    ctx.fillRect(0, 0, w, h);
+    if (!backdropState.assets?.photo) return;
     ctx.drawImage(backdropState.assets.photo, 0, 0, w, h);
 
     (cfg.panels || []).forEach((panel) => {
@@ -1540,11 +1692,13 @@
   function closeCustomBuilderModal() {
     const modal = document.getElementById("custom-builder-modal");
     if (!modal) return;
+    const wasOpen = !modal.hidden;
     modal.hidden = true;
     modal.setAttribute("aria-hidden", "true");
     document.body.style.overflow = "";
     updateStepProgress();
     renderSummary();
+    if (wasOpen && currentStepId === "decor") maybeAutoAdvance();
   }
 
   function showGuestLimitModal() {
@@ -1569,11 +1723,6 @@
   }
 
   function checkTerraceGuestLimit() {
-    const pkg = selectedPackage();
-    if (pkg?.id !== "terrace") {
-      guestLimitShown = false;
-      return;
-    }
     if (totalGuests() > TERRACE_GUEST_MAX) {
       showGuestLimitModal();
     } else {
@@ -2026,6 +2175,36 @@
     return data;
   }
 
+  const TERRACE_INCLUDED_EXTRA_IDS = new Set(["pinata", "dessert-station"]);
+  const TERRACE_MASTERCLASS_INCLUDED_KIDS = 10;
+  const DECOR_EXTRA_TIER = {
+    "simple-balloon": "simple",
+    "optimal-balloon": "optimal",
+    "terrace-balloon": "terrace",
+  };
+
+  // Items already included in the chosen package/decor tier must never be
+  // charged again ("one item, one price, one place" — review §3).
+  function includedExtraLabel(item) {
+    if (!item || !selectedPackage()) return "";
+    if (selectedPackage()?.id === "terrace" && TERRACE_INCLUDED_EXTRA_IDS.has(item.id)) {
+      return "Included with Private terrace";
+    }
+    const tier = DECOR_EXTRA_TIER[item.id];
+    if (tier) {
+      const chosenTier = partyState.decorPackageId || includedDecorId();
+      if (decorRank(tier) <= decorRank(chosenTier)) return "Included with your decoration";
+    }
+    return "";
+  }
+
+  function masterclassBillableKids(m, kids) {
+    if (selectedPackage()?.id === "terrace") {
+      return Math.max(0, (kids || 0) - TERRACE_MASTERCLASS_INCLUDED_KIDS);
+    }
+    return Math.max(kids || m.minKids || 4, m.minKids || 4);
+  }
+
   function buildQuotation() {
     const pkg = selectedPackage();
     const lines = [];
@@ -2055,19 +2234,53 @@
       }
 
       const foodTotal = deposit + extraCost;
+      const foodOrder = normalizeFoodOrder(partyState.foodOrder, foodTotal);
+      partyState.foodOrder = foodOrder;
       if (foodTotal > 0) {
         subtotal += foodTotal;
         const extraNote =
           extraPeople > 0
             ? `${extraPeople} extra ${extraPeople === 1 ? "person" : "people"}`
             : "";
-        const baseNote =
-          "This is how much is included for you to purchase food and beverages.";
+        const balanceNote = foodOrder.items.length
+          ? foodOrder.overCreditIdr > 0
+            ? `Pre-order ${formatIdr(foodOrder.itemsTotalIdr)}. Remaining credit IDR 0 — over by ${formatIdr(foodOrder.overCreditIdr)}.`
+            : `Pre-order ${formatIdr(foodOrder.itemsTotalIdr)}. Remaining credit ${formatIdr(foodOrder.remainingCreditIdr)}.`
+          : "This is how much is included for you to purchase food and beverages. Anything above this credit is charged from the menu.";
         lines.push({
           label: "Food & drink credit",
           value: foodTotal,
-          detail: extraNote ? `${extraNote}. ${baseNote} Anything above this credit is charged from the menu.` : `${baseNote} Anything above this credit is charged from the menu.`,
+          detail: extraNote ? `${extraNote}. ${balanceNote}` : balanceNote,
         });
+      }
+      if (foodOrder.items.length) {
+        foodOrder.items.forEach((item) => {
+          const opts = item.optsLabel ? ` · ${item.optsLabel}` : "";
+          lines.push({
+            label: `Pre-order · ${item.name}${item.size ? ` (${item.size})` : ""}`,
+            value: 0,
+            qty: item.qty,
+            detail: `${item.qty} × ${formatIdr(item.unitPrice)}${opts} · drawn from package credit (${formatIdr(item.lineTotal)})`,
+            foodItem: true,
+          });
+        });
+        if (foodOrder.remainingCreditIdr > 0) {
+          lines.push({
+            label: "Remaining food & drink credit",
+            value: 0,
+            detail: `${formatIdr(foodOrder.remainingCreditIdr)} still available on the day`,
+            foodBalance: true,
+          });
+        }
+        if (foodOrder.overCreditIdr > 0) {
+          subtotal += foodOrder.overCreditIdr;
+          lines.push({
+            label: "Food & drink over credit",
+            value: foodOrder.overCreditIdr,
+            detail: "Pre-order above the included package credit",
+            foodBalance: true,
+          });
+        }
       }
 
       const decorUpgrade = decorUpgradeAmount();
@@ -2095,13 +2308,24 @@
     if (partyState.masterclassId) {
       const m = partyData.masterclasses.find((x) => x.id === partyState.masterclassId);
       if (m) {
-        const billKids = Math.max(kids || m.minKids || 4, m.minKids || 4);
+        const billKids = masterclassBillableKids(m, kids);
         const mCost = (m.pricePerKid || 200000) * billKids;
-        subtotal += mCost;
-        lines.push({
-          label: `Masterclass · ${m.name} (${billKids} kids)`,
-          value: mCost,
-        });
+        if (mCost > 0) {
+          subtotal += mCost;
+          lines.push({
+            label:
+              pkg?.id === "terrace"
+                ? `Masterclass · ${m.name} (${TERRACE_MASTERCLASS_INCLUDED_KIDS} included + ${billKids} extra kids)`
+                : `Masterclass · ${m.name} (${billKids} kids)`,
+            value: mCost,
+          });
+        } else {
+          lines.push({
+            label: `Masterclass · ${m.name} (included for up to ${TERRACE_MASTERCLASS_INCLUDED_KIDS} kids)`,
+            value: 0,
+            included: true,
+          });
+        }
       }
     }
 
@@ -2115,6 +2339,11 @@
 
     flatExtraItems().forEach((item) => {
       if (!partyState.extras.includes(item.id)) return;
+      const includedLabel = includedExtraLabel(item);
+      if (includedLabel) {
+        lines.push({ label: `${item.name} (${includedLabel.toLowerCase()})`, value: 0, included: true });
+        return;
+      }
       const val = item.priceValue || 0;
       if (val > 0) {
         subtotal += val;
@@ -2133,44 +2362,308 @@
     return { lines, subtotal, discount, promo: appliedPromo, service, tax, total };
   }
 
-  function renderQuote() {
-    const panel = document.getElementById("quote-panel");
-    if (!panel) return;
-    const q = buildQuotation();
-    const rows = q.lines
-      .map((line) => {
-        const label = line.detail
-          ? `${escapeHtml(line.label)}<small class="quote-detail">${escapeHtml(
-              line.detail
-            )}</small>`
-          : escapeHtml(line.label);
-        return `<li><span>${label}</span><span>${
-          line.note ? "TBC" : escapeHtml(formatIdr(line.value))
-        }</span></li>`;
-      })
-      .join("");
-    panel.innerHTML = `
-      <h3>Quotation</h3>
-      <ul>
-        ${rows || "<li><span>Select a package to start</span><span>—</span></li>"}
-        <li><span>Subtotal</span><span>${escapeHtml(formatIdr(q.subtotal))}</span></li>
-        ${
-          q.discount
-            ? `<li><span>Promo ${escapeHtml(q.promo?.code || "")}</span><span>−${escapeHtml(formatIdr(q.discount))}</span></li>`
-            : ""
+  let quotePreviewToken = 0;
+
+  function decorPackageFallbackSrc() {
+    const pkg = selectedPackage();
+    const decorTheme = (partyData.decorThemes || []).find((x) => x.id === partyState.decorThemeId);
+    if (decorTheme?.image) return resolveBuilderAsset(decorTheme.image);
+    const decorPkg = (partyData.decorPackages || []).find(
+      (x) => x.id === (partyState.decorPackageId || pkg?.decorId || "")
+    );
+    return decorPkg?.image ? resolveBuilderAsset(decorPkg.image) : "";
+  }
+
+  function canvasLooksBlank(canvas) {
+    try {
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx || !canvas.width || !canvas.height) return true;
+      const sample = ctx.getImageData(
+        Math.floor(canvas.width / 2),
+        Math.floor(canvas.height / 2),
+        1,
+        1
+      ).data;
+      const [r, g, b, a] = sample;
+      if (a < 8) return true;
+      return r < 12 && g < 12 && b < 12;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  async function resolveDecorMockupAsset() {
+    const fallback = decorPackageFallbackSrc();
+    if (partyState.decorThemeId !== "custom") {
+      return fallback
+        ? {
+            dataUrl: fallback,
+            kind: "photo",
+            title: "Decoration",
+            note: `${decorPackageLabel()}${
+              partyState.decorThemeId ? ` · ${decorThemeLabel()}` : ""
+            }. Reference look for Tiny — final setup may vary.`,
+          }
+        : null;
+    }
+
+    const cfg = getBackdropConfig();
+    await renderBackdropPreview();
+
+    if (cfg.mode !== "full") {
+      const staticImg = document.getElementById("backdrop-static");
+      const photoPath = backdropPhotoForConfig(cfg);
+      const src =
+        (staticImg && !staticImg.hidden && (staticImg.currentSrc || staticImg.src)) ||
+        (photoPath ? resolveBuilderAsset(photoPath) : "") ||
+        fallback;
+      return src
+        ? {
+            dataUrl: src,
+            kind: "photo",
+            title: "Decoration",
+            note: `${decorPackageLabel()}. Reference look for Tiny — final setup may vary.`,
+          }
+        : null;
+    }
+
+    const canvas = document.getElementById("backdrop-canvas");
+    if (canvas && !canvas.hidden && canvas.width > 0 && canvas.height > 0 && !canvasLooksBlank(canvas)) {
+      try {
+        return {
+          dataUrl: canvas.toDataURL("image/jpeg", 0.92),
+          kind: "mockup",
+          title: "Backdrop mockup",
+          note: `Balloon colours: ${backdropPaletteLabel()}. Prints: ${backdropPrintsLabel()}. Briefing mockup only.`,
+        };
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    const photoPath = backdropPhotoForConfig(cfg);
+    const src = (photoPath ? resolveBuilderAsset(photoPath) : "") || fallback;
+    return src
+      ? {
+          dataUrl: src,
+          kind: "photo",
+          title: "Decoration",
+          note: `${decorPackageLabel()}. Reference look for Tiny — final setup may vary.`,
         }
-        <li><span>Service 5%</span><span>${escapeHtml(formatIdr(q.service))}</span></li>
-        <li><span>Tax 10%</span><span>${escapeHtml(formatIdr(q.tax))}</span></li>
-        <li class="is-total"><span>Estimated total</span><span>${escapeHtml(formatIdr(q.total))}</span></li>
-      </ul>
-      <p class="quote-note">Estimate for this day and guest count. It includes service and tax. The team confirms the final quote. Sending a request does not confirm the party.</p>`;
+      : null;
+  }
+
+  async function renderQuotePreview() {
+    const preview = document.getElementById("quote-preview");
+    if (!preview) return;
+    const token = ++quotePreviewToken;
+    ensureQuotePdfStyles();
+    preview.innerHTML = `<p class="quote-preview__loading">Preparing quotation preview…</p>`;
+    try {
+      const [cakeImage, decorMockup] = await Promise.all([
+        resolveCakeImageAssets(),
+        resolveDecorMockupAsset(),
+      ]);
+      if (token !== quotePreviewToken) return;
+      preview.innerHTML = buildQuotationPdfMarkup(cakeImage || null, decorMockup || null);
+      preview.querySelectorAll(".qp-page").forEach((page) => {
+        page.style.height = "auto";
+        page.style.minHeight = "0";
+        page.style.overflow = "visible";
+      });
+    } catch (err) {
+      console.error(err);
+      if (token !== quotePreviewToken) return;
+      preview.innerHTML = `<p class="quote-preview__loading">Couldn’t load the quotation preview. Try exporting the PDF.</p>`;
+    }
+  }
+
+  function renderQuote() {
+    if (currentStepId === "send") renderQuotePreview();
     renderRunningEstimate();
+  }
+
+  let emailPromptSkipped = false;
+  let sendDetailsModalCallback = null;
+  let sendDetailsSkipCallback = null;
+
+  function quotePhoneDisplay() {
+    const contact = window.TinyContact?.readContact?.() || {};
+    if (contact.phone) {
+      return contact.phone.startsWith("+") ? contact.phone : `+${contact.phone}`;
+    }
+    const dial = document.getElementById("contact-dial")?.value || "";
+    const raw = (contact.phoneRaw || document.getElementById("contact-phone")?.value || "").trim();
+    if (!raw) return "";
+    if (raw.startsWith("+")) return raw;
+    const digits = raw.replace(/\D/g, "").replace(/^0+/, "");
+    return dial && digits ? `+${dial}${digits}` : raw;
+  }
+
+  function quoteSendDetailsComplete() {
+    return childDobComplete();
+  }
+
+  function needsEmailPrompt() {
+    return !contactEmailValue() && !emailPromptSkipped;
+  }
+
+  function restoreRequestFieldsHome() {
+    const fields = document.getElementById("request-fields");
+    const home = document.getElementById("request-fields-home");
+    if (fields && home && fields.parentElement !== home) home.appendChild(fields);
+  }
+
+  function openSendDetailsModal(options = {}) {
+    const modal = document.getElementById("send-details-modal");
+    const slot = document.getElementById("send-details-modal-fields");
+    const fields = document.getElementById("request-fields");
+    const status = document.getElementById("send-details-status");
+    const confirm = document.getElementById("send-details-confirm");
+    const skipEmail = document.getElementById("send-details-skip-email");
+    const lede = document.getElementById("send-details-lede");
+    const dobField = document.getElementById("modal-dob-field");
+    const ageField = document.getElementById("child-age-field");
+    const emailField = document.getElementById("modal-email-field");
+    const emailInput = document.getElementById("send-details-email");
+    if (!modal || !slot || !fields) return;
+    sendDetailsModalCallback = typeof options.onConfirm === "function" ? options.onConfirm : null;
+    sendDetailsSkipCallback = typeof options.onSkipEmail === "function" ? options.onSkipEmail : null;
+    const needDob = !childDobComplete();
+    const needEmail = Boolean(options.promptEmail) && needsEmailPrompt();
+    if (lede) {
+      lede.textContent =
+        options.lede ||
+        (needDob && needEmail
+          ? "Add the child’s date of birth. Email is optional — you can skip it."
+          : needDob
+            ? "Add the child’s date of birth so we can set the celebration age."
+            : "No email yet. Add one, or skip for now.");
+    }
+    if (confirm) confirm.textContent = options.confirmLabel || "Save details";
+    if (status) {
+      status.textContent = "";
+      status.className = "form-status";
+    }
+    if (dobField) dobField.hidden = !needDob;
+    if (ageField) ageField.hidden = !needDob;
+    if (emailField) emailField.hidden = !needEmail;
+    if (skipEmail) skipEmail.hidden = !needEmail;
+    if (emailInput) emailInput.value = contactEmailValue();
+    slot.appendChild(fields);
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+    if (needDob) document.getElementById("child-birthday")?.focus();
+    else emailInput?.focus();
+  }
+
+  function closeSendDetailsModal() {
+    const modal = document.getElementById("send-details-modal");
+    if (modal) {
+      modal.hidden = true;
+      modal.setAttribute("aria-hidden", "true");
+    }
+    restoreRequestFieldsHome();
+    sendDetailsModalCallback = null;
+    sendDetailsSkipCallback = null;
+  }
+
+  function applyModalEmailToForm() {
+    const modalEmail = document.getElementById("send-details-email")?.value.trim() || "";
+    const emailEl = document.getElementById("contact-email");
+    if (modalEmail && emailEl) {
+      emailEl.value = modalEmail;
+      emailEl.dispatchEvent(new Event("input", { bubbles: true }));
+      emailEl.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
+
+  function initSendDetailsModal() {
+    const modal = document.getElementById("send-details-modal");
+    if (!modal || modal.dataset.bound) return;
+    modal.dataset.bound = "1";
+    modal.querySelectorAll("[data-close-send-details]").forEach((el) => {
+      el.addEventListener("click", () => closeSendDetailsModal());
+    });
+    document.getElementById("send-details-skip-email")?.addEventListener("click", () => {
+      const status = document.getElementById("send-details-status");
+      applyModalEmailToForm();
+      if (!childDobComplete()) {
+        if (status) {
+          status.textContent = "Add the child’s date of birth first.";
+          status.className = "form-status is-error";
+        }
+        document.getElementById("child-birthday")?.focus();
+        return;
+      }
+      if (!contactIsComplete()) {
+        if (status) {
+          status.textContent = "Add a WhatsApp number on details, or enter an email here.";
+          status.className = "form-status is-error";
+        }
+        return;
+      }
+      emailPromptSkipped = true;
+      const cb = sendDetailsSkipCallback || sendDetailsModalCallback;
+      closeSendDetailsModal();
+      syncChildAge();
+      renderSummary();
+      if (cb) cb();
+    });
+    document.getElementById("send-details-confirm")?.addEventListener("click", () => {
+      const status = document.getElementById("send-details-status");
+      applyModalEmailToForm();
+      if (!childDobComplete()) {
+        validateRequestDetails(true);
+        if (status) {
+          status.textContent = lastRequestMissing[0]
+            ? `Still missing: ${lastRequestMissing[0]}.`
+            : "Enter the child’s date of birth.";
+          status.className = "form-status is-error";
+        }
+        return;
+      }
+      if (!contactIsComplete()) {
+        if (status) {
+          status.textContent = "Add a WhatsApp number or email so we can reply.";
+          status.className = "form-status is-error";
+        }
+        return;
+      }
+      if (contactEmailValue()) emailPromptSkipped = false;
+      const cb = sendDetailsModalCallback;
+      closeSendDetailsModal();
+      syncChildAge();
+      renderSummary();
+      if (cb) cb();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !modal.hidden) closeSendDetailsModal();
+    });
+  }
+
+  function ensureQuoteSendDetails(options = {}) {
+    const ready = typeof options.onReady === "function" ? options.onReady : null;
+    const needDob = !childDobComplete();
+    const needEmail = needsEmailPrompt();
+    if (!needDob && !needEmail) {
+      if (ready) ready();
+      return true;
+    }
+    openSendDetailsModal({
+      lede: options.lede,
+      confirmLabel: options.confirmLabel || "Save & continue",
+      promptEmail: needEmail,
+      onConfirm: ready,
+      onSkipEmail: ready,
+    });
+    return false;
   }
 
   function quotationLineRows(q) {
     return q.lines.map((line) => ({
       label: line.label,
-      value: line.note ? "TBC" : formatIdr(line.value),
+      value: line.included ? "Included" : line.note ? "TBC" : formatIdr(line.value),
     }));
   }
 
@@ -2178,7 +2671,7 @@
     renderPackages();
     const bar = document.getElementById("builder-estimate");
     const rowsEl = document.getElementById("builder-estimate-rows");
-    const noteEl = document.getElementById("builder-estimate-note");
+    const caption = bar?.querySelector("caption");
     const packageNote = document.getElementById("selected-package-note");
     const pkg = selectedPackage();
     const date = document.getElementById("party-date")?.value;
@@ -2191,13 +2684,15 @@
         packageNote.textContent = "";
       }
     }
-    const hide = !bar || !rowsEl || !pkg || !date || currentStepId === "send" || currentStepId === "intro";
+    const hide = !bar || !rowsEl || !pkg || !date || currentStepId === "intro";
     if (hide) {
       if (bar) bar.hidden = true;
       document.documentElement.style.setProperty("--estimate-h", "0px");
       return;
     }
     const q = buildQuotation();
+    const totalLabel = currentStepId === "send" ? "Quote total" : "Estimated total";
+    if (caption) caption.textContent = currentStepId === "send" ? "Quote" : "Estimate";
     const rows = [
       ...quotationLineRows(q).map((row) => ({ ...row, kind: "" })),
       { label: "Subtotal", value: formatIdr(q.subtotal), kind: "" },
@@ -2206,23 +2701,18 @@
         : []),
       { label: "Service 5%", value: formatIdr(q.service), kind: "" },
       { label: "Tax 10%", value: formatIdr(q.tax), kind: "" },
-      { label: "Estimated total", value: formatIdr(q.total), kind: "is-total" },
+      { label: totalLabel, value: formatIdr(q.total), kind: "is-total" },
     ];
     rowsEl.innerHTML = rows
       .map((row) => {
         if (row.kind === "is-total") {
           return `<tr class="is-total"><th scope="row"><button type="button" class="builder-estimate__toggle" aria-expanded="${
             estimateExpanded ? "true" : "false"
-          }">Estimated total</button></th><td>${escapeHtml(row.value)}</td></tr>`;
+          }">${escapeHtml(totalLabel)}</button></th><td>${escapeHtml(row.value)}</td></tr>`;
         }
         return `<tr class="${row.kind}"><th scope="row">${escapeHtml(row.label)}</th><td>${escapeHtml(row.value)}</td></tr>`;
       })
       .join("");
-    if (noteEl) {
-      noteEl.textContent = `Includes the food and drink credit, 5% service and 10% tax for this ${
-        partyState.day || "weekday"
-      } and guest count. The team confirms the final quote.`;
-    }
     bar.hidden = false;
     applyEstimateLayout(bar);
     if (!quoteViewTracked) {
@@ -2232,13 +2722,31 @@
     syncStepsBarH();
   }
 
+  function setEstimateStatus(text, kind) {
+    const status = document.getElementById("estimate-status");
+    if (!status) return;
+    status.textContent = text || "";
+    status.className = kind ? `form-status ${kind}` : "form-status";
+  }
+
   function applyEstimateLayout(bar) {
     if (!bar) return;
     bar.classList.toggle("is-mini", !estimateExpanded);
     const toggle = bar.querySelector(".builder-estimate__toggle");
     if (toggle) toggle.setAttribute("aria-expanded", estimateExpanded ? "true" : "false");
+    const actions = document.getElementById("builder-estimate-actions");
+    const building = currentStepId !== "send" && currentStepId !== "intro";
+    if (actions) actions.hidden = !estimateExpanded || !building;
     const height = bar.hidden ? 0 : Math.ceil(bar.getBoundingClientRect().height);
     document.documentElement.style.setProperty("--estimate-h", `${height}px`);
+  }
+
+  function minimizeEstimate() {
+    const bar = document.getElementById("builder-estimate");
+    estimateExpanded = false;
+    setEstimateStatus("");
+    applyEstimateLayout(bar);
+    syncStepsBarH();
   }
 
   function initEstimateToggle() {
@@ -2248,8 +2756,44 @@
     bar.addEventListener("click", (event) => {
       if (!event.target.closest("tr.is-total")) return;
       estimateExpanded = !estimateExpanded;
+      setEstimateStatus("");
       applyEstimateLayout(bar);
       syncStepsBarH();
+    });
+    document.getElementById("estimate-continue")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      minimizeEstimate();
+    });
+    document.getElementById("estimate-send")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      requestSendFromEstimate();
+    });
+  }
+
+  function triggerPartialSend() {
+    const sendBtn = document.getElementById("send-whatsapp");
+    if (!sendBtn) return;
+    sendBtn.dataset.allowPartial = "1";
+    sendBtn.click();
+    queueMicrotask(() => {
+      delete sendBtn.dataset.allowPartial;
+    });
+  }
+
+  function requestSendFromEstimate() {
+    setEstimateStatus("");
+    if (!validateDetailsSection(true)) {
+      goToStep("details");
+      showStepGate("Finish your party details first, then send.");
+      setEstimateStatus("Finish your party details first.", "is-error");
+      return;
+    }
+    ensureQuoteSendDetails({
+      lede: "Fill these in before we send your birthday request.",
+      confirmLabel: "Save & send request",
+      onReady: () => triggerPartialSend(),
     });
   }
 
@@ -2349,6 +2893,8 @@
       updateBackdropBuilderUI();
     }
     renderFood();
+    if (typeof renderMasterclasses === "function") renderMasterclasses();
+    if (typeof renderExtras === "function") renderExtras();
     checkTerraceGuestLimit();
     assignPartyTables();
     const time = partyTimeValue();
@@ -2484,23 +3030,34 @@
       updateStepProgress();
       return;
     }
-    try {
-      const res = await fetch(`${cfg.url}/rest/v1/rpc/reservation_occupancy`, {
-        method: "POST",
-        headers: {
-          apikey: cfg.anonKey,
-          Authorization: `Bearer ${cfg.anonKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ target_date: date }),
-      });
-      if (!res.ok) throw new Error("occupancy failed");
-      const data = await res.json();
-      const rows = expandOccupancyRows(Array.isArray(data) ? data : []);
-      partyState.occupancy = Map?.withFixedHolds?.(date, rows) || rows;
-      partyState.occupancyOk = true;
-      setOccupancyStatus("");
-    } catch (_) {
+    let occupancyLoaded = false;
+    // Auto-retry once before surfacing an error (review §3): a single
+    // transient failure should not block the step chips.
+    for (let attempt = 0; attempt < 2 && !occupancyLoaded; attempt += 1) {
+      try {
+        const res = await fetch(`${cfg.url}/rest/v1/rpc/reservation_occupancy`, {
+          method: "POST",
+          headers: {
+            apikey: cfg.anonKey,
+            Authorization: `Bearer ${cfg.anonKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ target_date: date }),
+        });
+        if (!res.ok) throw new Error("occupancy failed");
+        const data = await res.json();
+        const rows = expandOccupancyRows(Array.isArray(data) ? data : []);
+        partyState.occupancy = Map?.withFixedHolds?.(date, rows) || rows;
+        partyState.occupancyOk = true;
+        setOccupancyStatus("");
+        occupancyLoaded = true;
+      } catch (_) {
+        if (attempt === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 600));
+        }
+      }
+    }
+    if (!occupancyLoaded) {
       partyState.occupancyOk = false;
       setOccupancyStatus("Couldn’t check availability — try again.", "is-error");
     }
@@ -2963,7 +3520,7 @@
     document.head.appendChild(style);
   }
 
-  function buildQuotationPdfMarkup(cakeImage) {
+  function buildQuotationPdfMarkup(cakeImage, decorMockup) {
     const q = buildQuotation();
     const pkg = selectedPackage();
     const child = childNameValue();
@@ -2992,18 +3549,20 @@
     ].filter(Boolean);
 
     const rows = (q.lines || [])
-      .filter((line) => !line.note)
+      .filter((line) => !line.note && !line.foodItem)
       .map((line) => {
-        const price = formatIdrInvoice(line.value);
+        const qty = Number(line.qty) > 0 ? Number(line.qty) : 1;
+        const total = Number(line.value) || 0;
+        const unit = qty > 1 && total ? Math.round(total / qty) : total;
         return `<tr>
           <td class="qp-details">${escapeHtml(line.label)}${
             line.detail
               ? `<div class="qp-note">${escapeHtml(line.detail)}</div>`
               : ""
           }</td>
-          <td class="qp-num">${escapeHtml(price)}</td>
-          <td class="qp-qty">1</td>
-          <td class="qp-num">${escapeHtml(price)}</td>
+          <td class="qp-num">${escapeHtml(formatIdrInvoice(unit))}</td>
+          <td class="qp-qty">${escapeHtml(qty)}</td>
+          <td class="qp-num">${escapeHtml(formatIdrInvoice(total))}</td>
         </tr>`;
       })
       .join("");
@@ -3021,13 +3580,14 @@
       .join("");
 
     const contact = window.TinyContact?.readContact?.() || {};
+    const phoneDisplay = quotePhoneDisplay();
     const metaBlock = `
       <div class="qp-meta">
         <div class="qp-meta-left">
           <div><strong>Name</strong> : ${escapeHtml(parentNameValue() || child)}</div>
           <div><strong>Child</strong> : ${escapeHtml(child)}</div>
-          <div><strong>Phone</strong> : ${escapeHtml(contact.phone || "")}</div>
-          <div><strong>Email</strong> : ${escapeHtml(contact.email || "")}</div>
+          <div><strong>Phone</strong> : ${escapeHtml(phoneDisplay)}</div>
+          <div><strong>Email</strong> : ${escapeHtml(contact.email || contact.emailRaw || "")}</div>
           <div><strong>Time</strong> : ${escapeHtml(partyTimeValue() || "")}</div>
           <div><strong>Total Pax</strong> : ${escapeHtml(guests === "—" ? "" : guests)}</div>
           <div><strong>Theme</strong> : ${escapeHtml(theme)}</div>
@@ -3115,17 +3675,19 @@
   </div>
   <img class="qp-flowers qp-flowers--right" src="${flowers2}" alt="" crossorigin="anonymous">
 </div>${
-      partyState.decorThemeId === "custom" && document.getElementById("backdrop-canvas")
+      decorMockup?.dataUrl
         ? `
 <div class="qp-page">
   ${header}
   ${metaBlock}
-  <h2 class="qp-rules-title">Backdrop mockup</h2>
-  <img class="qp-mockup" src="${document.getElementById("backdrop-canvas").toDataURL("image/jpeg", 0.9)}" alt="Custom decoration mockup">
-  <p class="qp-estimate">Balloon colours: ${escapeHtml(backdropPaletteLabel())}. Prints: ${escapeHtml(backdropPrintsLabel())}. Briefing mockup only.</p>
+  <h2 class="qp-rules-title">${escapeHtml(decorMockup.title || "Decoration")}</h2>
+  <img class="qp-mockup" src="${decorMockup.dataUrl}" alt="${escapeHtml(
+            decorMockup.title || "Decoration"
+          )}" crossorigin="anonymous">
+  <p class="qp-estimate">${escapeHtml(decorMockup.note || "")}</p>
 </div>`
         : ""
-    }${
+    }${foodOrderPdfPage(header, metaBlock, flowers2)}${
       cakeImage?.dataUrl
         ? `
 <div class="qp-page">
@@ -3139,6 +3701,56 @@
 </div>`
         : ""
     }`;
+  }
+
+  function foodOrderPdfPage(header, metaBlock, flowersSrc) {
+    const order = syncFoodOrderCredit();
+    if (!order.items.length) return "";
+    const rows = order.items
+      .map((item) => {
+        const opts = item.optsLabel ? `<div class="qp-note">${escapeHtml(item.optsLabel)}</div>` : "";
+        return `<tr>
+          <td class="qp-details">${escapeHtml(item.name)}${item.size ? ` · ${escapeHtml(item.size)}` : ""}${opts}</td>
+          <td class="qp-num">${escapeHtml(formatIdrInvoice(item.unitPrice))}</td>
+          <td class="qp-qty">${escapeHtml(item.qty)}</td>
+          <td class="qp-num">${escapeHtml(formatIdrInvoice(item.lineTotal))}</td>
+        </tr>`;
+      })
+      .join("");
+    const balance =
+      order.overCreditIdr > 0
+        ? `Package credit ${formatIdrInvoice(order.creditIdr)}. Pre-order ${formatIdrInvoice(order.itemsTotalIdr)}. Over credit ${formatIdrInvoice(order.overCreditIdr)} added to the quotation.`
+        : `Package credit ${formatIdrInvoice(order.creditIdr)}. Pre-order ${formatIdrInvoice(order.itemsTotalIdr)}. Remaining minimum spend / credit ${formatIdrInvoice(order.remainingCreditIdr)}.`;
+    return `
+<div class="qp-page">
+  ${header}
+  ${metaBlock}
+  <h2 class="qp-rules-title">Food &amp; drink pre-order</h2>
+  <table class="qp-items">
+    <thead>
+      <tr>
+        <th>Details</th>
+        <th class="qp-num">Price</th>
+        <th class="qp-qty">Qty</th>
+        <th class="qp-num">Total</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="qp-totals-wrap">
+    <div class="qp-totals">
+      <div class="qp-totals-row"><span>Pre-order total :</span><span>${escapeHtml(formatIdrInvoice(order.itemsTotalIdr))}</span></div>
+      <div class="qp-totals-row"><span>Package credit :</span><span>${escapeHtml(formatIdrInvoice(order.creditIdr))}</span></div>
+      <div class="qp-totals-row is-grand"><span>${
+        order.overCreditIdr > 0 ? "Over credit :" : "Remaining credit :"
+      }</span><span class="qp-amount">${escapeHtml(
+        formatIdrInvoice(order.overCreditIdr > 0 ? order.overCreditIdr : order.remainingCreditIdr)
+      )}</span></div>
+    </div>
+  </div>
+  <p class="qp-estimate">${escapeHtml(balance)}</p>
+  ${flowersSrc ? `<img class="qp-flowers qp-flowers--right" src="${flowersSrc}" alt="" crossorigin="anonymous">` : ""}
+</div>`;
   }
 
   async function waitForImages(root) {
@@ -3157,6 +3769,26 @@
 
   async function exportQuotationPdf() {
     const status = document.getElementById("send-status");
+    // The PDF is the strongest lead magnet in the flow — it requires a valid
+    // contact first (review §3), so it can't be used to price-shop anonymously.
+    if (!contactIsComplete()) {
+      const result = window.TinyContact?.validateContact?.();
+      window.TinyContact?.markContactValidity?.(false);
+      if (status) {
+        status.textContent = `${
+          result?.message || "Please add an email or WhatsApp number."
+        } Add it, then export your PDF.`;
+        status.className = "form-status is-error";
+      }
+      ensureQuoteSendDetails({
+        lede: "Add an email or WhatsApp number so we can attach your PDF quotation.",
+        confirmLabel: "Save & export PDF",
+        onReady: () => exportQuotationPdf(),
+      });
+      track("builder_export_pdf_blocked", { reason: "no_valid_contact" });
+      return;
+    }
+    window.TinyContact?.markContactValidity?.(true);
     syncPackageFromGuests();
     if (!partyState.packageId) {
       if (status) {
@@ -3197,7 +3829,10 @@
 
       track("builder_export_pdf", { package: partyState.packageId });
       if (status) {
-        status.textContent = "PDF downloaded.";
+        const contact = window.TinyContact?.readContact?.() || {};
+        status.textContent = contact.phone
+          ? "PDF downloaded. Tap “Send Birthday Request” and we'll also send it to your WhatsApp."
+          : "PDF downloaded. Tap “Send Birthday Request” and we'll also send it to your email.";
         status.className = "form-status is-success";
       }
     } catch (err) {
@@ -3297,13 +3932,37 @@
             : { id, name: id, priceValue: 0 };
         }),
       },
+      foodOrder: (() => {
+        const order = syncFoodOrderCredit();
+        return {
+          skipped: order.skipped,
+          creditIdr: order.creditIdr,
+          itemsTotalIdr: order.itemsTotalIdr,
+          remainingCreditIdr: order.remainingCreditIdr,
+          overCreditIdr: order.overCreditIdr,
+          items: order.items.map((item) => ({
+            id: item.id,
+            name: item.name,
+            size: item.size,
+            opts: item.opts,
+            optsLabel: item.optsLabel,
+            qty: item.qty,
+            unitPrice: item.unitPrice,
+            lineTotal: item.lineTotal,
+            family: item.family,
+          })),
+        };
+      })(),
       quote: {
         currency: "IDR",
         lines: (q.lines || []).map((line) => ({
           label: line.label,
           value: line.value || 0,
+          qty: line.qty || 1,
           note: Boolean(line.note),
           detail: line.detail || null,
+          foodItem: Boolean(line.foodItem),
+          foodBalance: Boolean(line.foodBalance),
         })),
         subtotal: q.subtotal,
         discount: q.discount || 0,
@@ -3358,9 +4017,7 @@
   }
 
   async function buildQuotationPdfBlobFromAssets(cakeImage) {
-    if (partyState.decorThemeId === "custom") {
-      await renderBackdropPreview();
-    }
+    const decorMockup = await resolveDecorMockupAsset();
 
     document.getElementById("quote-pdf-root")?.remove();
     ensureQuotePdfStyles();
@@ -3371,7 +4028,7 @@
     host.setAttribute("aria-hidden", "true");
     host.style.cssText =
       "position:fixed;left:0;top:0;width:794px;transform:translateX(-140vw);pointer-events:none;opacity:1;background:#fffaf6;";
-    host.innerHTML = buildQuotationPdfMarkup(cakeImage || null);
+    host.innerHTML = buildQuotationPdfMarkup(cakeImage || null, decorMockup || null);
     document.body.appendChild(host);
 
     try {
@@ -3527,7 +4184,7 @@
 
   function packagePhotoButton(src, title) {
     if (!src) return "";
-    return `<button type="button" class="package-cat__photo" data-expand-src="${escapeHtml(src)}" data-expand-alt="${escapeHtml(title)}" aria-label="Expand ${escapeHtml(title)} photo"><img src="${escapeHtml(src)}" alt="" width="640" height="420" loading="lazy"></button>`;
+    return `<button type="button" class="package-cat__photo" data-expand-src="${escapeHtml(src)}" data-expand-alt="${escapeHtml(title)}" aria-label="Expand ${escapeHtml(title)} photo"><img src="${escapeHtml(src)}" alt="${escapeHtml(title)}" width="640" height="420" loading="lazy"></button>`;
   }
 
   function renderPackages() {
@@ -3549,8 +4206,13 @@
         ];
         const other = packageOtherLines(pkg);
         if (other.length) groups.push({ title: "Also included", items: other });
+        const recommendedId = recommendedPackageId();
         included.innerHTML = `
-          <p class="package-match">Matched to your guest count: <strong>${escapeHtml(pkg.name)}</strong>. ${escapeHtml(pkg.guests)}. Prices are ${escapeHtml(selectedDayWord())} rates for the date you chose.</p>
+          <p class="package-match">${
+            pkg.id === recommendedId
+              ? `Recommended for your guest count: <strong>${escapeHtml(pkg.name)}</strong>.`
+              : `You chose <strong>${escapeHtml(pkg.name)}</strong> (recommended for ${escapeHtml(totalGuests())} guests: <strong>${escapeHtml((packages.find((p) => p.id === recommendedId) || pkg).name)}</strong>).`
+          } ${escapeHtml(pkg.guests)}. Prices are ${escapeHtml(selectedDayWord())} rates for the date you chose. You can switch below to any package that fits your guests.</p>
           <div class="package-cats">
             ${groups
               .map((group) => {
@@ -3573,49 +4235,107 @@
       return;
     }
     const day = selectedDayWord();
-    const rows = [
-      {
-        label: day === "weekend" ? "Weekend price" : "Weekday price",
-        cell: (item) => (day === "weekend" ? item.priceWeekend : item.priceWeekday),
-      },
-      { label: "Guests", cell: (item) => item.guests },
-      { label: "Cake", cell: (item) => packageCakeLine(item) },
-      { label: "Decorations", cell: (item) => decorItemsForPackage(item).join(" · ") },
-      { label: "Food & drink credit", cell: (item) => packageSpendLine(item) },
-    ];
-    const heads = packages
-      .map((item) => {
-        const current = item.id === pkg?.id ? " is-current" : "";
-        return `<div class="builder-compare__colhead${current}" role="columnheader">
-          <button type="button" class="builder-compare__photo" data-expand-src="${escapeHtml(item.image || "")}" data-expand-alt="${escapeHtml(item.name)}" aria-label="Expand ${escapeHtml(item.name)} photo">
-            <img src="${escapeHtml(item.image || "")}" alt="" width="480" height="320" loading="lazy">
-          </button>
-          <p class="builder-compare__name">${escapeHtml(item.name)}</p>
+    const recommendedId = recommendedPackageId();
+    const guestsNow = totalGuests();
+    // Variant D (review §6): upgrade ladder — shows the step up, not three totals.
+    const ladder = packages
+      .map((item, index) => {
+        const price = day === "weekend" ? item.priceWeekendValue : item.priceWeekdayValue;
+        const prev = index > 0 ? packages[index - 1] : null;
+        const prevPrice = prev ? (day === "weekend" ? prev.priceWeekendValue : prev.priceWeekdayValue) : 0;
+        const delta = prev ? price - prevPrice : 0;
+        const fits = guestsNow <= (item.guestsMax || Infinity);
+        const isCurrent = item.id === pkg?.id;
+        const isRecommended = item.id === recommendedId;
+        const stepUp = prev
+          ? `<div class="ladder__step-up">+${escapeHtml(formatIdr(delta).replace("IDR ", ""))} → ${escapeHtml(
+              item.id === "terrace"
+                ? "whole terrace, piñata, masterclass, dessert station"
+                : item.id === "signature"
+                  ? `up to ${item.guestsMax} guests, photozone, ${item.cakeSize} cake`
+                  : "bigger package"
+            )}</div>`
+          : "";
+        return `${stepUp}
+        <div class="ladder__rung${isRecommended ? " ladder__rung--rec" : ""}${isCurrent ? " is-current" : ""}">
+          <div class="ladder__head"><span>${escapeHtml(item.name)}${isRecommended ? " ★ Recommended" : ""}${isCurrent ? " · Selected" : ""}</span><span>${escapeHtml(day === "weekend" ? item.priceWeekend : item.priceWeekday)}</span></div>
+          <p>${escapeHtml(item.guests)} · cake ${escapeHtml(item.cakeSize || "")} · ${escapeHtml(packageSpendLine(item))}</p>
+          <button type="button" class="btn ladder__choose" data-choose-package="${escapeHtml(item.id)}"${!fits ? " disabled aria-disabled=\"true\"" : ""}>${
+            !fits
+              ? `Fits up to ${item.guestsMax} guests`
+              : isCurrent
+                ? "Selected ✓"
+                : `Choose ${escapeHtml(item.name)}`
+          }</button>
         </div>`;
       })
       .join("");
-    const body = rows
-      .map((row, index) => {
-        const last = index === rows.length - 1 ? " builder-compare__cell--last" : "";
-        const cells = packages
-          .map((item) => {
-            const current = item.id === pkg?.id ? " is-current" : "";
-            return `<div class="builder-compare__cell${last}${current}" role="cell">${escapeHtml(row.cell(item) || "—")}</div>`;
-          })
-          .join("");
-        return `<div class="builder-compare__label" role="rowheader"><span>${escapeHtml(row.label)}</span></div>${cells}`;
+    // Variant C (review §6): differences-only table behind a toggle.
+    const diffRows = [
+      { label: day === "weekend" ? "Weekend" : "Weekday", cell: (i) => (day === "weekend" ? i.priceWeekend : i.priceWeekday) },
+      { label: "Guests", cell: (i) => `≤${i.guestsMax}` },
+      { label: "Cake", cell: (i) => i.cakeSize || "—" },
+      { label: "Photozone", cell: (i) => (i.flags?.photozone ? "✓" : "—") },
+      { label: "Piñata", cell: (i) => (i.flags?.pinata ? "✓" : "—") },
+      { label: "Masterclass", cell: (i) => (i.flags?.masterclass ? "10 kids" : "—") },
+      { label: "Dessert station", cell: (i) => (i.flags?.dessertStation ? "✓" : "—") },
+      { label: "Private terrace", cell: (i) => (i.flags?.privateTerrace ? "✓" : "—") },
+    ];
+    const diffHeads = packages
+      .map((item) => {
+        const img = item.image ? resolveBuilderAsset(item.image) : "";
+        const photo = img
+          ? `<span class="ctable__photo"><img src="${escapeHtml(img)}" alt="" width="160" height="160" loading="lazy"></span>`
+          : "";
+        return `<th class="${item.id === recommendedId ? "rec" : ""}">${photo}<span class="ctable__name">${escapeHtml(
+          item.name
+        )}</span></th>`;
       })
       .join("");
+    const diffBody = diffRows
+      .map(
+        (row) =>
+          `<tr><td>${escapeHtml(row.label)}</td>${packages
+            .map((item) => {
+              const v = row.cell(item);
+              const cls = `${item.id === recommendedId ? "rec " : ""}${v === "✓" || v === "10 kids" ? "yes" : v === "—" ? "no" : ""}`;
+              return `<td class="${cls.trim()}">${escapeHtml(v)}</td>`;
+            })
+            .join("")}</tr>`
+      )
+      .join("");
     compare.innerHTML = `
-      <h3 class="builder-compare__title">Compare by package</h3>
-      <div class="builder-compare__scroll">
-        <div class="builder-compare__board" role="table" aria-label="Compare by package">
-          <div class="builder-compare__label builder-compare__label--head"></div>
-          ${heads}
-          ${body}
-        </div>
-      </div>
+      <h3 class="builder-compare__title">Pick your level</h3>
+      <div class="ladder">${ladder}</div>
+      <details class="builder-compare__full">
+        <summary>Compare packages</summary>
+        <label class="builder-compare__toggle"><input type="checkbox" id="compare-diffs-only" checked> Show only differences</label>
+        <table class="ctable" aria-label="Full package comparison">
+          <thead><tr><th scope="col"></th>${diffHeads}</tr></thead>
+          <tbody>
+          ${diffBody}
+          <tr class="ctable__shared" hidden><td>Duration</td>${packages.map(() => `<td>3 hours</td>`).join("")}</tr>
+          <tr class="ctable__shared" hidden><td>Themed party</td>${packages.map(() => `<td class="yes">✓</td>`).join("")}</tr>
+          <tr class="ctable__shared" hidden><td>Food credit in package</td>${packages.map(() => `<td class="yes">✓</td>`).join("")}</tr>
+          </tbody>
+        </table>
+      </details>
       <p class="builder-compare__note">Prices follow your selected ${escapeHtml(day)} date. They exclude 5% service and 10% tax. The food and drink credit is included in the package. Extra orders are charged from the menu.</p>`;
+    compare.querySelectorAll("[data-choose-package]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        btn.textContent = "Selected ✓";
+        choosePackage(btn.dataset.choosePackage);
+        renderPackages();
+        renderSummary();
+        updateStepProgress();
+        maybeAutoAdvance();
+      });
+    });
+    compare.querySelector("#compare-diffs-only")?.addEventListener("change", (e) => {
+      compare.querySelectorAll(".ctable__shared").forEach((row) => {
+        row.hidden = e.target.checked;
+      });
+    });
     bindPhotoExpand(compare);
   }
 
@@ -3697,7 +4417,7 @@
             locked ? ' aria-disabled="true" disabled' : ""
           }>
             <div class="photo-card__media">
-              <img src="${escapeHtml(d.image)}" alt="" width="800" height="1000" loading="lazy">
+              <img src="${escapeHtml(d.image)}" alt="${escapeHtml(d.name)} decoration" width="800" height="1000" loading="lazy">
             </div>
             <div class="photo-card__body">
               <h3>${escapeHtml(d.name)}</h3>
@@ -3737,7 +4457,7 @@
         <button type="button" class="theme-collage__item${selected ? " is-selected" : ""}" data-decor-theme="${escapeHtml(
           t.id
         )}" aria-pressed="${selected}">
-          <img src="${escapeHtml(t.image)}" alt="" width="400" height="500" loading="lazy">
+          <img src="${escapeHtml(t.image)}" alt="${escapeHtml(t.name)}" width="400" height="500" loading="lazy">
           <span class="theme-collage__caption">${escapeHtml(t.name)}</span>
         </button>`;
       })
@@ -3781,6 +4501,75 @@
       return bits.length ? `Custom · ${bits.join(" · ")}` : "Build your own";
     }
     return t.name;
+  }
+
+  function renderFoodOrderSummary() {
+    const host = document.getElementById("food-order-summary");
+    if (!host) return;
+    const order = syncFoodOrderCredit();
+    if (!order.items.length) {
+      host.hidden = true;
+      host.innerHTML = "";
+      return;
+    }
+    const balanceClass = order.overCreditIdr > 0 ? " is-over" : "";
+    const balanceText =
+      order.overCreditIdr > 0
+        ? `Pre-order ${formatIdr(order.itemsTotalIdr)} · over credit ${formatIdr(order.overCreditIdr)}`
+        : `Pre-order ${formatIdr(order.itemsTotalIdr)} · remaining credit ${formatIdr(order.remainingCreditIdr)}`;
+    host.hidden = false;
+    host.innerHTML = `
+      <p class="food-order-summary__title">Pre-order for your party</p>
+      <p class="food-order-summary__balance${balanceClass}">${escapeHtml(balanceText)} (package credit ${escapeHtml(
+        formatIdr(order.creditIdr)
+      )})</p>
+      <ul class="food-order-summary__list">
+        ${order.items
+          .map((item) => {
+            const opts = item.optsLabel ? ` · ${escapeHtml(item.optsLabel)}` : "";
+            return `<li><span>${escapeHtml(item.qty)}× ${escapeHtml(item.name)}${
+              item.size ? ` (${escapeHtml(item.size)})` : ""
+            }${opts}</span><span>${escapeHtml(formatIdr(item.lineTotal))}</span></li>`;
+          })
+          .join("")}
+      </ul>`;
+  }
+
+  function openFoodPicker() {
+    const credit = currentFoodCredit();
+    const existing = syncFoodOrderCredit();
+    if (!window.TinyFoodPicker?.open) {
+      const status = document.getElementById("send-status");
+      if (status) {
+        status.textContent = "Menu picker is still loading. Try again in a moment.";
+        status.className = "form-status is-error";
+      }
+      return;
+    }
+    window.TinyFoodPicker.open({
+      creditIdr: credit,
+      items: existing.items,
+      onSave: (result) => {
+        partyState.foodOrder = normalizeFoodOrder(result, credit);
+        partyState.foodReviewed = true;
+        renderFoodOrderSummary();
+        renderSummary();
+        saveBuilderDraft();
+        track("builder_food_order_saved", {
+          items: partyState.foodOrder.items.length,
+          total: partyState.foodOrder.itemsTotalIdr,
+          over: partyState.foodOrder.overCreditIdr,
+        });
+      },
+      onSkip: (result) => {
+        partyState.foodOrder = normalizeFoodOrder(result, credit);
+        partyState.foodReviewed = true;
+        renderFoodOrderSummary();
+        renderSummary();
+        saveBuilderDraft();
+        track("builder_food_order_skipped");
+      },
+    });
   }
 
   function renderFood() {
@@ -3834,15 +4623,19 @@
         if (included) {
           included.textContent = `Included in this package: ${formatIdr(
             amount
-          )} to spend on food and drinks. Extra orders are charged from the menu.`;
+          )} to spend on food and drinks. Choose food and drinks to pre-order against that credit, or continue without pre-ordering.`;
         }
       } else {
         if (heading) heading.textContent = "Included for you to purchase food & drinks.";
         if (included) included.textContent = "";
       }
     }
-    const menuLink = document.getElementById("food-menu-link");
-    if (menuLink && window.TINY_WP?.menuUrl) menuLink.href = window.TINY_WP.menuUrl;
+    syncFoodOrderCredit();
+    renderFoodOrderSummary();
+  }
+
+  function initFoodPicker() {
+    document.getElementById("food-choose-btn")?.addEventListener("click", () => openFoodPicker());
   }
 
   function initPartyDate() {
@@ -3864,6 +4657,7 @@
     const noneSelected = partyState.masterclassReviewed && !partyState.masterclassId;
     if (noneBtn) noneBtn.classList.toggle("is-selected", noneSelected);
 
+    const terraceIncluded = selectedPackage()?.id === "terrace";
     grid.innerHTML = partyData.masterclasses
       .map(
         (m) => `
@@ -3873,7 +4667,11 @@
           ${mediaExpandHtml(m.image || "", m.name)}
           <div class="photo-card__body">
             <h3>${escapeHtml(m.name)}</h3>
-            <p>${escapeHtml(m.note || "")}</p>
+            <p>${escapeHtml(
+              terraceIncluded
+                ? "Included for up to 10 kids · +200k / kid above 10"
+                : m.note || ""
+            )}</p>
           </div>
         </button>`
       )
@@ -3886,6 +4684,8 @@
       renderSummary();
       markAddonsReviewed();
       updateStepProgress();
+      // Multi-choice step: scroll to the next block, don't advance (§4).
+      document.getElementById("extras-entertainment")?.scrollIntoView({ behavior: "smooth", block: "center" });
     };
 
     grid.querySelectorAll("[data-master]").forEach((btn) => {
@@ -3967,14 +4767,15 @@
                 </div>
               </div>`;
           }
+          const included = includedExtraLabel(item);
           return `
             <button type="button" class="photo-card photo-card--addon photo-card--selectable${
-              partyState.extras.includes(item.id) ? " is-selected" : ""
-            }" data-extra="${escapeHtml(item.id)}">
+              included || partyState.extras.includes(item.id) ? " is-selected" : ""
+            }" data-extra="${escapeHtml(item.id)}"${included ? " disabled aria-disabled=\"true\"" : ""}>
               ${mediaExpandHtml(item.image || "", item.name)}
               <div class="photo-card__body">
                 <h4>${escapeHtml(item.name)}</h4>
-                <span class="photo-card__price">${escapeHtml(item.price)}</span>
+                <span class="photo-card__price">${escapeHtml(included || item.price)}</span>
               </div>
             </button>`;
         })
@@ -4014,18 +4815,19 @@
           .join("");
       } else {
         el.innerHTML = items
-          .map(
-            (item) => `
+          .map((item) => {
+            const included = includedExtraLabel(item);
+            return `
             <button type="button" class="photo-card${
-              partyState.extras.includes(item.id) ? " is-selected" : ""
-            }" data-extra="${escapeHtml(item.id)}">
+              included || partyState.extras.includes(item.id) ? " is-selected" : ""
+            }" data-extra="${escapeHtml(item.id)}"${included ? " disabled aria-disabled=\"true\"" : ""}>
               ${mediaExpandHtml(item.image || "", item.name)}
               <div class="photo-card__body">
                 <h4>${escapeHtml(item.name)}</h4>
-                <span class="photo-card__price">${escapeHtml(item.price)}</span>
+                <span class="photo-card__price">${escapeHtml(included || item.price)}</span>
               </div>
-            </button>`
-          )
+            </button>`;
+          })
           .join("");
       }
       el.querySelectorAll("[data-extra]").forEach((btn) => {
@@ -4081,7 +4883,15 @@
         ? partyState.extras.map(extraLabel).join(", ")
         : "None";
     const cakeBits = cakeSummaryLines();
-    const cakeText = cakeBits.length ? cakeBits.join(" · ") : "Not chosen yet";
+    const cakeChosen = Boolean(
+      pkg && (flavourCount() > 0 || cakeState.design || cakeState.mode === "own" || cakeState.fileName)
+    );
+    const cakeText = cakeChosen ? cakeBits.join(" · ") : "—";
+    const decorLook = partyState.decorThemeId
+      ? decorThemeLabel()
+      : partyState.decorReviewed && pkg
+        ? `${decorPackageLabel()} (included set)`
+        : "—";
 
     const contact = window.TinyContact?.readContact?.() || {};
     const rows = [
@@ -4090,8 +4900,8 @@
       ["Package", pkg ? `${pkg.name} · ${packagePrice(pkg)}` : "—"],
       ["Tables", partyTableLabel() || "—"],
       ["Day", partyState.day === "weekend" ? "Weekend" : "Weekday"],
-      ["Decoration package", decorPackageLabel()],
-      ["Decoration look", decorThemeLabel()],
+      ["Decoration package", pkg ? decorPackageLabel() : "—"],
+      ["Decoration look", decorLook],
       ...(partyState.decorThemeId === "custom"
         ? [
             ["Design request", designRequestValue() || "—"],
@@ -4099,7 +4909,7 @@
             ["Balloon colours", backdropPaletteLabel()],
           ]
         : []),
-      ["Party date", partyDate],
+      ["Party date", partyDate && partyDate !== "—" ? formatPartyDateLong(partyDate) || partyDate : "—"],
       [
         "Party time",
         partyTimeValue()
@@ -4201,7 +5011,11 @@
       "",
       "— Quotation estimate —",
       ...q.lines.map((line) =>
-        line.note ? `${line.label}: TBC` : `${line.label}: ${formatIdr(line.value)}`
+        line.included
+          ? `${line.label}: Included`
+          : line.note
+            ? `${line.label}: TBC`
+            : `${line.label}: ${formatIdr(line.value)}`
       ),
       `Subtotal: ${formatIdr(q.subtotal)}`,
       q.discount ? `Promo ${q.promo?.code || ""}: −${formatIdr(q.discount)}` : "",
@@ -4244,6 +5058,8 @@
 
     const runSaveAndSend = async () => {
       setStatus("");
+      setEstimateStatus("");
+      const allowPartial = btn.dataset.allowPartial === "1";
       syncPackageFromGuests();
       if (!partyState.packageChosen || !partyState.packageId) {
         setStatus("Please select date & amount of guests first", "is-error");
@@ -4251,15 +5067,34 @@
         showStepGate("Please select date & amount of guests first");
         return;
       }
-      const incomplete = firstIncompleteRequiredStep();
-      if (incomplete !== "send") {
-        setStatus(stepIncompleteMessage(incomplete), "is-error");
-        goToStep(incomplete);
-        showStepGate(stepIncompleteMessage(incomplete));
-        return;
+      if (allowPartial) {
+        if (!validateDetailsSection(true)) {
+          setStatus("Finish your party details first.", "is-error");
+          goToStep("details");
+          showStepGate("Finish your party details first, then send.");
+          return;
+        }
+      } else {
+        const incomplete = firstIncompleteRequiredStep();
+        if (incomplete !== "send") {
+          setStatus(stepIncompleteMessage(incomplete), "is-error");
+          goToStep(incomplete);
+          showStepGate(stepIncompleteMessage(incomplete));
+          return;
+        }
       }
-      if (!validateRequestDetails(true)) {
-        setStatus("Add your name, the child’s name, date of birth, and an email or WhatsApp number.", "is-error");
+      if (!quoteSendDetailsComplete()) {
+        ensureQuoteSendDetails({
+          lede: "Fill these in before we send your birthday request.",
+          confirmLabel: "Save & send request",
+          onReady: () => {
+            if (allowPartial) btn.dataset.allowPartial = "1";
+            runSaveAndSend();
+            queueMicrotask(() => {
+              delete btn.dataset.allowPartial;
+            });
+          },
+        });
         return;
       }
       const contact = window.TinyContact?.validateContact?.();
@@ -4470,14 +5305,14 @@
     const labels = [...(cakeData.filters || [])];
     if (!labels.includes(FILTER_OWN_IDEA)) labels.push(FILTER_OWN_IDEA);
     el.innerHTML = labels
-      .map(
-        (label) =>
-          `<button type="button" class="filter-chip${
-            label === cakeState.filter ? " is-active" : ""
-          }" data-filter="${escapeHtml(label)}" role="tab" aria-selected="${
-            label === cakeState.filter
-          }">${escapeHtml(label)}</button>`
-      )
+      .map((label) => {
+        const text = label === "All" ? `All ${cakeData.cakes.length}` : label;
+        return `<button type="button" class="filter-chip${
+          label === cakeState.filter ? " is-active" : ""
+        }" data-filter="${escapeHtml(label)}" role="tab" aria-selected="${
+          label === cakeState.filter
+        }">${escapeHtml(text)}</button>`;
+      })
       .join("");
     el.querySelectorAll(".filter-chip").forEach((btn) => {
       btn.addEventListener("click", () => {
@@ -4521,23 +5356,24 @@
       return;
     }
     if (ownField) ownField.hidden = true;
-    if (moreWrap) moreWrap.hidden = false;
+    if (moreWrap) moreWrap.hidden = true;
+    if (moreBtn) moreBtn.hidden = true;
 
-    const GALLERY_PREVIEW = 6;
-    const visibleCakes = cakeData.cakes.filter((cake) =>
-      matchesFilter(cake, cakeState.filter)
-    );
-    const showAll = cakeState.galleryExpanded || visibleCakes.length <= GALLERY_PREVIEW;
-    const previewIds = new Set(
-      visibleCakes.slice(0, GALLERY_PREVIEW).map((c) => c.id)
-    );
+    // Show the whole catalogue (review §7) — images are lazy-loaded, so
+    // rendering all cakes costs the same as the old 6-cake preview.
+    const ownTile = `
+        <button type="button" class="cake-tile cake-tile--own" id="own-idea-tile">
+          <div class="cake-tile__img cake-tile__img--own"><span aria-hidden="true">＋</span></div>
+          <span class="cake-tile__name">Upload my own idea</span>
+          <span class="cake-tile__theme">Your photo, our cake</span>
+        </button>`;
 
-    grid.innerHTML = cakeData.cakes
+    grid.innerHTML =
+      ownTile +
+      cakeData.cakes
       .map((cake) => {
         const inFilter = matchesFilter(cake, cakeState.filter);
-        const inPreview = previewIds.has(cake.id);
-        const collapsed = !showAll && inFilter && !inPreview;
-        const hidden = !inFilter || collapsed ? " is-hidden" : "";
+        const hidden = !inFilter ? " is-hidden" : "";
         const selected =
           cakeState.mode === "gallery" && cakeState.design === cake.name
             ? " is-selected"
@@ -4555,7 +5391,7 @@
       })
       .join("");
 
-    grid.querySelectorAll(".cake-tile").forEach((tile) => {
+    grid.querySelectorAll(".cake-tile[data-id]").forEach((tile) => {
       tile.addEventListener("click", () => {
         const cake = cakeData.cakes.find((c) => c.id === tile.dataset.id);
         if (!cake) return;
@@ -4563,19 +5399,17 @@
         openLightbox(cake);
       });
     });
-
-    if (moreBtn) {
-      const needsMore = visibleCakes.length > GALLERY_PREVIEW;
-      moreBtn.hidden = !needsMore;
-      moreBtn.textContent = cakeState.galleryExpanded ? "Show fewer cakes" : "See more cakes";
-      if (!moreBtn.dataset.bound) {
-        moreBtn.dataset.bound = "1";
-        moreBtn.addEventListener("click", () => {
-          cakeState.galleryExpanded = !cakeState.galleryExpanded;
-          renderGallery();
-        });
+    grid.querySelector("#own-idea-tile")?.addEventListener("click", () => {
+      cakeState.mode = "own";
+      cakeState.design = "";
+      if (ownField) {
+        ownField.hidden = false;
+        ownField.scrollIntoView({ behavior: "smooth", block: "center" });
       }
-    }
+      renderMode();
+      renderSummary();
+      updateStepProgress();
+    });
   }
 
   function openLightbox(cake) {
@@ -4700,6 +5534,8 @@
         renderSizeOptions();
         renderSummary();
         updateStepProgress();
+        // Multi-choice step: auto-scroll to the next block, don't advance (§4).
+        document.getElementById("sponge-options")?.scrollIntoView({ behavior: "smooth", block: "center" });
       });
     });
     if (note) {
@@ -4718,8 +5554,9 @@
   function cakeSizeTip(size, includedSize) {
     if (includedSize && size.label === includedSize) return "Included in selected package";
     if (includedSize) {
-      const delta = Math.max(0, (CAKE_SIZE_VALUE[size.label] || 0) - (CAKE_SIZE_VALUE[includedSize] || 0));
+      const delta = (CAKE_SIZE_VALUE[size.label] || 0) - (CAKE_SIZE_VALUE[includedSize] || 0);
       if (delta > 0) return `Upgrade · ${formatIdr(delta)}`;
+      if (delta < 0) return "Smaller cake — same package price";
     }
     return size.note || "";
   }
@@ -4748,7 +5585,7 @@
       case "cakes":
         return flavourCount() > 0 && Boolean(cakeState.size);
       case "addons":
-        return true;
+        return Boolean(partyState.masterclassReviewed && partyState.entertainmentReviewed);
       case "food":
         return partyState.foodReviewed;
       case "send":
@@ -4775,11 +5612,13 @@
       case "details":
         if (!parentNameValue()) return "Enter your name.";
         if (!childNameValue()) return "Enter the child’s name.";
-        if (!(totalGuests() > 0)) return "Please select date & amount of guests first";
+        if (totalGuests() > TERRACE_GUEST_MAX)
+          return `That's ${totalGuests()} guests — parties over 35 need a custom quote. Contact us on WhatsApp.`;
+        if (!(totalGuests() > 0)) return "Add at least one guest (kids + adults).";
         if (!document.getElementById("party-date")?.value) {
-          return "Please select date & amount of guests first";
+          return "Choose the party date.";
         }
-        if (!partyTimeValue()) return "Please choose an available start time.";
+        if (!partyTimeValue()) return "Choose a start time.";
         if (!partyState.occupancyOk) return "Couldn’t check availability — try again.";
         if (partyTimeIsBooked(partyTimeValue())) {
           return "That start time isn’t free for your guest count. Please pick another.";
@@ -4798,7 +5637,9 @@
       case "decor":
         return "Please choose a decoration look or build your own.";
       case "cakes":
-        return "Please choose a cake size and at least one sponge flavour.";
+        if (!cakeState.size) return "Choose a cake size.";
+        if (flavourCount() === 0) return "Choose at least one sponge flavour.";
+        return "Choose a cake size and at least one sponge flavour.";
       case "addons":
         return "";
       case "food":
@@ -4884,6 +5725,7 @@
     });
     markStepSeen(nextId);
     showStepGate("");
+    hideStepErrorSummary();
     window.scrollTo({ top: 0, behavior: "auto" });
     const hash = `#${nextId}`;
     if (!fromHistory && location.hash !== hash) {
@@ -4900,7 +5742,98 @@
     updateStepChips();
     updateNextStepButton();
     syncStepsBarH();
-    if (nextId === "send") renderSummary();
+    if (nextId === "send") {
+      renderSummary();
+      if (!options.skipDetailsPrompt && (!childDobComplete() || needsEmailPrompt())) {
+        queueMicrotask(() =>
+          ensureQuoteSendDetails({
+            lede: "Add these before you send. You can close this and keep reviewing your quote.",
+            confirmLabel: "Save details",
+          })
+        );
+      }
+    } else {
+      restoreRequestFieldsHome();
+    }
+  }
+
+  function missingItemsForStep(stepId) {
+    const items = [];
+    if (stepId === "details") {
+      if (!parentNameValue()) items.push({ label: "Your name", target: "parent-name" });
+      if (!childNameValue()) items.push({ label: "Child’s name", target: "child-name" });
+      if (!document.getElementById("party-date")?.value)
+        items.push({ label: "Party date", target: "party-date" });
+      if (totalGuests() > TERRACE_GUEST_MAX)
+        items.push({ label: `Over 35 guests (${totalGuests()}) — custom quote needed`, target: "guest-kids-trigger" });
+      else if (!(totalGuests() > 0)) items.push({ label: "Guests", target: "guest-kids-trigger" });
+      if (!partyTimeValue()) items.push({ label: "Start time", target: "party-time-trigger" });
+      if (
+        document.getElementById("party-date")?.value &&
+        totalGuests() > 0 &&
+        partyTimeValue() &&
+        !partyState.occupancyOk
+      )
+        items.push({ label: "Availability check", target: "party-time-trigger" });
+    } else if (stepId === "package") {
+      if (!partyState.packageId) items.push({ label: "Package", target: "package" });
+      else if (needsTablesStep() && !(partyState.tableIds || []).length)
+        items.push({ label: "Your tables", target: "party-floorplan" });
+    } else if (stepId === "decor") {
+      if (!isStepComplete("decor")) items.push({ label: "Decoration choice", target: "decor-package-grid" });
+    } else if (stepId === "cakes") {
+      if (!cakeState.size) items.push({ label: "Cake size", target: "size-options" });
+      if (flavourCount() === 0) items.push({ label: "Sponge flavour", target: "sponge-options" });
+    } else if (stepId === "addons") {
+      if (!partyState.masterclassReviewed) items.push({ label: "Masterclass choice", target: "masterclass-grid" });
+      if (!partyState.entertainmentReviewed)
+        items.push({ label: "Entertainment choice", target: "extras-entertainment" });
+    }
+    return items;
+  }
+
+  function showStepErrorSummary(stepId) {
+    const host = document.getElementById("step-error-summary");
+    if (!host) return;
+    const items = missingItemsForStep(stepId);
+    const floorplan = document.getElementById("party-floorplan");
+    if (floorplan) {
+      floorplan.classList.toggle(
+        "is-invalid",
+        stepId === "package" && items.some((item) => item.target === "party-floorplan")
+      );
+    }
+    if (!items.length) {
+      host.hidden = true;
+      host.innerHTML = "";
+      return;
+    }
+    host.hidden = false;
+    host.innerHTML = `<b>${items.length} thing${items.length === 1 ? "" : "s"} left</b>${items
+      .map(
+        (item) =>
+          `<button type="button" data-error-target="${escapeHtml(item.target)}">${escapeHtml(item.label)}</button>`
+      )
+      .join("")}`;
+    host.querySelectorAll("[data-error-target]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const el = document.getElementById(btn.dataset.errorTarget);
+        if (!el) return;
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        const focusable = el.matches("input,button,textarea,select")
+          ? el
+          : el.querySelector("input,button,textarea,select");
+        focusable?.focus?.({ preventScroll: true });
+      });
+    });
+  }
+
+  function hideStepErrorSummary() {
+    const host = document.getElementById("step-error-summary");
+    if (host) {
+      host.hidden = true;
+      host.innerHTML = "";
+    }
   }
 
   function validateCurrentStep(showErrors) {
@@ -4933,6 +5866,11 @@
     const current = flow[flowIndex(currentStepId)] || flow[0];
     if (!validateCurrentStep(true)) {
       showStepGate(stepIncompleteMessage(current.id));
+      showStepErrorSummary(current.id);
+      if (current.id === "details" && totalGuests() > TERRACE_GUEST_MAX) {
+        showGuestLimitModal();
+        return false;
+      }
       if (current.id === "details") {
         document.querySelector("#details .field.is-invalid")?.scrollIntoView({
           behavior: "smooth",
@@ -5083,16 +6021,72 @@
       return;
     }
     btn.hidden = false;
+    let label;
     if (current.id === "addons") {
       const hasExtra =
         Boolean(partyState.masterclassId) ||
         hasEntertainmentExtra() ||
         (partyState.extras || []).length > 0;
-      btn.textContent = hasExtra ? "Continue with selected extras" : "Continue without extras";
+      label = hasExtra ? "Continue with selected extras →" : "Continue without extras →";
     } else {
-      btn.textContent = current.nextLabel || "Next step";
+      label = current.nextLabel || "Next step →";
     }
+    const missing = current.required ? missingItemsForStep(current.id) : [];
+    const complete = current.required ? isStepComplete(current.id) && missing.length === 0 : true;
+    btn.classList.toggle("is-blocked", !complete);
+    btn.classList.toggle("is-ready", complete);
+    btn.textContent = !complete && missing.length ? `${label.replace(/\s*→\s*$/, "")} · ${missing.length} left` : label;
     btn.setAttribute("href", next.href);
+  }
+
+  let autoAdvanceTimer = 0;
+  // Single-choice steps auto-advance after a brief check-mark pause (§4);
+  // multi-choice steps never do. Back always remains available.
+  function maybeAutoAdvance() {
+    const singleChoice = ["details", "package", "decor"];
+    if (!singleChoice.includes(currentStepId)) return;
+    if (!validateCurrentStep(false)) return;
+    window.clearTimeout(autoAdvanceTimer);
+    autoAdvanceTimer = window.setTimeout(() => {
+      if (validateCurrentStep(false)) tryAdvance();
+    }, 550);
+  }
+
+  function initSwipeNavigation() {
+    if (document.body.dataset.swipeBound) return;
+    document.body.dataset.swipeBound = "1";
+    let startX = null;
+    let startY = null;
+    document.addEventListener(
+      "touchstart",
+      (e) => {
+        if (e.target.closest(".count-modal, .time-modal, .builder-modal, .lightbox, input[type='range']")) {
+          startX = null;
+          return;
+        }
+        startX = e.changedTouches[0].clientX;
+        startY = e.changedTouches[0].clientY;
+      },
+      { passive: true }
+    );
+    document.addEventListener(
+      "touchend",
+      (e) => {
+        if (startX == null) return;
+        const dx = e.changedTouches[0].clientX - startX;
+        const dy = e.changedTouches[0].clientY - startY;
+        startX = null;
+        if (Math.abs(dx) < 60 || Math.abs(dy) > Math.abs(dx)) return;
+        const flow = builderFlow();
+        const index = flowIndex(currentStepId);
+        if (dx < 0) {
+          tryAdvance();
+        } else if (index > 0) {
+          goToStep(flow[index - 1].id);
+        }
+      },
+      { passive: true }
+    );
   }
 
   function initNextStep() {
@@ -5171,72 +6165,93 @@
       const label = document.getElementById(`${key}-value`);
       if (!spec || !input || !label) return;
       const value = input.value;
-      label.textContent = value === "" ? "Slide to choose" : spec.label(Number(value));
+      label.textContent = value === "" ? "Tap to choose" : spec.label(Number(value));
     });
+  }
+
+  function guestSheetFitText() {
+    const total = totalGuests();
+    if (!total) return "Add kids and adults to see your best-fit package.";
+    if (total > TERRACE_GUEST_MAX) return "";
+    const recId = packageIdForGuests(total);
+    const rec = (partyData.packages || []).find((p) => p.id === recId);
+    if (!rec) return "";
+    const included = rec.guestsIncluded || 0;
+    const extra = Math.max(0, total - included);
+    const nextPkg = (partyData.packages || []).find((p) => (p.guestsMax || 0) > (rec.guestsMax || 0));
+    const headroom = nextPkg ? (rec.guestsMax || total) - total : 0;
+    return `Best fit: ${rec.name} · ${included} included${extra ? ` + ${extra} extra` : ""}.${
+      headroom > 0 ? ` ${headroom} more guest${headroom === 1 ? "" : "s"} fit before a bigger package is needed.` : ""
+    }`;
   }
 
   function initCountSliders() {
     const modal = document.getElementById("count-modal");
-    const range = document.getElementById("count-modal-range");
-    const title = document.getElementById("count-modal-title");
-    const note = document.getElementById("count-modal-note");
-    const valueEl = document.getElementById("count-modal-value");
-    const unit = document.getElementById("count-modal-unit");
-    const minLabel = document.getElementById("count-modal-min");
-    const maxLabel = document.getElementById("count-modal-max");
-    const confirm = document.getElementById("count-modal-confirm");
-    if (!modal || !range) return;
-    let activeId = "";
+    if (!modal) return;
 
     const paint = () => {
-      const spec = COUNT_SLIDERS[activeId];
-      if (!spec) return;
-      const n = Number(range.value);
-      if (valueEl) valueEl.textContent = String(n);
-      if (confirm) confirm.textContent = spec.confirm(n);
+      const { kids, adults } = guestCounts();
+      const kidsEl = document.getElementById("guest-sheet-kids");
+      const adultsEl = document.getElementById("guest-sheet-adults");
+      const totalEl = document.getElementById("guest-sheet-total");
+      const matchEl = document.getElementById("guest-sheet-match");
+      const overEl = document.getElementById("guest-sheet-over");
+      if (kidsEl) kidsEl.textContent = String(kids);
+      if (adultsEl) adultsEl.textContent = String(adults);
+      if (totalEl) totalEl.textContent = String(kids + adults);
+      if (matchEl) matchEl.textContent = guestSheetFitText();
+      if (overEl) overEl.hidden = kids + adults <= TERRACE_GUEST_MAX;
+      modal.querySelectorAll("[data-guest-step]").forEach((btn) => {
+        const delta = Number(btn.dataset.guestStep.split(":")[1]);
+        btn.disabled = delta > 0 && kids + adults >= TERRACE_GUEST_MAX;
+      });
+      paintCountValue("guest-kids");
+      paintCountValue("guest-adults");
     };
 
     const close = () => {
       modal.hidden = true;
-      activeId = "";
     };
-
-    const open = (sliderId) => {
-      const spec = COUNT_SLIDERS[sliderId];
-      const input = document.getElementById(sliderId);
-      if (!spec || !input) return;
-      activeId = sliderId;
-      range.min = String(spec.min);
-      range.max = String(spec.max);
-      range.value = input.value === "" ? String(spec.start) : String(input.value);
-      if (title) title.textContent = spec.title;
-      if (note) note.textContent = spec.note;
-      if (unit) unit.textContent = spec.unit;
-      if (minLabel) minLabel.textContent = String(spec.min);
-      if (maxLabel) maxLabel.textContent = String(spec.max);
+    const open = () => {
       paint();
       modal.hidden = false;
     };
 
-    Object.keys(COUNT_SLIDERS).forEach((sliderId) => {
-      paintCountValue(sliderId);
-      document.getElementById(`${sliderId}-trigger`)?.addEventListener("click", () => open(sliderId));
+    ["guest-kids", "guest-adults"].forEach((id) => {
+      paintCountValue(id);
+      document.getElementById(`${id}-trigger`)?.addEventListener("click", open);
     });
-    range.addEventListener("input", paint);
-    document.getElementById("count-modal-done")?.addEventListener("click", () => {
-      const input = document.getElementById(activeId);
-      if (input) {
-        input.value = range.value;
+    modal.querySelectorAll("[data-guest-step]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const [id, deltaRaw] = btn.dataset.guestStep.split(":");
+        const input = document.getElementById(id);
+        if (!input) return;
+        const other = id === "guest-kids" ? guestCounts().adults : guestCounts().kids;
+        const current = Number(input.value) || 0;
+        const next = Math.max(0, Math.min(TERRACE_GUEST_MAX - other, current + Number(deltaRaw)));
+        input.value = String(next);
         input.dispatchEvent(new Event("input", { bubbles: true }));
         input.dispatchEvent(new Event("change", { bubbles: true }));
-        paintCountValue(activeId);
-      }
-      close();
+        paint();
+      });
     });
+    document.getElementById("count-modal-done")?.addEventListener("click", close);
     modal.querySelectorAll("[data-close-count]").forEach((el) => el.addEventListener("click", close));
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && !modal.hidden) close();
     });
+  }
+
+  function initDetailsWhatsapp() {
+    const phone = document.getElementById("contact-phone");
+    const dial = document.getElementById("contact-dial");
+    if (!phone || phone.dataset.detailsBound) return;
+    phone.dataset.detailsBound = "1";
+    const persist = () => saveBuilderDraft();
+    phone.addEventListener("input", persist);
+    phone.addEventListener("change", persist);
+    dial?.addEventListener("change", persist);
+    window.TinyContact?.initDialCombobox?.();
   }
 
   function initBuilderExit() {
@@ -5617,6 +6632,10 @@
     }
     setVal("guest-kids", booking.guestKids ?? party.guestKids ?? 0);
     setVal("guest-adults", booking.guestAdults ?? party.guestAdults ?? 0);
+    partyState.foodOrder = normalizeFoodOrder(
+      booking.foodOrder || booking.payload?.foodOrder,
+      currentFoodCredit()
+    );
     setVal("food-notes", party.foodNotes || "");
     setVal("party-notes", party.notes || "");
     fillContactFields(editVerifiedEmail || booking.email, editVerifiedPhone || booking.phone);
@@ -5714,6 +6733,7 @@
     setVal("child-birthday", party.childBirthday || "");
     setVal("guest-kids", row.guest_kids ?? party.guestKids ?? 0);
     setVal("guest-adults", row.guest_adults ?? party.guestAdults ?? 0);
+    partyState.foodOrder = normalizeFoodOrder(payload.foodOrder, currentFoodCredit());
     const copy = document.getElementById("staff-decor-copy");
     if (copy) copy.textContent = `Editing decoration for ${row.public_code || "this invoice"}`;
     staffDecorRestore = { row, payload, decor, files: row.files || {} };
@@ -5856,7 +6876,7 @@
     prefixImgStrings(OPTIMAL_BACKDROP);
     prefixImgStrings(BACKDROP_BY_PKG);
     partyData = prefixImgStrings(
-      await loadJson(wpConfig().partyJson || "data/party.json?v=20261017j", DEFAULT_PARTY)
+      await loadJson(wpConfig().partyJson || "data/party.json?v=20261022a", DEFAULT_PARTY)
     );
     applyDecorImageOverrides(partyData, await loadDecorImageOverrides());
     cakeData = normalizeCakes(
@@ -5871,10 +6891,20 @@
     if (packageParam && partyData.packages.some((p) => p.id === packageParam)) {
       const pkg = partyData.packages.find((p) => p.id === packageParam);
       partyState.packageId = packageParam;
+      partyState.packageExplicitId = packageParam;
       if (pkg?.decorId) partyState.decorPackageId = pkg.decorId;
     }
 
     restoreBuilderDraft();
+    // A fresh ?package= link wins over a restored draft choice.
+    if (packageParam && partyData.packages.some((p) => p.id === packageParam)) {
+      partyState.packageExplicitId = packageParam;
+    }
+    if (!partyState.foodOrder || typeof partyState.foodOrder !== "object") {
+      partyState.foodOrder = emptyFoodOrder();
+    } else {
+      partyState.foodOrder = normalizeFoodOrder(partyState.foodOrder, 0);
+    }
     syncPackageFromGuests();
     initPartyDate();
     initPartyTime();
@@ -5886,7 +6916,11 @@
     initCollapsibleAddons();
     initGuestLimit();
     initCountSliders();
+    initDetailsWhatsapp();
+    initSendDetailsModal();
+    initClearErrorsOnFix();
     initBuilderExit();
+    initFoodPicker();
     syncChildAge();
     paintCountValue();
     initPartyTables();
@@ -5914,6 +6948,7 @@
     initStickySteps();
     initStepChips();
     initNextStep();
+    initSwipeNavigation();
     if (staffRequestId) {
       initStaffDecorBar();
       try {

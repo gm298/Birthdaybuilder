@@ -2385,3 +2385,50 @@ h3 {
     transition: none;
   }
 }
+
+/* === Review fixes §6: swipeable package cards (A) + differences table (C) === */
+.pkg__plus {
+  font-weight: 600;
+  color: var(--sage);
+}
+.pkg-compare__toggle {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 14px;
+  color: var(--deep);
+  margin-bottom: 12px;
+}
+.ctable {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(100, 124, 110, 0.25);
+}
+.ctable th, .ctable td {
+  padding: 8px 6px;
+  text-align: center;
+  border-bottom: 1px solid #f0eee7;
+}
+.ctable th { background: var(--deep, #3d4f45); color: #fff; font-weight: 600; }
+.ctable td:first-child, .ctable th:first-child { text-align: left; padding-left: 10px; }
+.ctable .yes { color: #2e7d4f; font-weight: 700; }
+.ctable .no { color: #c4c4c4; }
+@media (max-width: 760px) {
+  .packages__grid {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 14px;
+    padding-bottom: 10px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .packages__grid .pkg {
+    flex: 0 0 84%;
+    scroll-snap-align: start;
+  }
+}

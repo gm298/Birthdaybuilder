@@ -289,11 +289,13 @@ $menu = esc_url(tiny_birthdays_page_url('menu'));
       <div class="food-hero">
         <img id="food-image" src="<?php echo esc_url($food); ?>" alt="Colourful buns with chicken, cucumber and lettuce" width="1200" height="800">
         <div class="food-hero__actions">
-          <a class="btn btn--menu" id="food-menu-link" href="<?php echo $menu; ?>">See menu</a>
+          <button class="btn btn--menu" type="button" id="food-choose-btn">Choose food and drinks</button>
         </div>
       </div>
+      <div class="food-order-summary" id="food-order-summary" hidden></div>
       <ul class="food-deposits" id="food-deposits"></ul>
       <p class="food-included" id="food-included"></p>
+      <p class="food-skip-hint">You can skip ahead without pre-ordering — guests can order on the day from your package credit.</p>
     </section>
 
     <section class="builder-page builder-section builder-section--sage" id="send" hidden>
@@ -470,6 +472,70 @@ $menu = esc_url(tiny_birthdays_page_url('menu'));
       <div class="lightbox__meta">
         <span class="lightbox__name" id="photo-lightbox-name"></span>
         <span class="lightbox__theme" id="photo-lightbox-note"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="food-picker" id="food-picker" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="food-picker-title" hidden>
+    <div class="food-picker__panel">
+      <header class="food-picker__head">
+        <div class="food-picker__head-text">
+          <p class="food-picker__eyebrow">Pre-order · optional</p>
+          <h3 id="food-picker-title">Choose food and drinks</h3>
+        </div>
+        <div class="food-picker__head-actions">
+          <button type="button" class="food-picker__side-toggle" data-fp-toggle-side aria-controls="food-picker-side" aria-expanded="true" title="Hide order">
+            Your order
+          </button>
+          <button class="food-picker__x" type="button" aria-label="Close" data-fp-close>&times;</button>
+        </div>
+      </header>
+      <div class="food-picker__body">
+        <div class="food-picker__menu dm">
+          <div class="dm-menus" data-fp-menus role="tablist" aria-label="Menu type"></div>
+          <div class="dm-toolbar" data-fp-sections role="tablist" aria-label="Menu sections"></div>
+          <div class="dm-subs" data-fp-subs hidden></div>
+          <p class="dm-status" data-fp-status role="status">Loading menu…</p>
+          <div class="dm-grid" data-fp-grid aria-live="polite"></div>
+        </div>
+        <aside class="food-picker__side" id="food-picker-side" data-fp-side>
+          <div class="food-picker__side-head">
+            <h4>Your order</h4>
+            <button type="button" class="food-picker__side-collapse" data-fp-toggle-side aria-label="Collapse order">›</button>
+          </div>
+          <div class="food-picker__cart" data-fp-cart></div>
+          <div class="food-picker__totals" data-fp-totals></div>
+          <div class="food-picker__side-actions">
+            <button type="button" class="btn btn--outline" data-fp-skip>Skip order</button>
+            <button type="button" class="btn" data-fp-save>Add to order</button>
+          </div>
+        </aside>
+      </div>
+      <button type="button" class="food-picker__mobile-bar" data-fp-mobile-bar hidden>
+        <span data-fp-mobile-label>My list · 0 items</span>
+      </button>
+      <div class="food-picker__mobile-sheet" data-fp-mobile-sheet hidden aria-hidden="true">
+        <button type="button" class="food-picker__mobile-scrim" data-fp-mobile-close aria-label="Close order"></button>
+        <div class="food-picker__mobile-panel" role="dialog" aria-label="Your order">
+          <div class="food-picker__mobile-handle" data-fp-mobile-close></div>
+          <div class="food-picker__side-head">
+            <h4>Your order</h4>
+            <button type="button" class="food-picker__x food-picker__x--sm" data-fp-mobile-close aria-label="Close">&times;</button>
+          </div>
+          <div class="food-picker__cart" data-fp-cart-mobile></div>
+          <div class="food-picker__totals" data-fp-totals-mobile></div>
+          <div class="food-picker__side-actions">
+            <button type="button" class="btn btn--outline" data-fp-skip>Skip order</button>
+            <button type="button" class="btn" data-fp-save>Add to order</button>
+          </div>
+        </div>
+      </div>
+      <div class="dm-sheet food-picker__sheet" data-fp-pop hidden aria-hidden="true">
+        <button type="button" class="dm-sheet__backdrop" data-fp-close-pop aria-label="Close"></button>
+        <div class="dm-sheet__panel" role="dialog" aria-modal="true">
+          <button type="button" class="dm-sheet__x" data-fp-close-pop aria-label="Close">&times;</button>
+          <div class="dm-pop" data-fp-pop-body></div>
+        </div>
       </div>
     </div>
   </div>

@@ -100,6 +100,26 @@ function tiny_birthdays_enqueue_front() {
         return;
     }
 
+    if ($type === 'builder') {
+        wp_enqueue_style('tiny-cafe-menu-css', tiny_birthdays_asset('menu/css/menu.css'), ['tiny-cafe-builder'], $ver);
+        wp_enqueue_style(
+            'tiny-cafe-menu-fonts',
+            tiny_cafe_menu_fonts_url(),
+            [],
+            null
+        );
+        wp_enqueue_script('tiny-cafe-menu-api', tiny_birthdays_asset('menu/js/menu-api.js'), $app_deps, $ver, true);
+        wp_enqueue_script('tiny-cafe-menu-render', tiny_birthdays_asset('menu/js/render.js'), ['tiny-cafe-menu-api'], $ver, true);
+        wp_enqueue_script(
+            'tiny-cafe-food-picker',
+            tiny_birthdays_asset('birthdays/builder/js/food-picker.js'),
+            ['tiny-cafe-menu-render'],
+            $ver,
+            true
+        );
+        $app_deps[] = 'tiny-cafe-food-picker';
+    }
+
     $app_scripts = [
         'landing' => ['tiny-cafe-landing', 'birthdays/js/main.js'],
         'cakes' => ['tiny-cafe-cakes', 'cakes/js/main.js'],
