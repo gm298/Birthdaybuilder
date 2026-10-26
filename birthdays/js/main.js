@@ -72,7 +72,7 @@
           "Masterclass for 10 kids",
           "Food & drink credit · 3M weekday / 6M weekend. Extra orders are charged from the menu.",
         ],
-        mobileSummary: "20 guests · cake 22cm · dessert station · private terrace · masterclass",
+        mobileSummary: "20 guests · cake 22cm · piñata · dessert station · private terrace · masterclass",
       },
     ],
   };
@@ -116,6 +116,8 @@
     if (!grid || !compact) return;
 
     if (grid.hasAttribute("data-wp-managed")) {
+      initPackageScreen();
+      initPackageCards(grid);
       initPackageAccordion(compact);
       return;
     }
@@ -135,6 +137,7 @@
       legal.textContent = isMobile && data.legalMobile ? data.legalMobile : data.legal;
     }
 
+    packageCatalog = data.packages;
     grid.innerHTML = data.packages
       .map((pkg, index) => {
         const prev = index > 0 ? data.packages[index - 1] : null;
@@ -147,15 +150,17 @@
         const badge = pkg.badge
           ? `<span class="pkg__badge">${escapeHtml(pkg.badge)}</span>`
           : "";
+        const photo = `builder/img/packages/${encodeURIComponent(pkg.id)}.jpg`;
         return `
-          <a class="pkg" href="${packageBuilderUrl(pkg)}#details">
+          <button type="button" class="pkg" data-package="${escapeHtml(pkg.id)}">
+            <img class="pkg__photo" src="${photo}" alt="" width="480" height="360" loading="lazy">
             ${badge}
             <h3>${escapeHtml(pkg.name)}</h3>
             <div class="pkg__guests">${escapeHtml(pkg.guests)}</div>
             <div class="pkg__price">${escapeHtml(pkg.price)}</div>
             <ul class="pkg__features">${plusLine}${features}</ul>
-            <div class="pkg__cta">Customise this →</div>
-          </a>`;
+            <span class="pkg__cta">Customise this →</span>
+          </button>`;
       })
       .join("");
 
@@ -175,14 +180,32 @@
             <span class="pkg-compact__price">${escapeHtml(pkg.price)}</span>
           </button>
           <div class="pkg-compact__panel"${isOpen ? "" : " hidden"}>
+            <img class="pkg-compact__photo" src="builder/img/packages/${encodeURIComponent(pkg.id)}.jpg" alt="" width="480" height="300" loading="lazy">
             <span class="pkg-compact__summary">${escapeHtml(pkg.mobileSummary || "")}</span>
-            <a class="pkg-compact__cta" href="${packageBuilderUrl(pkg)}#details">Customise this →</a>
+            <button type="button" class="pkg-compact__cta" data-package="${escapeHtml(pkg.id)}">Customise this →</button>
           </div>
         </div>`;
       })
       .join("");
 
+    initPackageScreen();
+    initPackageCards(grid);
     initPackageAccordion(compact);
+  }
+
+  let packageCatalog = [];
+
+  function includedItems(pkg) {
+    const items = (pkg.features || []).slice();
+    const inherited = pkg.id === "signature" ? ["Table decor"] : pkg.id === "terrace" ? ["Requested themed party", "Table decor"] : [];
+    inherited.forEach((line) => {
+      if (items.some((item) => item.toLowerCase().startsWith(line.toLowerCase()))) return;
+      const afterTheme = items.findIndex((item) => /themed party/i.test(item));
+      const afterCake = items.findIndex((item) => /cake/i.test(item));
+      const at = afterTheme >= 0 ? afterTheme + 1 : afterCake >= 0 ? afterCake + 1 : 0;
+      items.splice(at, 0, line);
+    });
+    return items;
   }
 
   // Variant C (review §6): differences-only table, driven by the same
@@ -230,7 +253,7 @@
           ${renderRows(shared, "ctable__shared")}
         </table>
       </div>
-      <p class="packages__legal">Swipe the cards above to compare. Prices exclude 5% service and 10% tax.</p>`;
+      <p class="packages__legal">Prices exclude 5% service and 10% tax.</p>`;
     host.querySelector("#landing-compare-diffs")?.addEventListener("change", (e) => {
       host.querySelectorAll(".ctable__shared").forEach((row) => {
         row.hidden = e.target.checked;
@@ -238,10 +261,73 @@
     });
   }
 
+  function initPackageScreen() {
+    const screen = document.getElementById("pkg-screen");
+    if (!screen || screen.dataset.bound) return;
+    screen.dataset.bound = "1";
+    screen.querySelectorAll("[data-close-package]").forEach((el) => {
+      el.addEventListener("click", closePackageScreen);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !screen.hidden) closePackageScreen();
+    });
+  }
+
+  function openPackageScreen(id) {
+    const pkg = packageCatalog.find((item) => item.id === id);
+    const screen = document.getElementById("pkg-screen");
+    if (!pkg || !screen) return;
+    const photo = screen.querySelector(".pkg-screen__photo");
+    const title = screen.querySelector(".pkg-screen__title");
+    const guests = screen.querySelector(".pkg-screen__guests");
+    const price = screen.querySelector(".pkg-screen__price");
+    const list = screen.querySelector(".pkg-screen__list");
+    const cta = screen.querySelector(".pkg-screen__cta");
+    if (photo) {
+      photo.src = `builder/img/packages/${encodeURIComponent(pkg.id)}.jpg`;
+      photo.alt = pkg.name;
+    }
+    if (title) title.textContent = pkg.name;
+    if (guests) guests.textContent = pkg.guests || "";
+    if (price) price.textContent = pkg.price || "";
+    if (list) {
+      list.innerHTML = includedItems(pkg)
+        .map((item) => `<li>${escapeHtml(item)}</li>`)
+        .join("");
+    }
+    if (cta) cta.href = `${packageBuilderUrl(pkg)}#details`;
+    screen.hidden = false;
+    document.body.classList.add("pkg-screen-open");
+    screen.scrollTop = 0;
+  }
+
+  function closePackageScreen() {
+    const screen = document.getElementById("pkg-screen");
+    if (!screen) return;
+    screen.hidden = true;
+    document.body.classList.remove("pkg-screen-open");
+  }
+
+  function initPackageCards(root) {
+    if (!root || root.dataset.cardsBound) return;
+    root.dataset.cardsBound = "1";
+    root.addEventListener("click", (event) => {
+      const card = event.target.closest(".pkg");
+      if (!card || !root.contains(card)) return;
+      openPackageScreen(card.dataset.package);
+    });
+  }
+
   function initPackageAccordion(root) {
     if (!root || root.dataset.accordionBound) return;
     root.dataset.accordionBound = "1";
     root.addEventListener("click", (e) => {
+      const openScreen = e.target.closest("[data-package]");
+      if (openScreen && root.contains(openScreen)) {
+        e.preventDefault();
+        openPackageScreen(openScreen.dataset.package);
+        return;
+      }
       const toggle = e.target.closest(".pkg-compact__toggle");
       if (!toggle || !root.contains(toggle)) return;
       const item = toggle.closest(".pkg-compact__item");

@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=Tenor+Sans&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css?v=20261022a">
+  <link rel="stylesheet" href="css/styles.css?v=20261026s">
   <link rel="stylesheet" href="../shared/chrome.css?v=20261022a">
   <script src="../shared/analytics.js?v=20261022a"></script>
 </head>
@@ -190,7 +190,8 @@
         <p class="packages__note">Each package lists what is different. Food and drink are a credit toward the menu, not unlimited. Parties run 3 hours. Party changes need 24 hours’ notice; there is no refund for party cancellations.</p>
       </div>
       <div class="packages__grid" id="packages-grid">
-        <a class="pkg" href="builder/?package=simple#details">
+        <button type="button" class="pkg" data-package="simple">
+          <img class="pkg__photo" src="builder/img/packages/simple.jpg" alt="" width="480" height="360" loading="lazy">
           <h3>Simple celebration</h3>
           <div class="pkg__guests">5 guests included · add up to 9</div>
           <div class="pkg__price">IDR 2.3M</div>
@@ -201,36 +202,40 @@
             <li>Simple balloon decor</li>
             <li>Food &amp; drink credit · 750k weekday / 1.5M weekend. Extra orders are charged from the menu.</li>
           </ul>
-          <div class="pkg__cta">Customise this →</div>
-        </a>
-        <a class="pkg" href="builder/?package=signature#details">
+          <span class="pkg__cta">Customise this →</span>
+        </button>
+        <button type="button" class="pkg" data-package="signature">
+          <img class="pkg__photo" src="builder/img/packages/signature.jpg" alt="" width="480" height="360" loading="lazy">
           <h3>Signature themed party</h3>
           <div class="pkg__guests">10 guests included · add up to 20</div>
           <div class="pkg__price">IDR 5.3M</div>
           <ul class="pkg__features">
+            <li class="pkg__plus">Everything in Simple celebration, plus:</li>
             <li>Birthday cake · 18cm, 2 layers</li>
             <li>Requested themed party</li>
             <li>Medium balloon decor</li>
             <li>Photozone</li>
             <li>Food &amp; drink credit · 1.5M weekday / 3M weekend. Extra orders are charged from the menu.</li>
           </ul>
-          <div class="pkg__cta">Customise this →</div>
-        </a>
-        <a class="pkg" href="builder/?package=terrace#details">
+          <span class="pkg__cta">Customise this →</span>
+        </button>
+        <button type="button" class="pkg" data-package="terrace">
+          <img class="pkg__photo" src="builder/img/packages/terrace.jpg" alt="" width="480" height="360" loading="lazy">
           <h3>Private terrace event</h3>
           <div class="pkg__guests">20 guests included · add up to 35</div>
           <div class="pkg__price">IDR 12.7M</div>
           <ul class="pkg__features">
+            <li class="pkg__plus">Everything in Signature themed party, plus:</li>
+            <li>Birthday cake · 22cm, 2 layers</li>
             <li>Whole private terrace</li>
             <li>Full terrace balloon decor</li>
-            <li>Birthday cake · 22cm, 2 layers</li>
             <li>Photozone &amp; piñata</li>
             <li>Dessert station</li>
             <li>Masterclass for 10 kids</li>
             <li>Food &amp; drink credit · 3M weekday / 6M weekend. Extra orders are charged from the menu.</li>
           </ul>
-          <div class="pkg__cta">Customise this →</div>
-        </a>
+          <span class="pkg__cta">Customise this →</span>
+        </button>
       </div>
       <div class="pkg-compact" id="packages-compact">
         <div class="pkg-compact__item is-open" data-pkg="simple">
@@ -239,8 +244,9 @@
             <span class="pkg-compact__price">IDR 2.3M</span>
           </button>
           <div class="pkg-compact__panel">
+            <img class="pkg-compact__photo" src="builder/img/packages/simple.jpg" alt="" width="480" height="300" loading="lazy">
             <span class="pkg-compact__summary">5 guests · cake 15cm · themed party · table &amp; balloon decor</span>
-            <a class="pkg-compact__cta" href="builder/?package=simple#details">Customise this →</a>
+            <button type="button" class="pkg-compact__cta" data-package="simple">Customise this →</button>
           </div>
         </div>
         <div class="pkg-compact__item" data-pkg="signature">
@@ -249,8 +255,9 @@
             <span class="pkg-compact__price">IDR 5.3M</span>
           </button>
           <div class="pkg-compact__panel" hidden>
+            <img class="pkg-compact__photo" src="builder/img/packages/signature.jpg" alt="" width="480" height="300" loading="lazy">
             <span class="pkg-compact__summary">10 guests · cake 18cm · themed decor · medium balloons · photozone</span>
-            <a class="pkg-compact__cta" href="builder/?package=signature#details">Customise this →</a>
+            <button type="button" class="pkg-compact__cta" data-package="signature">Customise this →</button>
           </div>
         </div>
         <div class="pkg-compact__item" data-pkg="terrace">
@@ -259,8 +266,9 @@
             <span class="pkg-compact__price">IDR 12.7M</span>
           </button>
           <div class="pkg-compact__panel" hidden>
+            <img class="pkg-compact__photo" src="builder/img/packages/terrace.jpg" alt="" width="480" height="300" loading="lazy">
             <span class="pkg-compact__summary">20 guests · cake 22cm · dessert station · private terrace · masterclass</span>
-            <a class="pkg-compact__cta" href="builder/?package=terrace#details">Customise this →</a>
+            <button type="button" class="pkg-compact__cta" data-package="terrace">Customise this →</button>
           </div>
         </div>
       </div>
@@ -540,6 +548,19 @@
     <a class="btn btn--outline" href="#packages">Compare packages</a>
   </div>
 
+  <div class="pkg-screen" id="pkg-screen" role="dialog" aria-modal="true" aria-labelledby="pkg-screen-title" hidden>
+    <button type="button" class="pkg-screen__close" data-close-package aria-label="Close">&times;</button>
+    <img class="pkg-screen__photo" alt="">
+    <div class="pkg-screen__body">
+      <h3 class="pkg-screen__title" id="pkg-screen-title"></h3>
+      <p class="pkg-screen__guests"></p>
+      <p class="pkg-screen__price"></p>
+      <p class="pkg-screen__label">Included</p>
+      <ul class="pkg-screen__list"></ul>
+      <a class="btn pkg-screen__cta" href="builder/#details">Customise this</a>
+    </div>
+  </div>
+
   <div class="pkg-lightbox" id="pkg-lightbox" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="pkg-lightbox-name" hidden>
     <button type="button" class="pkg-lightbox__close" aria-label="Close">&times;</button>
     <figure class="pkg-lightbox__panel">
@@ -549,6 +570,6 @@
   </div>
 
   <script src="../shared/chrome.js?v=20261017d" defer></script>
-  <script src="js/main.js?v=20261022a" defer></script>
+  <script src="js/main.js?v=20261026r" defer></script>
 </body>
 </html>

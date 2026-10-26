@@ -393,6 +393,42 @@
     return partyState.foodOrder;
   }
 
+  function foodOrderLabel(item) {
+    const size = item.size ? ` (${item.size})` : "";
+    const qty = Number(item.qty) > 1 ? `${item.qty} × ` : "";
+    return `${qty}${item.name}${size}`;
+  }
+
+  function serviceTaxOn(amount) {
+    const net = Math.max(0, Math.round(Number(amount) || 0));
+    const service = Math.round(net * 0.05);
+    const tax = Math.round((net + service) * 0.1);
+    return { net, service, tax, total: net + service + tax };
+  }
+
+  function minimumSpendBalance(order) {
+    const unused = order && order.overCreditIdr > 0 ? 0 : Number(order?.remainingCreditIdr) || 0;
+    return serviceTaxOn(unused);
+  }
+
+  function estimateFoodFollowup() {
+    const order = partyState.foodOrder;
+    if (!order || (!order.creditIdr && !(order.items || []).length)) return [];
+    const names = (order.items || []).map((item) => ({
+      label: foodOrderLabel(item),
+      value: "",
+      kind: "is-food-name",
+    }));
+    return [
+      ...names,
+      {
+        label: "Minimum spend balance",
+        value: formatIdr(minimumSpendBalance(order).total),
+        kind: "is-balance",
+      },
+    ];
+  }
+
   let currentStepId = "details";
   let estimateExpanded = false;
   let quoteViewTracked = false;
@@ -2271,45 +2307,20 @@
           extraPeople > 0
             ? `${extraPeople} extra ${extraPeople === 1 ? "person" : "people"}`
             : "";
-        const balanceNote = foodOrder.items.length
-          ? foodOrder.overCreditIdr > 0
-            ? `Pre-order ${formatIdr(foodOrder.itemsTotalIdr)}. Remaining credit IDR 0 — over by ${formatIdr(foodOrder.overCreditIdr)}.`
-            : `Pre-order ${formatIdr(foodOrder.itemsTotalIdr)}. Remaining credit ${formatIdr(foodOrder.remainingCreditIdr)}.`
-          : "This is how much is included for you to purchase food and beverages. Anything above this credit is charged from the menu.";
         lines.push({
           label: "Food & drink credit",
           value: foodTotal,
-          detail: extraNote ? `${extraNote}. ${balanceNote}` : balanceNote,
+          detail: extraNote,
         });
       }
-      if (foodOrder.items.length) {
-        foodOrder.items.forEach((item) => {
-          const opts = item.optsLabel ? ` · ${item.optsLabel}` : "";
-          lines.push({
-            label: `Pre-order · ${item.name}${item.size ? ` (${item.size})` : ""}`,
-            value: 0,
-            qty: item.qty,
-            detail: `${item.qty} × ${formatIdr(item.unitPrice)}${opts} · drawn from package credit (${formatIdr(item.lineTotal)})`,
-            foodItem: true,
-          });
+      if (foodOrder.overCreditIdr > 0) {
+        subtotal += foodOrder.overCreditIdr;
+        lines.push({
+          label: "Food & drink over credit",
+          value: foodOrder.overCreditIdr,
+          detail: "Pre-order above the included package credit",
+          foodBalance: true,
         });
-        if (foodOrder.remainingCreditIdr > 0) {
-          lines.push({
-            label: "Remaining food & drink credit",
-            value: 0,
-            detail: `${formatIdr(foodOrder.remainingCreditIdr)} still available on the day`,
-            foodBalance: true,
-          });
-        }
-        if (foodOrder.overCreditIdr > 0) {
-          subtotal += foodOrder.overCreditIdr;
-          lines.push({
-            label: "Food & drink over credit",
-            value: foodOrder.overCreditIdr,
-            detail: "Pre-order above the included package credit",
-            foodBalance: true,
-          });
-        }
       }
 
       const decorUpgrade = decorUpgradeAmount();
@@ -2332,6 +2343,12 @@
           value: cakeUpgrade,
         });
       }
+
+      packageIncludedHighlights(pkg).forEach((label) => {
+        if (/^piñata$|^pinata$|dessert station/i.test(label)) {
+          lines.push({ label: `${label} (included with package)`, value: 0, included: true });
+        }
+      });
     }
 
     if (partyState.masterclassId) {
@@ -2370,6 +2387,7 @@
       if (!partyState.extras.includes(item.id)) return;
       const includedLabel = includedExtraLabel(item);
       if (includedLabel) {
+        if (TERRACE_INCLUDED_EXTRA_IDS.has(item.id)) return;
         lines.push({ label: `${item.name} (${includedLabel.toLowerCase()})`, value: 0, included: true });
         return;
       }
@@ -2675,10 +2693,12 @@
   }
 
   function quotationLineRows(q) {
-    return q.lines.map((line) => ({
-      label: line.label,
-      value: line.included ? "Included" : line.note ? "TBC" : formatIdr(line.value),
-    }));
+    return q.lines
+      .filter((line) => !line.foodItem && !(line.foodBalance && !Number(line.value)))
+      .map((line) => ({
+        label: line.label,
+        value: line.included ? "Included" : line.note ? "TBC" : formatIdr(line.value),
+      }));
   }
 
   function renderRunningEstimate() {
@@ -2716,6 +2736,7 @@
       { label: "Service 5%", value: formatIdr(q.service), kind: "" },
       { label: "Tax 10%", value: formatIdr(q.tax), kind: "" },
       { label: totalLabel, value: formatIdr(q.total), kind: "is-total" },
+      ...estimateFoodFollowup(),
     ];
     rowsEl.innerHTML = rows
       .map((row) => {
@@ -3457,6 +3478,7 @@
   justify-content: flex-end;
 }
 .quote-pdf-root .qp-totals { width: 270px; font-size: 14px; color: #5f7367 !important; }
+.quote-pdf-root .qp-totals--wide { width: 340px; }
 .quote-pdf-root .qp-totals-row {
   display: flex;
   justify-content: space-between;
@@ -3657,6 +3679,7 @@
   <p class="qp-estimate">Estimate only — final quotation confirmed by Tiny. Items marked TBC are priced on request.</p>
   <img class="qp-flowers" src="${flowers1}" alt="" crossorigin="anonymous">
 </div>
+${foodOrderPdfPage(header, metaBlock)}
 <div class="qp-page">
   ${header}
   ${metaBlock}
@@ -3701,7 +3724,7 @@
   <p class="qp-estimate">${escapeHtml(decorMockup.note || "")}</p>
 </div>`
         : ""
-    }${foodOrderPdfPage(header, metaBlock, flowers2)}${
+    }${
       cakeImage?.dataUrl
         ? `
 <div class="qp-page">
@@ -3717,9 +3740,11 @@
     }`;
   }
 
-  function foodOrderPdfPage(header, metaBlock, flowersSrc) {
+  function foodOrderPdfPage(header, metaBlock) {
     const order = syncFoodOrderCredit();
-    if (!order.items.length) return "";
+    if (!order.creditIdr && !order.items.length) return "";
+    const minimum = serviceTaxOn(order.creditIdr);
+    const balance = minimumSpendBalance(order);
     const rows = order.items
       .map((item) => {
         const opts = item.optsLabel ? `<div class="qp-note">${escapeHtml(item.optsLabel)}</div>` : "";
@@ -3731,16 +3756,8 @@
         </tr>`;
       })
       .join("");
-    const balance =
-      order.overCreditIdr > 0
-        ? `Package credit ${formatIdrInvoice(order.creditIdr)}. Pre-order ${formatIdrInvoice(order.itemsTotalIdr)}. Over credit ${formatIdrInvoice(order.overCreditIdr)} added to the quotation.`
-        : `Package credit ${formatIdrInvoice(order.creditIdr)}. Pre-order ${formatIdrInvoice(order.itemsTotalIdr)}. Remaining minimum spend / credit ${formatIdrInvoice(order.remainingCreditIdr)}.`;
-    return `
-<div class="qp-page">
-  ${header}
-  ${metaBlock}
-  <h2 class="qp-rules-title">Food &amp; drink pre-order</h2>
-  <table class="qp-items">
+    const orderBlock = order.items.length
+      ? `<table class="qp-items">
     <thead>
       <tr>
         <th>Details</th>
@@ -3750,20 +3767,39 @@
       </tr>
     </thead>
     <tbody>${rows}</tbody>
-  </table>
+  </table>`
+      : `<p class="qp-estimate">No food pre-ordered yet. The minimum spend is still available on the day.</p>`;
+    const note = [
+      "Service and tax are charged once on the full minimum spend, at the same 5% then 10% as the food.",
+      "Balance due on the day is the unused minimum spend with that service and tax.",
+      "These figures are already inside the quotation total on the first page and are not added again.",
+      order.overCreditIdr > 0
+        ? `Food above the minimum spend (${formatIdrInvoice(order.overCreditIdr)}) is already included in that total.`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return `
+<div class="qp-page">
+  ${header}
+  ${metaBlock}
+  <h2 class="qp-rules-title">Food order &amp; minimum spend</h2>
+  ${orderBlock}
   <div class="qp-totals-wrap">
-    <div class="qp-totals">
-      <div class="qp-totals-row"><span>Pre-order total :</span><span>${escapeHtml(formatIdrInvoice(order.itemsTotalIdr))}</span></div>
-      <div class="qp-totals-row"><span>Package credit :</span><span>${escapeHtml(formatIdrInvoice(order.creditIdr))}</span></div>
-      <div class="qp-totals-row is-grand"><span>${
-        order.overCreditIdr > 0 ? "Over credit :" : "Remaining credit :"
-      }</span><span class="qp-amount">${escapeHtml(
-        formatIdrInvoice(order.overCreditIdr > 0 ? order.overCreditIdr : order.remainingCreditIdr)
-      )}</span></div>
+    <div class="qp-totals qp-totals--wide">
+      ${
+        order.items.length
+          ? `<div class="qp-totals-row"><span>Pre-order total :</span><span>${escapeHtml(formatIdrInvoice(order.itemsTotalIdr))}</span></div>`
+          : ""
+      }
+      <div class="qp-totals-row"><span>Minimum spend :</span><span>${escapeHtml(formatIdrInvoice(minimum.net))}</span></div>
+      <div class="qp-totals-row"><span>Service (+5%) :</span><span>${escapeHtml(formatIdrInvoice(minimum.service))}</span></div>
+      <div class="qp-totals-row"><span>Tax (+10%) :</span><span>${escapeHtml(formatIdrInvoice(minimum.tax))}</span></div>
+      <div class="qp-totals-row is-grand"><span>Incl. service &amp; tax :</span><span class="qp-amount">${escapeHtml(formatIdrInvoice(minimum.total))}</span></div>
+      <div class="qp-totals-row is-dp"><span>Balance due on the day :</span><span>${escapeHtml(formatIdrInvoice(balance.total))}</span></div>
     </div>
   </div>
-  <p class="qp-estimate">${escapeHtml(balance)}</p>
-  ${flowersSrc ? `<img class="qp-flowers qp-flowers--right" src="${flowersSrc}" alt="" crossorigin="anonymous">` : ""}
+  <p class="qp-estimate">${escapeHtml(note)}</p>
 </div>`;
   }
 
@@ -4194,8 +4230,25 @@
     const cake =
       includes.find((item) => /\bcake\b/i.test(item)) ||
       (pkg.cakeSize ? `Birthday cake · ${pkg.cakeSize}` : "");
-    const dessert = includes.find((item) => /dessert/i.test(item));
-    return [cake, dessert].filter(Boolean);
+    return [cake].filter(Boolean);
+  }
+
+  function packageIncludedHighlights(pkg) {
+    const includes = pkg.includes || [];
+    const has = (re) => includes.some((item) => re.test(item));
+    const lines = [];
+    if (pkg.flags?.privateTerrace || pkg.id === "terrace") lines.push("Whole private terrace");
+    if (pkg.flags?.pinata || has(/piñata|pinata/i)) lines.push("Piñata");
+    if (pkg.flags?.dessertStation || has(/dessert station/i)) lines.push("Dessert station");
+    if (pkg.flags?.masterclass || has(/masterclass/i)) lines.push("Masterclass for 10 kids");
+    return lines;
+  }
+
+  function packagePinataDessertNote(pkg) {
+    const bits = packageIncludedHighlights(pkg)
+      .filter((line) => /piñata|pinata|dessert station/i.test(line))
+      .map((line) => line.toLowerCase());
+    return bits.length ? ` · ${bits.join(" · ")}` : "";
   }
 
   function packageCakeLine(pkg) {
@@ -4221,7 +4274,10 @@
 
   function packageOtherLines(pkg) {
     return (pkg.includes || []).filter(
-      (item) => !/cake|dessert|credit|spend|food|balloon|photo|decor|piñata|pinata|themed|table/i.test(item)
+      (item) =>
+        !/cake|dessert|credit|spend|food|balloon|photo|decor|piñata|pinata|themed|table|masterclass|private terrace|whole private/i.test(
+          item
+        )
     );
   }
 
@@ -4254,27 +4310,29 @@
     const compare = document.getElementById("package-compare");
     const pkg = selectedPackage();
     const packages = partyData.packages || [];
-    if (included) {
-      if (!pkg) {
-        included.innerHTML = `<p class="section-note">Add your guest count in step 01 and we’ll match a package.</p>`;
-      } else {
-        const groups = [
-          { title: "Decorations", items: decorItemsForPackage(pkg) },
-          { title: "Cake", items: packageCakeLines(pkg) },
-          {
-            title: "Minimum spend",
-            items: [packageSpendLine(pkg), packagePriceLine(pkg)].filter(Boolean),
-          },
-        ];
-        const other = packageOtherLines(pkg);
-        if (other.length) groups.push({ title: "Also included", items: other });
-        const recommendedId = recommendedPackageId();
-        included.innerHTML = `
+    let recommendationHtml = "";
+    let catsHtml = "";
+    if (!pkg) {
+      recommendationHtml = `<p class="section-note package-match">Add your guest count in step 01 and we’ll match a package.</p>`;
+    } else {
+      const groups = [
+        { title: "Decorations", items: decorItemsForPackage(pkg) },
+        { title: "Cake", items: packageCakeLines(pkg) },
+        {
+          title: "Minimum spend",
+          items: [packageSpendLine(pkg), packagePriceLine(pkg)].filter(Boolean),
+        },
+      ];
+      const other = [...packageIncludedHighlights(pkg), ...packageOtherLines(pkg)];
+      if (other.length) groups.push({ title: "Also included", items: other });
+      const recommendedId = recommendedPackageId();
+      recommendationHtml = `
           <p class="package-match">${
             pkg.id === recommendedId
               ? `Recommended for your guest count: <strong>${escapeHtml(pkg.name)}</strong>.`
               : `You chose <strong>${escapeHtml(pkg.name)}</strong> (recommended for ${escapeHtml(totalGuests())} guests: <strong>${escapeHtml((packages.find((p) => p.id === recommendedId) || pkg).name)}</strong>).`
-          } ${escapeHtml(pkg.guests)}. Prices are ${escapeHtml(selectedDayWord())} rates for the date you chose. You can switch below to any package that fits your guests.</p>
+          } ${escapeHtml(pkg.guests)}. Prices are ${escapeHtml(selectedDayWord())} rates for the date you chose. You can switch below to any package that fits your guests.</p>`;
+      catsHtml = `
           <div class="package-cats">
             ${groups
               .map((group) => {
@@ -4288,12 +4346,13 @@
               })
               .join("")}
           </div>`;
+    }
+    if (!packages.length) {
+      if (included) {
+        included.innerHTML = `${recommendationHtml}${catsHtml}`;
         bindPhotoExpand(included);
       }
-    }
-    if (!compare) return;
-    if (!packages.length) {
-      compare.innerHTML = "";
+      if (compare) compare.innerHTML = "";
       return;
     }
     const day = selectedDayWord();
@@ -4321,7 +4380,7 @@
         return `${stepUp}
         <div class="ladder__rung${isRecommended ? " ladder__rung--rec" : ""}${isCurrent ? " is-current" : ""}">
           <div class="ladder__head"><span>${escapeHtml(item.name)}${isRecommended ? " ★ Recommended" : ""}${isCurrent ? " · Selected" : ""}</span><span>${escapeHtml(day === "weekend" ? item.priceWeekend : item.priceWeekday)}</span></div>
-          <p>${escapeHtml(item.guests)} · cake ${escapeHtml(item.cakeSize || "")} · ${escapeHtml(packageSpendLine(item))}</p>
+          <p>${escapeHtml(item.guests)} · cake ${escapeHtml(item.cakeSize || "")}${escapeHtml(packagePinataDessertNote(item))} · ${escapeHtml(packageSpendLine(item))}</p>
           <button type="button" class="btn ladder__choose" data-choose-package="${escapeHtml(item.id)}"${!fits ? " disabled aria-disabled=\"true\"" : ""}>${
             !fits
               ? `Fits up to ${item.guestsMax} guests`
@@ -4366,9 +4425,26 @@
             .join("")}</tr>`
       )
       .join("");
+    if (included) {
+      included.innerHTML = `
+        <h3 class="builder-compare__title">Pick your level</h3>
+        ${recommendationHtml}
+        <div class="ladder">${ladder}</div>
+        ${catsHtml}`;
+      included.querySelectorAll("[data-choose-package]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          btn.textContent = "Selected ✓";
+          choosePackage(btn.dataset.choosePackage);
+          renderPackages();
+          renderSummary();
+          updateStepProgress();
+          maybeAutoAdvance();
+        });
+      });
+      bindPhotoExpand(included);
+    }
+    if (!compare) return;
     compare.innerHTML = `
-      <h3 class="builder-compare__title">Pick your level</h3>
-      <div class="ladder">${ladder}</div>
       <details class="builder-compare__full">
         <summary>Compare packages</summary>
         <label class="builder-compare__toggle"><input type="checkbox" id="compare-diffs-only" checked> Show only differences</label>
@@ -4383,16 +4459,6 @@
         </table>
       </details>
       <p class="builder-compare__note">Prices follow your selected ${escapeHtml(day)} date. They exclude 5% service and 10% tax. The food and drink credit is included in the package. Extra orders are charged from the menu.</p>`;
-    compare.querySelectorAll("[data-choose-package]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        btn.textContent = "Selected ✓";
-        choosePackage(btn.dataset.choosePackage);
-        renderPackages();
-        renderSummary();
-        updateStepProgress();
-        maybeAutoAdvance();
-      });
-    });
     compare.querySelector("#compare-diffs-only")?.addEventListener("change", (e) => {
       compare.querySelectorAll(".ctable__shared").forEach((row) => {
         row.hidden = e.target.checked;
@@ -4638,42 +4704,14 @@
     const food = partyData.food || {};
     const lede = document.getElementById("food-lede");
     const img = document.getElementById("food-image");
-    const list = document.getElementById("food-deposits");
     const included = document.getElementById("food-included");
     const heading = document.getElementById("food-heading");
     if (lede && food.lede) lede.textContent = food.lede;
     if (img && food.image) img.src = food.image;
 
     const deposits = food.depositByPackage || DEFAULT_PARTY.food.depositByPackage;
-    const selectedPkg = selectedPackage();
-    const selectedKey = packageDepositKey(selectedPkg);
+    const selectedKey = packageDepositKey(selectedPackage());
     const day = partyState.day;
-    const pkgMeta = [
-      { key: "simple", name: "Simple celebration" },
-      { key: "optimal", name: "Signature themed party" },
-      { key: "terrace", name: "Private terrace event" },
-    ];
-
-    if (list) {
-      list.innerHTML = pkgMeta
-        .map(({ key, name }) => {
-          const d = deposits[key];
-          if (!d) return "";
-          const active = key === selectedKey;
-          const weekdayRate =
-            day === "weekday"
-              ? `<span class="food-deposit__rate">${escapeHtml(d.weekdayLabel)}</span>`
-              : escapeHtml(d.weekdayLabel);
-          const weekendRate =
-            day === "weekend"
-              ? `<span class="food-deposit__rate">${escapeHtml(d.weekendLabel)}</span>`
-              : escapeHtml(d.weekendLabel);
-          return `<li class="food-deposit${active ? " is-active" : ""}"><strong>${escapeHtml(
-            name
-          )}</strong> · ${weekdayRate} weekday / ${weekendRate} weekend</li>`;
-        })
-        .join("");
-    }
 
     if (included || heading) {
       const d = deposits[selectedKey];
@@ -5084,12 +5122,24 @@
       `Service 5%: ${formatIdr(q.service)}`,
       `Tax 10%: ${formatIdr(q.tax)}`,
       `Estimated total: ${formatIdr(q.total)}`,
+      ...estimateFoodMessageLines(),
     ].filter((line, i, arr) => {
       if (line === "" && (arr[i - 1] === "" || i === 0)) return false;
       return true;
     });
 
     return lines.join("\n");
+  }
+
+  function estimateFoodMessageLines() {
+    const order = partyState.foodOrder;
+    if (!order || (!order.creditIdr && !(order.items || []).length)) return [];
+    const names = (order.items || []).map((item) => `- ${foodOrderLabel(item)}`);
+    return [
+      "",
+      ...(names.length ? ["Food order:", ...names] : []),
+      `Minimum spend balance: ${formatIdr(minimumSpendBalance(order).total)}`,
+    ];
   }
 
   function initSend() {

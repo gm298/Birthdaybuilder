@@ -566,6 +566,23 @@ body.steps-pinned .site-header {
   cursor: pointer;
 }
 
+.builder-estimate__table tr.is-food-name th,
+.builder-estimate__table tr.is-food-name td {
+  border-bottom: 0;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  font-weight: 500;
+  color: #4d5e54;
+}
+
+.builder-estimate__table tr.is-balance th,
+.builder-estimate__table tr.is-balance td {
+  border-bottom: 0;
+  padding-top: 8px;
+  font-weight: 600;
+  color: var(--deep);
+}
+
 .builder-estimate__toggle {
   display: inline-flex;
   align-items: center;
@@ -682,7 +699,7 @@ body.steps-pinned .site-header {
 }
 
 .builder-compare__title {
-  margin: 8px 0 12px;
+  margin: 0 0 8px;
   font-size: 22px;
   color: var(--deep);
 }
@@ -1908,6 +1925,21 @@ body.time-modal-open {
 
 .photo-card--decor-pkg.is-selected .photo-card__media {
   aspect-ratio: 4 / 5;
+}
+
+/* Size decoration photos to the space under the step bar and above the estimate bar. */
+.photo-grid--decor .photo-card--decor-pkg .photo-card__media,
+.photo-grid--decor .photo-card--decor-pkg.is-compact .photo-card__media,
+.photo-grid--decor .photo-card--decor-pkg.is-selected .photo-card__media {
+  aspect-ratio: auto;
+  height: clamp(150px, calc(100dvh - var(--steps-bar-h, 148px) - var(--estimate-h, 72px) - 520px), 360px);
+}
+
+.photo-grid--decor .photo-card--decor-pkg .photo-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
 .photo-card--decor-pkg.is-locked {

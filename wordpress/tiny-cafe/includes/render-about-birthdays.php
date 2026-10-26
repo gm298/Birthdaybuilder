@@ -132,7 +132,7 @@ function tiny_birthdays_render_about_birthdays($attrs = []) {
         </div>
         <div class="pkg-compact__item" data-pkg="terrace">
           <button type="button" class="pkg-compact__toggle" aria-expanded="false"><span class="pkg-compact__name">Private terrace event</span><span class="pkg-compact__price">IDR 12.7M</span></button>
-          <div class="pkg-compact__panel" hidden><span class="pkg-compact__summary">20 guests · cake 22cm · dessert station · private terrace · masterclass</span><a class="pkg-compact__cta" href="<?php echo $builder_terrace; ?>">Customise this →</a></div>
+          <div class="pkg-compact__panel" hidden><span class="pkg-compact__summary">20 guests · cake 22cm · piñata · dessert station · private terrace · masterclass</span><a class="pkg-compact__cta" href="<?php echo $builder_terrace; ?>">Customise this →</a></div>
         </div>
       </div>
       <div class="pkg-compare" id="package-compare">

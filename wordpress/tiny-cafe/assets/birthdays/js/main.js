@@ -72,7 +72,7 @@
           "Masterclass for 10 kids",
           "Food & drink credit · 3M weekday / 6M weekend. Extra orders are charged from the menu.",
         ],
-        mobileSummary: "20 guests · cake 22cm · dessert station · private terrace · masterclass",
+        mobileSummary: "20 guests · cake 22cm · piñata · dessert station · private terrace · masterclass",
       },
     ],
   };

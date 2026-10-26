@@ -4117,29 +4117,42 @@ window.addEventListener("message", (event) => {
   else loadInvoice(id);
 });
 
+function serviceTaxOn(amount) {
+  const net = Math.max(0, Math.round(Number(amount) || 0));
+  const service = Math.round(net * 0.05);
+  const tax = Math.round((net + service) * 0.1);
+  return { net, service, tax, total: net + service + tax };
+}
+
 function foodOrderSectionHtml(foodOrder) {
   const order = foodOrder && typeof foodOrder === "object" ? foodOrder : null;
   const items = Array.isArray(order?.items) ? order.items : [];
-  if (!items.length) {
+  const credit = Number(order?.creditIdr) || 0;
+  if (!items.length && !credit) {
     return `<section>
       <h3>Food order</h3>
       <p class="muted">No pre-order — guests can order on the day from the package credit.</p>
     </section>`;
   }
-  const credit = Number(order.creditIdr) || 0;
   const total = Number(order.itemsTotalIdr) || items.reduce((sum, item) => sum + (Number(item.lineTotal) || 0), 0);
   const remaining = Number(order.remainingCreditIdr) || Math.max(0, credit - total);
   const over = Number(order.overCreditIdr) || Math.max(0, total - credit);
+  const minimum = serviceTaxOn(credit);
+  const balance = serviceTaxOn(over > 0 ? 0 : remaining);
   return `<section>
     <h3>Food order</h3>
     <ul class="kv">
-      <li><span>Package credit</span><span>${escapeHtml(formatIdr(credit))}</span></li>
       <li><span>Pre-order total</span><span>${escapeHtml(formatIdr(total))}</span></li>
-      <li><span>${over > 0 ? "Over credit" : "Remaining credit"}</span><span>${escapeHtml(
-        formatIdr(over > 0 ? over : remaining)
-      )}</span></li>
+      <li><span>Minimum spend</span><span>${escapeHtml(formatIdr(minimum.net))}</span></li>
+      <li><span>Service 5%</span><span>${escapeHtml(formatIdr(minimum.service))}</span></li>
+      <li><span>Tax 10%</span><span>${escapeHtml(formatIdr(minimum.tax))}</span></li>
+      <li><span>Incl. service &amp; tax</span><span>${escapeHtml(formatIdr(minimum.total))}</span></li>
+      <li><span>Balance due on the day</span><span>${escapeHtml(formatIdr(balance.total))}</span></li>
+      ${over > 0 ? `<li><span>Over minimum spend</span><span>${escapeHtml(formatIdr(over))}</span></li>` : ""}
     </ul>
-    <ul class="quote-list" style="margin-top:12px">
+    ${
+      items.length
+        ? `<ul class="quote-list" style="margin-top:12px">
       ${items
         .map((item) => {
           const opts = item.optsLabel ? ` · ${escapeHtml(item.optsLabel)}` : "";
@@ -4149,18 +4162,23 @@ function foodOrderSectionHtml(foodOrder) {
           )}</span></li>`;
         })
         .join("")}
-    </ul>
+    </ul>`
+        : `<p class="muted">No food pre-ordered yet.</p>`
+    }
+    <p class="muted">Service and tax are on the full minimum spend. The balance due on the day already includes service and tax on the unused amount, and is not added again to the quotation total.</p>
   </section>`;
 }
 
-function foodOrderPdfPageHtml(header, meta, foodOrder, flowersSrc) {
+function foodOrderPdfPageHtml(header, meta, foodOrder) {
   const order = foodOrder && typeof foodOrder === "object" ? foodOrder : null;
   const items = Array.isArray(order?.items) ? order.items : [];
-  if (!items.length) return "";
-  const credit = Number(order.creditIdr) || 0;
-  const total = Number(order.itemsTotalIdr) || items.reduce((sum, item) => sum + (Number(item.lineTotal) || 0), 0);
-  const remaining = Number(order.remainingCreditIdr) || Math.max(0, credit - total);
-  const over = Number(order.overCreditIdr) || Math.max(0, total - credit);
+  const credit = Number(order?.creditIdr) || 0;
+  if (!items.length && !credit) return "";
+  const total = Number(order?.itemsTotalIdr) || items.reduce((sum, item) => sum + (Number(item.lineTotal) || 0), 0);
+  const remaining = Number(order?.remainingCreditIdr) || Math.max(0, credit - total);
+  const over = Number(order?.overCreditIdr) || Math.max(0, total - credit);
+  const minimum = serviceTaxOn(credit);
+  const balance = serviceTaxOn(over > 0 ? 0 : remaining);
   const rows = items
     .map((item) => {
       const qty = Number(item.qty) || 1;
@@ -4175,23 +4193,29 @@ function foodOrderPdfPageHtml(header, meta, foodOrder, flowersSrc) {
       </tr>`;
     })
     .join("");
-  const balance =
-    over > 0
-      ? `Package credit ${formatIdr(credit)}. Pre-order ${formatIdr(total)}. Over credit ${formatIdr(over)} added to the quotation.`
-      : `Package credit ${formatIdr(credit)}. Pre-order ${formatIdr(total)}. Remaining minimum spend / credit ${formatIdr(remaining)}.`;
+  const orderBlock = items.length
+    ? `<table class="qp-items"><thead><tr><th>Details</th><th class="qp-num">Price</th><th class="qp-qty">Qty</th><th class="qp-num">Total</th></tr></thead><tbody>${rows}</tbody></table>`
+    : `<p class="qp-estimate">No food pre-ordered yet. The minimum spend is still available on the day.</p>`;
+  const note = [
+    "Service and tax are charged once on the full minimum spend, at the same 5% then 10% as the food.",
+    "Balance due on the day is the unused minimum spend with that service and tax.",
+    "These figures are already inside the quotation total on the first page and are not added again.",
+    over > 0 ? `Food above the minimum spend (${formatIdr(over)}) is already included in that total.` : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return `<div class="qp-page">${header}${meta}
-    <h2 class="qp-rules-title">Food &amp; drink pre-order</h2>
-    <table class="qp-items"><thead><tr><th>Details</th><th class="qp-num">Price</th><th class="qp-qty">Qty</th><th class="qp-num">Total</th></tr></thead>
-    <tbody>${rows}</tbody></table>
-    <div class="qp-totals-wrap"><div class="qp-totals">
-      <div class="qp-totals-row"><span>Pre-order total :</span><span>${escapeHtml(formatIdr(total))}</span></div>
-      <div class="qp-totals-row"><span>Package credit :</span><span>${escapeHtml(formatIdr(credit))}</span></div>
-      <div class="qp-totals-row is-grand"><span>${over > 0 ? "Over credit :" : "Remaining credit :"}</span><span class="qp-amount">${escapeHtml(
-        formatIdr(over > 0 ? over : remaining)
-      )}</span></div>
+    <h2 class="qp-rules-title">Food order &amp; minimum spend</h2>
+    ${orderBlock}
+    <div class="qp-totals-wrap"><div class="qp-totals qp-totals--wide">
+      ${items.length ? `<div class="qp-totals-row"><span>Pre-order total :</span><span>${escapeHtml(formatIdr(total))}</span></div>` : ""}
+      <div class="qp-totals-row"><span>Minimum spend :</span><span>${escapeHtml(formatIdr(minimum.net))}</span></div>
+      <div class="qp-totals-row"><span>Service (+5%) :</span><span>${escapeHtml(formatIdr(minimum.service))}</span></div>
+      <div class="qp-totals-row"><span>Tax (+10%) :</span><span>${escapeHtml(formatIdr(minimum.tax))}</span></div>
+      <div class="qp-totals-row is-grand"><span>Incl. service &amp; tax :</span><span class="qp-amount">${escapeHtml(formatIdr(minimum.total))}</span></div>
+      <div class="qp-totals-row is-dp"><span>Balance due on the day :</span><span>${escapeHtml(formatIdr(balance.total))}</span></div>
     </div></div>
-    <p class="qp-estimate">${escapeHtml(balance)}</p>
-    ${flowersSrc ? `<img class="qp-flowers qp-flowers--right" src="${flowersSrc}" alt="">` : ""}
+    <p class="qp-estimate">${escapeHtml(note)}</p>
   </div>`;
 }
 
@@ -4627,6 +4651,7 @@ function ensureInvoicePdfStyles() {
 .quote-pdf-root .qp-note { margin-top: 3px; font-size: 11px; color: rgba(95, 115, 103, 0.72) !important; line-height: 1.4; }
 .quote-pdf-root .qp-totals-wrap { margin-top: 18px; display: flex; justify-content: flex-end; }
 .quote-pdf-root .qp-totals { width: 270px; font-size: 14px; color: #5f7367 !important; }
+.quote-pdf-root .qp-totals--wide { width: 340px; }
 .quote-pdf-root .qp-totals-row { display: flex; justify-content: space-between; gap: 18px; padding: 5px 0; }
 .quote-pdf-root .qp-totals-row.is-grand { margin-top: 8px; font-weight: 700; font-size: 16px; }
 .quote-pdf-root .qp-totals-row.is-grand .qp-amount { border-bottom: 3px double #5f7367; padding-bottom: 2px; }
@@ -4674,6 +4699,7 @@ function invoicePdfMarkup(form, row, extras) {
     <div class="qp-meta-right"><div><strong>Date</strong> : ${escapeHtml(formatLongDate(form.party_date))}</div></div>
   </div>`;
   const rows = (form.quote.lines || [])
+    .filter((line) => !line.foodItem && !(line.foodBalance && !Number(line.value)))
     .map((line) => {
       const qty = Number(line.qty) || 1;
       const total = Number(line.value) || qty * (Number(line.price) || 0);
@@ -4700,7 +4726,10 @@ function invoicePdfMarkup(form, row, extras) {
     </div></div>
     <p class="qp-estimate">Estimate only — final quotation confirmed by Tiny. Items marked TBC are priced on request.${bankLine ? ` Bank transfer: ${escapeHtml(bankLine)}.` : ""}</p>
     <img class="qp-flowers" src="${flowers1}" alt="">
-  </div>`, `<div class="qp-page">${header}${meta}
+  </div>`];
+  const foodPage = foodOrderPdfPageHtml(header, meta, extras.foodOrder || form.foodOrder);
+  if (foodPage) pages.push(foodPage);
+  pages.push(`<div class="qp-page">${header}${meta}
     <h2 class="qp-rules-title">Reservation Rules:</h2>
     <div class="qp-rules-grid">
       <div class="qp-rule"><h4>Hold Time for Reservations:</h4><p>Reservations will be held for a maximum of 20 minutes after the designated reservation time. If guests fail to arrive within this time frame, the reservation may be released to accommodate other diners.</p></div>
@@ -4711,7 +4740,7 @@ function invoicePdfMarkup(form, row, extras) {
       <div class="qp-rule"><h4>Special Requests:</h4><p>Guests must ensure all special requests are communicated and provide mandatory details at least 4 days before the event.</p></div>
     </div>
     <img class="qp-flowers qp-flowers--right" src="${flowers2}" alt="">
-  </div>`];
+  </div>`);
   const decorSrc = extras.decorPhotoUrl || extras.backdropUrl;
   if (decorSrc) {
     const colours = (extras.decor?.balloonColours || [])
@@ -4725,8 +4754,6 @@ function invoicePdfMarkup(form, row, extras) {
       <p class="qp-estimate">${escapeHtml([extras.decor?.backdropName ? `Name: ${extras.decor.backdropName}` : "", colours ? `Balloon colours: ${colours}` : "", form.decor?.notes || ""].filter(Boolean).join(". "))}</p>
     </div>`);
   }
-  const foodPage = foodOrderPdfPageHtml(header, meta, extras.foodOrder || form.foodOrder, flowers2);
-  if (foodPage) pages.push(foodPage);
   if (extras.cakeUrl) {
     const cakeBits = [form.cake?.size ? `Size ${form.cake.size}` : "", form.cake?.design || "", form.cake?.theme ? `Theme ${form.cake.theme}` : ""].filter(Boolean);
     pages.push(`<div class="qp-page">${header}${meta}

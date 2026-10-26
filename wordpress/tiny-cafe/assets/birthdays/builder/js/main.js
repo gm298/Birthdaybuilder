@@ -2303,6 +2303,12 @@
           value: cakeUpgrade,
         });
       }
+
+      packageIncludedHighlights(pkg).forEach((label) => {
+        if (/^piñata$|^pinata$|dessert station/i.test(label)) {
+          lines.push({ label: `${label} (included with package)`, value: 0, included: true });
+        }
+      });
     }
 
     if (partyState.masterclassId) {
@@ -2341,6 +2347,7 @@
       if (!partyState.extras.includes(item.id)) return;
       const includedLabel = includedExtraLabel(item);
       if (includedLabel) {
+        if (TERRACE_INCLUDED_EXTRA_IDS.has(item.id)) return;
         lines.push({ label: `${item.name} (${includedLabel.toLowerCase()})`, value: 0, included: true });
         return;
       }
@@ -4132,8 +4139,25 @@
     const cake =
       includes.find((item) => /\bcake\b/i.test(item)) ||
       (pkg.cakeSize ? `Birthday cake · ${pkg.cakeSize}` : "");
-    const dessert = includes.find((item) => /dessert/i.test(item));
-    return [cake, dessert].filter(Boolean);
+    return [cake].filter(Boolean);
+  }
+
+  function packageIncludedHighlights(pkg) {
+    const includes = pkg.includes || [];
+    const has = (re) => includes.some((item) => re.test(item));
+    const lines = [];
+    if (pkg.flags?.privateTerrace || pkg.id === "terrace") lines.push("Whole private terrace");
+    if (pkg.flags?.pinata || has(/piñata|pinata/i)) lines.push("Piñata");
+    if (pkg.flags?.dessertStation || has(/dessert station/i)) lines.push("Dessert station");
+    if (pkg.flags?.masterclass || has(/masterclass/i)) lines.push("Masterclass for 10 kids");
+    return lines;
+  }
+
+  function packagePinataDessertNote(pkg) {
+    const bits = packageIncludedHighlights(pkg)
+      .filter((line) => /piñata|pinata|dessert station/i.test(line))
+      .map((line) => line.toLowerCase());
+    return bits.length ? ` · ${bits.join(" · ")}` : "";
   }
 
   function packageCakeLine(pkg) {
@@ -4159,7 +4183,10 @@
 
   function packageOtherLines(pkg) {
     return (pkg.includes || []).filter(
-      (item) => !/cake|dessert|credit|spend|food|balloon|photo|decor|piñata|pinata|themed|table/i.test(item)
+      (item) =>
+        !/cake|dessert|credit|spend|food|balloon|photo|decor|piñata|pinata|themed|table|masterclass|private terrace|whole private/i.test(
+          item
+        )
     );
   }
 
@@ -4204,7 +4231,7 @@
             items: [packageSpendLine(pkg), packagePriceLine(pkg)].filter(Boolean),
           },
         ];
-        const other = packageOtherLines(pkg);
+        const other = [...packageIncludedHighlights(pkg), ...packageOtherLines(pkg)];
         if (other.length) groups.push({ title: "Also included", items: other });
         const recommendedId = recommendedPackageId();
         included.innerHTML = `
@@ -4259,7 +4286,7 @@
         return `${stepUp}
         <div class="ladder__rung${isRecommended ? " ladder__rung--rec" : ""}${isCurrent ? " is-current" : ""}">
           <div class="ladder__head"><span>${escapeHtml(item.name)}${isRecommended ? " ★ Recommended" : ""}${isCurrent ? " · Selected" : ""}</span><span>${escapeHtml(day === "weekend" ? item.priceWeekend : item.priceWeekday)}</span></div>
-          <p>${escapeHtml(item.guests)} · cake ${escapeHtml(item.cakeSize || "")} · ${escapeHtml(packageSpendLine(item))}</p>
+          <p>${escapeHtml(item.guests)} · cake ${escapeHtml(item.cakeSize || "")}${escapeHtml(packagePinataDessertNote(item))} · ${escapeHtml(packageSpendLine(item))}</p>
           <button type="button" class="btn ladder__choose" data-choose-package="${escapeHtml(item.id)}"${!fits ? " disabled aria-disabled=\"true\"" : ""}>${
             !fits
               ? `Fits up to ${item.guestsMax} guests`
