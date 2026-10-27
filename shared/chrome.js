@@ -188,10 +188,11 @@
   }
 
   function ctaHtml(page, p) {
-    if (page === "reserve") {
+    if (page === "reserve" || page === "menu") {
+      const reserveHref = page === "reserve" ? "#book" : p.reserve;
       return `
       <span class="site-header__caption">Cafe &amp; table reservations · 8:30–18:00</span>
-      <a class="btn" href="#book">Reserve</a>`;
+      <a class="btn" href="${reserveHref}">Reserve</a>`;
     }
     if (page === "events") {
       return `
@@ -250,6 +251,8 @@
         ${
           page === "reserve"
             ? `<a href="#book">Reserve a table</a>`
+            : page === "menu"
+              ? `<a href="${p.reserve}">Reserve a table</a>`
             : page === "events"
               ? `<a href="#upcoming-events">See upcoming events</a>`
               : `<a href="${whatsappHref(page)}" target="_blank" rel="noopener noreferrer" data-wa="${

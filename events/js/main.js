@@ -523,13 +523,17 @@
     return [HERO];
   }
 
+  function photoButton(url, index, alt) {
+    return `<button class="event-photo" type="button" data-expand-photo="${index}" aria-label="View larger picture">
+        <img src="${escapeHtml(url)}" alt="${alt}">
+      </button>`;
+  }
+
   function flyerHtml(event) {
     const images = eventGallery(event);
     const name = escapeHtml(event.name || "Event");
     if (images.length === 1) {
-      return `<figure class="event-flyer">
-          <img src="${escapeHtml(images[0])}" alt="${name} flyer">
-        </figure>`;
+      return `<figure class="event-media">${photoButton(images[0], 0, `${name} flyer`)}</figure>`;
     }
     return `<div class="event-slider" data-slider>
         <div class="event-slider__viewport">
@@ -537,7 +541,7 @@
             ${images
               .map(
                 (url, index) =>
-                  `<figure class="event-slider__slide"><img src="${escapeHtml(url)}" alt="${name} picture ${index + 1}"></figure>`
+                  `<figure class="event-slider__slide">${photoButton(url, index, `${name} picture ${index + 1}`)}</figure>`
               )
               .join("")}
           </div>
@@ -553,6 +557,76 @@
             .join("")}
         </div>
       </div>`;
+  }
+
+  let lightboxUrls = [];
+  let lightboxIndex = 0;
+  let lightboxReady = false;
+
+  function lightboxEl() {
+    let box = document.getElementById("event-lightbox");
+    if (box) return box;
+    box = document.createElement("div");
+    box.id = "event-lightbox";
+    box.className = "event-lightbox";
+    box.hidden = true;
+    box.innerHTML = `
+      <button class="event-lightbox__backdrop" type="button" data-lightbox-close aria-label="Close picture"></button>
+      <button class="event-lightbox__nav event-lightbox__nav--prev" type="button" data-lightbox-prev aria-label="Previous picture">‹</button>
+      <img class="event-lightbox__img" alt="">
+      <button class="event-lightbox__nav event-lightbox__nav--next" type="button" data-lightbox-next aria-label="Next picture">›</button>
+      <button class="event-lightbox__close" type="button" data-lightbox-close aria-label="Close picture">×</button>`;
+    document.body.appendChild(box);
+    return box;
+  }
+
+  function paintLightbox() {
+    const box = lightboxEl();
+    const img = box.querySelector(".event-lightbox__img");
+    const multi = lightboxUrls.length > 1;
+    box.querySelector("[data-lightbox-prev]").hidden = !multi;
+    box.querySelector("[data-lightbox-next]").hidden = !multi;
+    if (img) {
+      img.src = lightboxUrls[lightboxIndex] || "";
+      img.alt = lightboxUrls.length > 1 ? `Event picture ${lightboxIndex + 1}` : "Event picture";
+    }
+  }
+
+  function stepLightbox(delta) {
+    if (lightboxUrls.length < 2) return;
+    lightboxIndex = (lightboxIndex + delta + lightboxUrls.length) % lightboxUrls.length;
+    paintLightbox();
+  }
+
+  function closeLightbox() {
+    const box = document.getElementById("event-lightbox");
+    if (!box || box.hidden) return;
+    box.hidden = true;
+    document.body.style.overflow = "";
+  }
+
+  function openLightbox(urls, index) {
+    lightboxUrls = urls.filter(Boolean);
+    if (!lightboxUrls.length) return;
+    lightboxIndex = Math.max(0, Math.min(index, lightboxUrls.length - 1));
+    const box = lightboxEl();
+    if (!lightboxReady) {
+      lightboxReady = true;
+      box.addEventListener("click", (event) => {
+        if (event.target.closest("[data-lightbox-close]")) closeLightbox();
+        else if (event.target.closest("[data-lightbox-prev]")) stepLightbox(-1);
+        else if (event.target.closest("[data-lightbox-next]")) stepLightbox(1);
+      });
+      document.addEventListener("keydown", (event) => {
+        if (box.hidden) return;
+        if (event.key === "Escape") closeLightbox();
+        else if (event.key === "ArrowRight") stepLightbox(1);
+        else if (event.key === "ArrowLeft") stepLightbox(-1);
+      });
+    }
+    paintLightbox();
+    box.hidden = false;
+    document.body.style.overflow = "hidden";
   }
 
   function eventHtml(code) {
@@ -1113,17 +1187,38 @@
         },
         { passive: true }
       );
+      let swiped = false;
       slider.addEventListener(
         "touchend",
         (event) => {
           const endX = event.changedTouches?.[0]?.clientX || 0;
           const delta = endX - startX;
           if (Math.abs(delta) < 40) return;
+          swiped = true;
           goTo(delta < 0 ? index + 1 : index - 1);
+          window.setTimeout(() => {
+            swiped = false;
+          }, 400);
         },
         { passive: true }
       );
+      slider.addEventListener("click", (event) => {
+        const trigger = event.target.closest("[data-expand-photo]");
+        if (!trigger) return;
+        if (swiped) {
+          swiped = false;
+          event.preventDefault();
+          return;
+        }
+        const urls = [...slider.querySelectorAll("[data-expand-photo] img")].map((img) => img.getAttribute("src") || "");
+        openLightbox(urls, Number(trigger.getAttribute("data-expand-photo")) || 0);
+      });
     }
+    app.querySelector(".event-media [data-expand-photo]")?.addEventListener("click", (event) => {
+      const trigger = event.currentTarget;
+      const img = trigger.querySelector("img");
+      openLightbox([img?.getAttribute("src") || ""], 0);
+    });
     appliedEventPromo = null;
     initPartySize();
     updateTicketDue();

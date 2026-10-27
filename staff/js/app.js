@@ -3646,7 +3646,19 @@ function paintEventLayoutUploads() {
   });
 }
 
+let eventSaveInFlight = false;
+
 async function saveStaffEvent() {
+  if (eventSaveInFlight) return;
+  eventSaveInFlight = true;
+  const submitBtn = document.querySelector('#event-form button[type="submit"]');
+  const submitLabel = submitBtn?.textContent || "Save event";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.setAttribute("aria-busy", "true");
+    submitBtn.textContent = "Saving…";
+  }
+  try {
   const statusEl = document.getElementById("event-status");
   const name = document.getElementById("event-name")?.value.trim() || "";
   const date = document.getElementById("event-date")?.value;
@@ -3849,6 +3861,14 @@ async function saveStaffEvent() {
     if ((window.location.hash || "").includes(requestId)) await loadDetail(requestId);
     else window.location.hash = `#/request/${requestId}`;
   } else showInbox("events");
+  } finally {
+    eventSaveInFlight = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.removeAttribute("aria-busy");
+      submitBtn.textContent = submitLabel;
+    }
+  }
 }
 
 function minutesToTime(minutes) {
